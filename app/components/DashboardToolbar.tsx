@@ -1,19 +1,20 @@
 'use client';
 
 import type { FilterConfig, Period } from '@/lib/types';
-import { PERIODS, AGENTS } from '@/lib/types';
+import { PERIODS } from '@/lib/types';
 
 interface DashboardToolbarProps {
   filter: FilterConfig;
   onChange: (patch: Partial<FilterConfig>) => void;
+  agents?: string[];
 }
 
-export default function DashboardToolbar({ filter, onChange }: DashboardToolbarProps) {
+export default function DashboardToolbar({ filter, onChange, agents = ['all'] }: DashboardToolbarProps) {
   return (
     <section className="toolbar">
       <span className="toolbar-label">AGENTS</span>
 
-      {AGENTS.map((name) => (
+      {agents.map((name) => (
         <button
           key={name}
           type="button"

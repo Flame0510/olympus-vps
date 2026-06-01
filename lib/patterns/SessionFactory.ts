@@ -46,9 +46,25 @@ export function shortLabel(sessionId: string): string {
 }
 
 export function nodeLabel(session: TreeNode): string {
-  if (session._virtualRoot) return 'Argus';
-  if (session._agentNode) return (session as TreeNode & { name: string }).name;
-  return session.name || shortLabel(session.session_id);
+  if (session._virtualRoot) return '';
+  if (session._agentNode) {
+    const raw = (session as TreeNode & { name: string }).name || '';
+    return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Agent';
+  }
+
+  const sid = session.session_id || '';
+  const label = (session.name || '').trim();
+
+  // lineage label umano ha priorità assoluta
+  if (label && !label.startsWith('agent:')) return label;
+
+  // main sessions: mostra nome workspace invece del session_id tecnico
+  if (sid.endsWith(':main')) {
+    const agent = extractAgentId(sid);
+    if (agent) return agent.charAt(0).toUpperCase() + agent.slice(1);
+  }
+
+  return label || shortLabel(sid);
 }
 
 export function isCronSession(sessionId: string): boolean {
@@ -72,54 +88,59 @@ export function buildSessionTree(sessions: Session[], filter: string): TreeNode 
   };
 
   const byId = new Map<string, TreeNode>();
-  const agentNodes = new Map<string, TreeNode>();
+  const groups = new Map<string, Session[]>();
 
   for (const session of filtered) {
-    const { session_id } = session;
-    if (!session_id) continue;
-    const agentId = extractAgentId(session_id);
-
-    if (!agentNodes.has(agentId)) {
-      const agentNode: TreeNode = {
-        session_id: `__agent__:${agentId}`,
-        name: agentId,
-        status: 'idle',
-        _agentNode: true,
-        children: [],
-      };
-      agentNodes.set(agentId, agentNode);
-      root.children!.push(agentNode);
-      byId.set(agentNode.session_id, agentNode);
-    }
-
+    if (!session.session_id) continue;
     const node: TreeNode = {
-      session_id,
-      name: session.label ?? shortLabel(session_id),
+      session_id: session.session_id,
+      name: session.label ?? shortLabel(session.session_id),
       status: session.status,
       model: session.model,
       cost_usd: session.cost_usd ?? 0,
       children: [],
     };
-
-    byId.set(session_id, node);
-    agentNodes.get(agentId)!.children!.push(node);
+    byId.set(session.session_id, node);
+    const aid = extractAgentId(session.session_id);
+    if (!groups.has(aid)) groups.set(aid, []);
+    groups.get(aid)!.push(session);
   }
 
-  // Re-parent nodes that have a known parent
-  for (const session of filtered) {
-    const { session_id, parent_id } = session;
-    if (!parent_id) continue;
-    const node = byId.get(session_id);
-    const parentNode = byId.get(parent_id);
-    if (!node || !parentNode || parentNode._virtualRoot) continue;
+  const hasChild = (parent: TreeNode, childId: string) =>
+    (parent.children ?? []).some((c) => c.session_id === childId);
 
-    const agentId = extractAgentId(session_id);
-    const agentNode = agentNodes.get(agentId);
-    if (agentNode) {
-      agentNode.children = agentNode.children!.filter((c) => c.session_id !== session_id);
+  for (const [aid, agentSessions] of groups.entries()) {
+    const mainId = `agent:${aid}:main`;
+    const mainNode = byId.get(mainId);
+
+    const agentNode: TreeNode =
+      mainNode ?? {
+        session_id: `__agent__:${aid}`,
+        name: aid,
+        status: 'idle',
+        _agentNode: true,
+        children: [],
+      };
+
+    root.children!.push(agentNode);
+
+    for (const s of agentSessions) {
+      const sid = s.session_id;
+      if (!sid) continue;
+      if (mainNode && sid === mainId) continue;
+
+      const node = byId.get(sid);
+      if (!node) continue;
+
+      const parentNode = s.parent_id ? byId.get(s.parent_id) : undefined;
+      if (parentNode && !parentNode._virtualRoot) {
+        parentNode.children = parentNode.children ?? [];
+        if (!hasChild(parentNode, sid)) parentNode.children.push(node);
+      } else {
+        agentNode.children = agentNode.children ?? [];
+        if (!hasChild(agentNode, sid)) agentNode.children.push(node);
+      }
     }
-    parentNode.children = parentNode.children ?? [];
-    parentNode.children.push(node);
   }
 
   return root;

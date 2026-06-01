@@ -19,6 +19,7 @@ export default function DashboardLayout({ initialCosts }: DashboardLayoutProps) 
     costs,
     filter,
     selectedSessionId,
+    availableAgents,
     visibleSessions,
     visibleEvents,
     setFilter,
@@ -29,7 +30,7 @@ export default function DashboardLayout({ initialCosts }: DashboardLayoutProps) 
     <main className="shell">
       <DashboardHeader costs={costs} />
 
-      <DashboardToolbar filter={filter} onChange={setFilter} />
+      <DashboardToolbar filter={filter} onChange={setFilter} agents={availableAgents} />
 
       <section className="layout">
         <article className="panel graph-panel">
