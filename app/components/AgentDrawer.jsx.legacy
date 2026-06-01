@@ -1,0 +1,215 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+
+const TOKEN = 'olympus2026';
+
+function formatUsd(value) {
+  return `$${Number(value || 0).toFixed(2)}`;
+}
+
+function formatUsdOrDash(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '-';
+  return formatUsd(value);
+}
+
+function formatTokens(value) {
+  if (value === null || value === undefined) return '-';
+  const num = Number(value || 0);
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
+  return String(num);
+}
+
+function formatTime(ts) {
+  if (!ts) return '--:--:--';
+  const numeric = Number(ts);
+  const millis = numeric < 1e12 ? numeric * 1000 : numeric;
+  return new Date(millis).toISOString().slice(11, 19);
+}
+
+function formatDuration(startTs, endTs) {
+  if (!startTs || !endTs) return '-';
+  const start = Number(startTs) < 1e12 ? Number(startTs) * 1000 : Number(startTs);
+  const end = Number(endTs) < 1e12 ? Number(endTs) * 1000 : Number(endTs);
+  const seconds = Math.max(0, Math.floor((end - start) / 1000));
+  const hh = String(Math.floor(seconds / 3600)).padStart(2, '0');
+  const mm = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+  const ss = String(seconds % 60).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+
+function truncate(value, max = 48) {
+  const s = String(value || '');
+  if (s.length <= max) return s;
+  return `${s.slice(0, max - 1)}…`;
+}
+
+function statusDot(status) {
+  const normalized = String(status || 'idle').toLowerCase();
+  if (normalized === 'working' || normalized === 'active') return '#44e18d';
+  if (normalized === 'error') return '#f07070';
+  return '#89a1ad';
+}
+
+function parseEventData(data) {
+  if (!data) return '';
+  try {
+    const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+    if (typeof parsed === 'string') return parsed;
+    return parsed?.message || parsed?.text || parsed?.event || JSON.stringify(parsed);
+  } catch {
+    return String(data);
+  }
+}
+
+export default function AgentDrawer({ sessionId, onClose }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [payload, setPayload] = useState(null);
+
+  const resolvedSessionId = useMemo(() => {
+    if (!sessionId) return null;
+    if (typeof sessionId === 'string') return sessionId;
+    return sessionId.session_id || sessionId.sessionId || sessionId.id || null;
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!resolvedSessionId) {
+      setPayload(null);
+      setError('');
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const load = async () => {
+        setLoading(true);
+      setError('');
+      try {
+        const res = await fetch(`/api/session?id=${encodeURIComponent(resolvedSessionId)}`, {
+          headers: { authorization: `Bearer ${TOKEN}` },
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error || 'Errore caricamento sessione');
+        }
+        setPayload(data);
+      } catch (e) {
+        if (e.name !== 'AbortError') {
+          setPayload(null);
+          setError(e.message || 'Errore inatteso');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+    return () => controller.abort();
+  }, [resolvedSessionId]);
+
+  const session = payload?.session;
+  const events = useMemo(() => (Array.isArray(payload?.events) ? payload.events : []), [payload]);
+  const children = useMemo(() => (Array.isArray(payload?.children) ? payload.children : []), [payload]);
+  const endedOrUpdated = session?.ended_at || session?.updated_at;
+
+  if (!resolvedSessionId) return null;
+
+  return (
+    <aside
+      style={{
+        position: 'fixed',
+        right: 0,
+        top: 0,
+        zIndex: 200,
+        width: 320,
+        maxWidth: '92vw',
+        height: '100vh',
+        overflowY: 'auto',
+        background: 'var(--bg)',
+        borderLeft: '1px solid var(--border, var(--line))',
+        color: 'var(--text)',
+        padding: 14,
+      }}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        style={{
+          border: '1px solid var(--border, var(--line))',
+          background: 'transparent',
+          color: 'var(--text)',
+          padding: '4px 8px',
+          cursor: 'pointer',
+          marginBottom: 10,
+        }}
+      >
+        [X] chiudi
+      </button>
+
+      {loading ? <div>Caricamento...</div> : null}
+      {error ? <div style={{ color: '#f07070' }}>{error}</div> : null}
+
+      {!loading && !error && session ? (
+        <>
+          <div style={{ borderTop: '1px solid var(--border, var(--line))', paddingTop: 10 }}>
+            <div style={{ color: 'var(--copper, var(--accent))', fontSize: 12, marginBottom: 8 }}>
+              {truncate(session.label || session.session_id, 40)}
+            </div>
+            <div style={{ color: 'var(--muted)', fontSize: 11, marginBottom: 10 }}>
+              {truncate(session.session_id, 60)}
+            </div>
+
+            <div style={{ display: 'grid', gap: 7, fontSize: 12 }}>
+              <div>
+                STATUS{' '}
+                <span style={{ color: statusDot(session.status) }}>●</span> {String(session.status || 'idle')}
+              </div>
+              <div>KIND {String(session.session_id || '').includes(':cron:') ? 'cron' : 'session'}</div>
+              <div>MODEL {session.model || '-'}</div>
+              <div>COST {formatUsdOrDash(session.cost_usd)}</div>
+              <div>
+                TOKENS in: {formatTokens(session.tokens_in)} out: {formatTokens(session.tokens_out)}
+              </div>
+              <div>STARTED {formatTime(session.started_at)}</div>
+              <div>UPDATED {formatTime(session.updated_at)}</div>
+              <div>ENDED {formatTime(session.ended_at)}</div>
+              <div>DURATION {formatDuration(session.started_at, endedOrUpdated)}</div>
+              <div>TASK {truncate(session.task_preview || '-', 200)}</div>
+            </div>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--border, var(--line))', marginTop: 14, paddingTop: 10 }}>
+            <div style={{ fontSize: 12, color: 'var(--copper, var(--accent))', marginBottom: 8 }}>AZIONI RECENTI</div>
+            {events.length === 0 ? <div style={{ fontSize: 12, color: 'var(--muted)' }}>Nessun evento</div> : null}
+            <div style={{ display: 'grid', gap: 6 }}>
+              {events.map((evt) => (
+                <div key={evt.id || `${evt.ts || 0}-${evt.type || 'event'}`} style={{ fontSize: 12 }}>
+                  <span style={{ color: 'var(--muted)', marginRight: 6 }}>{formatTime(evt.ts)}</span>
+                  <span style={{ marginRight: 6 }}>{evt.type || 'event'}</span>
+                  <span style={{ color: 'var(--muted)' }}>{truncate(parseEventData(evt.data), 80)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--border, var(--line))', marginTop: 14, paddingTop: 10 }}>
+            <div style={{ fontSize: 12, color: 'var(--copper, var(--accent))', marginBottom: 8 }}>SESSIONI FIGLIE</div>
+            {children.length === 0 ? <div style={{ fontSize: 12, color: 'var(--muted)' }}>Nessuna sessione figlia</div> : null}
+            <div style={{ display: 'grid', gap: 7 }}>
+              {children.map((child) => (
+                <div key={child.session_id} style={{ fontSize: 12 }}>
+                  <div>{truncate(child.session_id, 44)}</div>
+                  <div style={{ color: 'var(--muted)' }}>
+                    {child.status || 'idle'} {formatUsdOrDash(child.cost_usd)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : null}
+    </aside>
+  );
+}

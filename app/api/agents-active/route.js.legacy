@@ -1,0 +1,129 @@
+import fs from 'fs';
+import path from 'path';
+import Database from 'better-sqlite3';
+import { NextResponse } from 'next/server';
+
+const DB_PATH = process.env.OLYMPUS_DB || '/data/olympus/events.db';
+const TOKEN = process.env.OLYMPUS_TOKEN || 'olympus2026';
+
+export const dynamic = 'force-dynamic';
+
+function mapWorkspace(agentId) {
+  if (agentId === 'ops') return '/data/.openclaw/workspace-ops/';
+  const candidate = `/data/.openclaw/workspace-${agentId}/`;
+  if (fs.existsSync(candidate)) return candidate;
+  return '/data/.openclaw/';
+}
+
+function listWorkspaceFiles(workspacePath) {
+  const out = [];
+  const allowedExt = new Set(['.md', '.json', '.txt']);
+
+  function walk(dir, depth, prefix = '') {
+    if (depth > 1) return;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      const absPath = path.join(dir, entry.name);
+      const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+
+      if (entry.isDirectory()) {
+        walk(absPath, depth + 1, relPath);
+        continue;
+      }
+
+      const ext = path.extname(entry.name).toLowerCase();
+      if (allowedExt.has(ext)) {
+        out.push({
+          name: entry.name,
+          path: absPath,
+          rel_path: relPath,
+          type: ext === '.md' ? 'markdown' : ext === '.json' ? 'json' : 'text'
+        });
+      }
+    }
+  }
+
+  walk(workspacePath, 0);
+  return out.sort((a, b) => a.rel_path.localeCompare(b.rel_path));
+}
+
+function extractAgentId(sessionId) {
+  if (!sessionId || typeof sessionId !== 'string') return 'unknown';
+  const parts = sessionId.split(':');
+  if (parts.length >= 2 && parts[1]) return parts[1];
+  return parts[0] || 'unknown';
+}
+
+function readConfiguredAgents() {
+  try {
+    const raw = fs.readFileSync('/data/.openclaw/openclaw.json', 'utf8');
+    const parsed = JSON.parse(raw);
+    const list = parsed?.agents?.list;
+    if (!Array.isArray(list)) return [];
+    return list.filter((a) => a && typeof a.id === 'string' && a.id);
+  } catch {
+    return [];
+  }
+}
+
+export async function GET(request) {
+  const auth = request.headers.get('authorization');
+  if (auth !== `Bearer ${TOKEN}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const db = new Database(DB_PATH, { readonly: true });
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const configuredAgents = readConfiguredAgents();
+
+    const rows = db.prepare(`
+      SELECT session_id, status, model, label, updated_at
+      FROM sessions
+      WHERE updated_at >= ?
+      ORDER BY updated_at DESC
+    `).all(cutoff);
+
+    db.close();
+
+    const grouped = new Map();
+
+    for (const row of rows) {
+      const agentId = extractAgentId(row.session_id);
+      if (!grouped.has(agentId)) grouped.set(agentId, []);
+      grouped.get(agentId).push(row);
+    }
+
+    const agents = configuredAgents.map((cfg) => {
+      const agent_id = cfg.id;
+      const sessions = (grouped.get(agent_id) || []).slice(0, 5);
+      const workspace_path = mapWorkspace(agent_id);
+      const files = listWorkspaceFiles(workspace_path);
+      const config_model = cfg.model || cfg.defaultModel || cfg.default_model || 'unknown';
+      const latestStatus = sessions[0]?.status;
+      const status = latestStatus === 'working' ? 'working' : latestStatus ? 'idle' : 'inactive';
+
+      return {
+        agent_id,
+        label: cfg.label || agent_id,
+        config_model,
+        workspace_path,
+        files,
+        sessions,
+        status,
+        config: cfg
+      };
+    });
+
+    return NextResponse.json(agents);
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

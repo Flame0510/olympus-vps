@@ -1,0 +1,92 @@
+import Database from 'better-sqlite3';
+import { NextResponse } from 'next/server';
+
+const DB_PATH = process.env.OLYMPUS_DB || '/data/olympus/events.db';
+const TOKEN = process.env.OLYMPUS_TOKEN || 'olympus2026';
+
+function getStartOfDaySeconds() {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return Math.floor(now.getTime() / 1000);
+}
+
+function tableExists(db, tableName) {
+  const row = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(tableName);
+  return Boolean(row);
+}
+
+function getColumnNames(db, tableName) {
+  return db
+    .prepare(`PRAGMA table_info(${tableName})`)
+    .all()
+    .map((c) => c.name);
+}
+
+export async function GET(request) {
+  const auth = request.headers.get('authorization');
+  if (auth !== `Bearer ${TOKEN}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const db = new Database(DB_PATH, { readonly: true });
+    const startOfDay = getStartOfDaySeconds();
+
+    const today = db
+      .prepare('SELECT COALESCE(SUM(cost_usd), 0) AS total FROM sessions WHERE started_at >= ?')
+      .get(startOfDay)?.total ?? 0;
+
+    const sessionsAllTime = db
+      .prepare('SELECT COALESCE(SUM(cost_usd), 0) AS total FROM sessions')
+      .get()?.total ?? 0;
+
+    let overrideAllTime = null;
+    if (tableExists(db, 'cost_override')) {
+      const columns = getColumnNames(db, 'cost_override');
+      const amountCol = columns.includes('amount_usd')
+        ? 'amount_usd'
+        : columns.includes('amount')
+          ? 'amount'
+          : null;
+      const orderCol = columns.includes('ts')
+        ? 'ts'
+        : columns.includes('updated_at')
+          ? 'updated_at'
+          : null;
+
+      if (amountCol && orderCol) {
+        const latestOverride = db
+          .prepare(`SELECT ${amountCol} AS amount FROM cost_override ORDER BY ${orderCol} DESC LIMIT 1`)
+          .get();
+        overrideAllTime = latestOverride?.amount ?? null;
+      }
+    }
+
+    const byModel = db
+      .prepare(
+        `SELECT
+          model,
+          COALESCE(SUM(cost_usd), 0) AS cost_usd,
+          COALESCE(SUM(tokens_in), 0) AS tokens_in,
+          COALESCE(SUM(tokens_out), 0) AS tokens_out
+        FROM sessions
+        WHERE started_at >= ?
+        GROUP BY model
+        ORDER BY cost_usd DESC`
+      )
+      .all(startOfDay);
+
+    db.close();
+
+    return NextResponse.json({
+      today,
+      allTime: overrideAllTime ?? sessionsAllTime,
+      allTimeSource: overrideAllTime !== null ? 'cost_override' : 'sessions',
+      byModel,
+    });
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

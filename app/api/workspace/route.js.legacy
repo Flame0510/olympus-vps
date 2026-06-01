@@ -1,0 +1,60 @@
+import fs from 'fs';
+import { NextResponse } from 'next/server';
+
+const TOKEN = process.env.OLYMPUS_TOKEN || 'olympus2026';
+const ALLOWED_PREFIX = '/data/.openclaw/';
+
+function isAuthorized(request) {
+  const auth = request.headers.get('authorization');
+  return auth === `Bearer ${TOKEN}`;
+}
+
+function isAllowedPath(path) {
+  if (!path || typeof path !== 'string') return false;
+  const normalized = path.replace(/\\/g, '/');
+  return normalized.startsWith(ALLOWED_PREFIX);
+}
+
+export async function GET(request) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const path = searchParams.get('path');
+
+  if (!isAllowedPath(path)) {
+    return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
+  }
+
+  try {
+    const content = fs.readFileSync(path, 'utf8');
+    return NextResponse.json({ content, path });
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function PUT(request) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const { path, content } = body || {};
+
+    if (!isAllowedPath(path)) {
+      return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
+    }
+
+    if (typeof content !== 'string') {
+      return NextResponse.json({ error: 'Invalid content' }, { status: 400 });
+    }
+
+    fs.writeFileSync(path, content, 'utf8');
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

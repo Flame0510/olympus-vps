@@ -1,0 +1,233 @@
+'use client';
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import * as d3 from 'd3';
+
+const STATUS_CLASS = new Set(['working', 'idle', 'error', 'active', 'completed']);
+
+function extractAgentId(sessionId) {
+  const parts = String(sessionId || '').split(':');
+  return parts[1] || 'unknown';
+}
+
+function getSessionId(session) {
+  if (!session) return '';
+  return session.session_id || session.sessionId || session.id || '';
+}
+
+function shortLabel(sessionId) {
+  const id = String(sessionId || '');
+  if (!id) return 'session';
+  const parts = id.split(':');
+  if (parts.length >= 4) {
+    return `${parts[2]}:${parts[3].slice(0, 6)}`;
+  }
+  if (parts.length >= 2) {
+    return `${parts[1]}:${parts[parts.length - 1].slice(0, 6)}`;
+  }
+  return id.slice(0, 14);
+}
+
+function nodeName(session) {
+  if (session._virtualRoot) return 'Argus';
+  if (session._agentNode) return session.name;
+  return session.label || shortLabel(getSessionId(session));
+}
+
+function normalizeStatus(status) {
+  if (STATUS_CLASS.has(status)) return status;
+  return 'idle';
+}
+
+export function buildTreeData(sessions, filter) {
+  const list = Array.isArray(sessions) ? sessions : [];
+  const normalizedFilter = String(filter || 'all').toLowerCase();
+  const filtered = normalizedFilter === 'all'
+    ? list
+    : list.filter((s) => extractAgentId(s?.session_id) === normalizedFilter);
+
+  const root = {
+    session_id: '__root__',
+    name: 'Argus',
+    status: 'idle',
+    _virtualRoot: true,
+    children: [],
+  };
+
+  const byId = new Map();
+  const agentNodes = new Map();
+
+  filtered.forEach((session) => {
+    const sessionId = getSessionId(session);
+    if (!sessionId) return;
+    const agentId = extractAgentId(sessionId);
+
+    if (!agentNodes.has(agentId)) {
+      const agentNode = {
+        session_id: `__agent__:${agentId}`,
+        name: agentId,
+        status: 'idle',
+        _agentNode: true,
+        children: [],
+      };
+      agentNodes.set(agentId, agentNode);
+      root.children.push(agentNode);
+      byId.set(agentNode.session_id, agentNode);
+    }
+
+    const model = session.model || '-';
+    const cost = Number(session.cost_usd || 0);
+    const normalized = {
+      ...session,
+      session_id: sessionId,
+      status: normalizeStatus(session.status),
+      name: nodeName(session),
+      model,
+      cost_usd: cost,
+      children: [],
+    };
+
+    byId.set(sessionId, normalized);
+    agentNodes.get(agentId).children.push(normalized);
+  });
+
+  filtered.forEach((session) => {
+    const sessionId = getSessionId(session);
+    const node = byId.get(sessionId);
+    if (!node) return;
+
+    const parentId = session?.parent_id || session?.parentId;
+    if (!parentId) return;
+
+    const parentNode = byId.get(parentId);
+    if (!parentNode || parentNode._virtualRoot) return;
+
+    const agentId = extractAgentId(sessionId);
+    const agentNode = agentNodes.get(agentId);
+
+    if (agentNode) {
+      agentNode.children = agentNode.children.filter((child) => child.session_id !== node.session_id);
+    }
+
+    parentNode.children = parentNode.children || [];
+    parentNode.children.push(node);
+  });
+
+  return root;
+}
+
+function formatCost(value) {
+  return `$${Number(value || 0).toFixed(4)}`;
+}
+
+export default function SessionTopology({ sessions, filter, onNodeClick }) {
+  const svgRef = useRef(null);
+  const tooltipRef = useRef(null);
+  const [isTouch, setIsTouch] = useState(false);
+
+  const treeData = useMemo(() => buildTreeData(sessions, filter), [sessions, filter]);
+
+  useEffect(() => {
+    const check = () => {
+      const coarse = window.matchMedia?.('(pointer: coarse)')?.matches;
+      setIsTouch(Boolean(coarse || window.innerWidth < 768));
+    };
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  useEffect(() => {
+    const svgEl = svgRef.current;
+    const tooltipEl = tooltipRef.current;
+    if (!svgEl) return;
+
+    const width = svgEl.clientWidth || 900;
+    const height = svgEl.clientHeight || 480;
+
+    const svg = d3.select(svgEl);
+    svg.selectAll('*').remove();
+    svg.attr('viewBox', `0 0 ${width} ${height}`);
+
+    const g = svg.append('g').attr('transform', 'translate(40,20)');
+
+    const root = d3.hierarchy(treeData);
+    const treeLayout = d3.tree().size([height - 40, width - 120]);
+    treeLayout(root);
+
+    const linkGen = d3.linkHorizontal().x((d) => d.y).y((d) => d.x);
+
+    g.selectAll('.link')
+      .data(root.links())
+      .join('path')
+      .attr('class', 'link')
+      .attr('d', linkGen)
+      .attr('fill', 'none');
+
+    let lastActivation = { id: null, ts: 0 };
+    const activateNode = (d) => {
+      const id = getSessionId(d?.data);
+      if (!id || d?.data?._virtualRoot || d?.data?._agentNode || !onNodeClick) return;
+      const now = Date.now();
+      if (lastActivation.id === id && (now - lastActivation.ts) < 250) return;
+      lastActivation = { id, ts: now };
+      onNodeClick(id);
+    };
+
+    const node = g.selectAll('.node')
+      .data(root.descendants())
+      .join('g')
+      .attr('class', (d) => `node ${d.data._virtualRoot ? 'idle' : normalizeStatus(d.data.status)}`)
+      .attr('transform', (d) => `translate(${d.y},${d.x})`)
+      .on('mousemove', (event, d) => {
+        if (isTouch) return;
+        if (!tooltipEl) return;
+        tooltipEl.style.display = 'block';
+        tooltipEl.style.left = `${event.offsetX + 18}px`;
+        tooltipEl.style.top = `${event.offsetY + 18}px`;
+        tooltipEl.innerHTML = [
+          `<div><strong>${nodeName(d.data)}</strong></div>`,
+          `<div>model: ${d.data.model || '-'}</div>`,
+          `<div>cost: ${formatCost(d.data.cost_usd)}</div>`,
+          `<div>status: ${d.data.status || 'idle'}</div>`,
+        ].join('');
+      })
+      .on('mouseleave', () => {
+        if (!tooltipEl) return;
+        tooltipEl.style.display = 'none';
+      })
+      .on('pointerup', (_event, d) => activateNode(d))
+      .on('click', (_event, d) => activateNode(d));
+
+    node
+      .filter((d) => d.data.status === 'working' || d.data.status === 'active')
+      .append('circle')
+      .attr('class', 'pulse-ring')
+      .attr('r', 10);
+
+    node.append('circle').attr('r', (d) => (d.data._virtualRoot ? 11 : 8));
+
+    node.append('text')
+      .text((d) => nodeName(d.data))
+      .attr('dy', 22)
+      .attr('text-anchor', 'middle')
+      .style('font-size', '10px')
+      .style('fill', '#d6e2e8');
+
+    node
+      .filter((d) => !d.data._virtualRoot && Number(d.data.cost_usd || 0) > 0)
+      .append('text')
+      .text((d) => formatCost(d.data.cost_usd))
+      .attr('dy', 34)
+      .attr('text-anchor', 'middle')
+      .style('font-size', '10px')
+      .style('fill', '#89a1ad');
+  }, [isTouch, treeData, onNodeClick]);
+
+  return (
+    <div className="graph-shell">
+      <svg ref={svgRef} id="graph-svg" style={{ width: '100%', height: isTouch ? '380px' : '460px' }} />
+      <div ref={tooltipRef} className="graph-tooltip" />
+    </div>
+  );
+}

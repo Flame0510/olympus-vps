@@ -1,0 +1,71 @@
+import { type NextRequest } from 'next/server';
+import { TOKEN, DB_PATH } from '@/lib/db';
+import Database from 'better-sqlite3';
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: NextRequest): Promise<Response> {
+  const token = new URL(request.url).searchParams.get('token');
+  const auth = request.headers.get('authorization');
+  if (token !== TOKEN && auth !== `Bearer ${TOKEN}`) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
+
+  let lastEventId = 0;
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    start(controller) {
+      const send = (data: unknown) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+      };
+
+      const poll = () => {
+        try {
+          const db = new Database(DB_PATH, { readonly: true });
+          const newEvents = db
+            .prepare(
+              `SELECT e.*, s.label AS session_label FROM events e
+               LEFT JOIN sessions s ON e.session_id = s.session_id
+               WHERE e.id > ? ORDER BY e.ts ASC LIMIT 20`,
+            )
+            .all(lastEventId) as { id: number }[];
+          const sessions = db
+            .prepare('SELECT * FROM sessions ORDER BY started_at DESC LIMIT 100')
+            .all();
+          const costs = db
+            .prepare('SELECT SUM(cost_usd) AS today FROM sessions WHERE started_at >= ?')
+            .get(Math.floor(new Date().setHours(0, 0, 0, 0) / 1000)) as
+            | { today: number | null }
+            | undefined;
+          db.close();
+
+          if (newEvents.length > 0) {
+            lastEventId = newEvents[newEvents.length - 1].id;
+            send({ type: 'events', data: newEvents });
+          }
+          send({ type: 'sessions', data: sessions });
+          send({ type: 'costs', data: { today: costs?.today ?? 0 } });
+        } catch {
+          // Ignore DB read errors to keep stream alive.
+        }
+      };
+
+      poll();
+      const interval = setInterval(poll, 5000);
+
+      request.signal.addEventListener('abort', () => {
+        clearInterval(interval);
+        controller.close();
+      });
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+  });
+}

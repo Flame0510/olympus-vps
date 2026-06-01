@@ -1,0 +1,39 @@
+import Database from 'better-sqlite3';
+import { NextResponse } from 'next/server';
+import path from 'path';
+
+const DB_PATH = process.env.OLYMPUS_DB || '/data/olympus/events.db';
+const TOKEN = process.env.OLYMPUS_TOKEN || 'olympus2026';
+
+export async function POST(request) {
+  const auth = request.headers.get('authorization');
+  if (auth !== `Bearer ${TOKEN}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const db = new Database(DB_PATH);
+    db.prepare(`CREATE TABLE IF NOT EXISTS lineage (
+      child_id TEXT PRIMARY KEY,
+      parent_id TEXT NOT NULL,
+      declared_at INTEGER NOT NULL
+    )`).run();
+
+    const body = await request.json();
+    const { childId, parentId } = body || {};
+    if (!childId || !parentId) {
+      db.close();
+      return NextResponse.json({ error: 'childId and parentId required' }, { status: 400 });
+    }
+
+    db.prepare('INSERT OR REPLACE INTO lineage (child_id, parent_id, declared_at) VALUES (?, ?, ?)')
+      .run(childId, parentId, Date.now());
+    db.prepare('UPDATE sessions SET parent_id = ? WHERE session_id = ?')
+      .run(parentId, childId);
+    db.close();
+
+    return NextResponse.json({ ok: true, childId, parentId });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}

@@ -1,0 +1,20 @@
+import Database from 'better-sqlite3';
+import { NextResponse } from 'next/server';
+const DB_PATH = process.env.OLYMPUS_DB || '/data/olympus/events.db';
+const TOKEN = process.env.OLYMPUS_TOKEN || 'olympus2026';
+export const dynamic = 'force-dynamic';
+export async function GET(request) {
+  const auth = request.headers.get('authorization');
+  if (auth !== `Bearer ${TOKEN}`) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { searchParams } = new URL(request.url);
+  const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
+  const sessionId = searchParams.get('session_id');
+  try {
+    const db = new Database(DB_PATH, { readonly: true });
+    const rows = sessionId
+      ? db.prepare('SELECT * FROM tool_calls WHERE session_id = ? ORDER BY ts DESC LIMIT ?').all(sessionId, limit)
+      : db.prepare('SELECT * FROM tool_calls ORDER BY ts DESC LIMIT ?').all(limit);
+    db.close();
+    return NextResponse.json(rows);
+  } catch (err) { return NextResponse.json([], { status: 200 }); }
+}

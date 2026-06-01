@@ -1,0 +1,35 @@
+'use client';
+
+import type { SessionEvent } from '@/lib/types';
+import { formatTimeFromUnixSeconds, truncate, parseEventData } from '@/lib/utils/format';
+
+interface LiveFeedProps {
+  events: SessionEvent[];
+}
+
+export default function LiveFeed({ events }: LiveFeedProps) {
+  return (
+    <article className="panel feed-panel">
+      <h2>Live Feed</h2>
+      <div>
+        {events.map((item, index) => (
+          <div
+            key={`${item.ts ?? 0}-${item.event ?? 'evt'}-${index}`}
+            className="feed-item"
+          >
+            <span className="feed-time">{formatTimeFromUnixSeconds(item.ts)}</span>
+            <span className="feed-type">{item.type ?? item.event ?? 'event'}</span>
+            <span className="feed-label">
+              {item.session_label ?? item.session_id ?? item.label ?? '-'}
+            </span>
+          </div>
+        ))}
+        {events.length === 0 && (
+          <div className="feed-item" style={{ color: 'var(--text-dim)' }}>
+            In attesa di eventi…
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}

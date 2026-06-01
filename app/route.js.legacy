@@ -1,0 +1,32 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import OlympusShell from './components/OlympusShell';
+import MetricCard from './components/MetricCard';
+
+export const dynamic = 'force-dynamic';
+
+const legacyHtml = readFileSync(join(process.cwd(), 'dashboard', 'index.html'), 'utf-8');
+const cssText = readFileSync(join(process.cwd(), 'app', 'globals.css'), 'utf-8');
+
+function extractBody(html) {
+  const match = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  return match ? match[1] : html;
+}
+
+export async function GET() {
+  const metricCatalog = `<section id="metric-card-catalog" hidden aria-hidden="true">
+${MetricCard({ title: 'CPU', value: '—', subtitle: 'Template', tone: 'success' })}
+${MetricCard({ title: 'RAM', value: '—', subtitle: 'Template' })}
+${MetricCard({ title: 'DISK', value: '—', subtitle: 'Template', tone: 'accent' })}
+${MetricCard({ title: 'ALERTS', value: '—', subtitle: 'Template', tone: 'danger' })}
+</section>`;
+
+  const page = OlympusShell({
+    cssText,
+    bodyHtml: `${extractBody(legacyHtml)}\n${metricCatalog}`,
+  });
+
+  return new Response(page, {
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
+}

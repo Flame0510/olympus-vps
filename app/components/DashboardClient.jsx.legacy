@@ -1,0 +1,222 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import SessionTopology from './SessionTopology';
+import AgentDrawer from './AgentDrawer';
+
+const TOKEN = 'olympus2026';
+const ACTIVE_STATUSES = new Set(['working', 'idle', 'active']);
+const PERIOD_MS = { '1d': 86400000, '3d': 259200000, '7d': 604800000, '15d': 1296000000, '30d': 2592000000 };
+
+function formatUsd(value) {
+  return `$${Number(value || 0).toFixed(2)}`;
+}
+
+function formatTimeFromTs(tsSeconds) {
+  if (!tsSeconds) return '--:--:--';
+  return new Date(Number(tsSeconds) * 1000).toISOString().slice(11, 19);
+}
+
+function extractAgentId(sessionId) {
+  const parts = String(sessionId || '').split(':');
+  return parts[1] || 'unknown';
+}
+
+function normalizeSessionId(value) {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  return value.session_id || value.sessionId || value.id || null;
+}
+
+function isCron(sessionId) {
+  return String(sessionId || '').includes(':cron:');
+}
+
+export default function DashboardClient({ initialSessions, initialCosts, initialEvents }) {
+  const [sessions, setSessions] = useState(Array.isArray(initialSessions) ? initialSessions : []);
+  const [costs, setCosts] = useState(initialCosts || { today: 0, allTime: 0, byModel: [] });
+  const [events, setEvents] = useState(Array.isArray(initialEvents) ? initialEvents : []);
+  const [filter, setFilter] = useState('all');
+  const [selectedSession, setSelectedSession] = useState(null);
+  const [showOnlyActive, setShowOnlyActive] = useState(false);
+  const [showCron, setShowCron] = useState(true);
+  const [period, setPeriod] = useState('7d');
+
+  useEffect(() => {
+    let source;
+    let reconnectTimer;
+
+    const connect = () => {
+      source = new EventSource(`/api/stream?token=${TOKEN}`);
+
+      source.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'events') {
+            setEvents((prev) => [...msg.data, ...prev].slice(0, 50));
+          } else if (msg.type === 'sessions') {
+            setSessions(Array.isArray(msg.data) ? msg.data : []);
+          } else if (msg.type === 'costs') {
+            setCosts((prev) => ({ ...prev, today: Number(msg?.data?.today || 0) }));
+          }
+        } catch {
+          // Ignore malformed chunks.
+        }
+      };
+
+      source.onerror = () => {
+        source?.close();
+        reconnectTimer = setTimeout(connect, 5000);
+      };
+    };
+
+    connect();
+
+    return () => {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      source?.close();
+    };
+  }, []);
+
+  const cutoff = period !== 'all' ? Date.now() - PERIOD_MS[period] : 0;
+
+  const visibleSessions = useMemo(() => {
+    const list = Array.isArray(sessions) ? sessions : [];
+    return list.filter((s) => {
+      if (filter !== 'all' && extractAgentId(s.session_id) !== filter) return false;
+      if (showOnlyActive && !ACTIVE_STATUSES.has(s.status)) return false;
+      if (!showCron && isCron(s.session_id)) return false;
+      if (cutoff && Number(s.started_at) < cutoff) return false;
+      return true;
+    });
+  }, [sessions, filter, showOnlyActive, showCron, cutoff]);
+
+  const visibleEvents = useMemo(() => {
+    const list = Array.isArray(events) ? events : [];
+    return list
+      .filter((item) => {
+        if (filter !== 'all' && extractAgentId(item.session_id) !== filter) return false;
+        if (!showCron && isCron(item.session_id)) return false;
+        if (cutoff && Number(item.ts) * 1000 < cutoff) return false;
+        return true;
+      })
+      .slice(0, 20);
+  }, [events, filter, showCron, cutoff]);
+
+  const modelCosts = Array.isArray(costs?.byModel) ? costs.byModel : [];
+
+  return (
+    <main className="shell">
+      <header className="header">
+        <div className="logo">
+          <img src="/favicon.svg" alt="Olympus" />
+          <span>OLYMPUS</span>
+        </div>
+        <div className="meta">
+          <div>
+            <span className="meta-label">SYSTEM</span>
+            <span className="meta-value">MONITORING</span>
+          </div>
+          <div>
+            <span className="meta-label">TODAY COST</span>
+            <span className="meta-value cost">{formatUsd(costs?.today)}</span>
+          </div>
+          <div>
+            <span className="meta-label">ALL TIME</span>
+            <span className="meta-value cost">{formatUsd(costs?.allTime)}</span>
+          </div>
+        </div>
+      </header>
+
+      <section className="toolbar">
+        <span className="toolbar-label">AGENTS</span>
+        {['all', 'ops', 'website', 'lead-engine', 'scout'].map((name) => (
+          <button
+            key={name}
+            className={`agent-btn ${filter === name ? 'active' : ''}`}
+            onClick={() => setFilter(name)}
+            type="button"
+          >
+            {name}
+          </button>
+        ))}
+
+        <span className="toolbar-sep">|</span>
+
+        <button
+          type="button"
+          className={`agent-btn ${showOnlyActive ? 'active' : ''}`}
+          onClick={() => setShowOnlyActive((v) => !v)}
+        >
+          solo attivi
+        </button>
+
+        <button
+          type="button"
+          className={`agent-btn ${!showCron ? 'active' : ''}`}
+          onClick={() => setShowCron((v) => !v)}
+        >
+          no cron
+        </button>
+
+        <span className="toolbar-sep">|</span>
+        <span className="toolbar-label">PERIODO</span>
+        {['1d', '3d', '7d', '15d', '30d', 'all'].map((p) => (
+          <button
+            key={p}
+            type="button"
+            className={`agent-btn ${period === p ? 'active' : ''}`}
+            onClick={() => setPeriod(p)}
+          >
+            {p}
+          </button>
+        ))}
+      </section>
+
+      <section className="layout">
+        <article className="panel graph-panel">
+          <h2>Session Topology</h2>
+          <SessionTopology
+            sessions={visibleSessions}
+            filter={filter}
+            onNodeClick={(value) => setSelectedSession(normalizeSessionId(value))}
+          />
+        </article>
+
+        <aside className="side">
+          <article className="panel feed-panel">
+            <h2>Live Feed</h2>
+            <div>
+              {visibleEvents.map((item, index) => (
+                <div key={`${item.ts}-${item.event || 'evt'}-${index}`} className="feed-item">
+                  <span className="feed-time">{formatTimeFromTs(item.ts)}</span>
+                  <span className="feed-type">{item.event || 'event'}</span>
+                  <span className="feed-label">{item.session_label || item.session_id || item.label || '-'}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className="panel cost-panel">
+            <h2>Cost Breakdown (Today)</h2>
+            <div>
+              {modelCosts.map((row, index) => (
+                <div key={`${row.model || 'unknown'}-${index}`} className="cost-row">
+                  <span className="k">{row.model || 'unknown'}</span>
+                  <span className="v">{formatUsd(row.cost_usd)}</span>
+                </div>
+              ))}
+              {modelCosts.length === 0 ? (
+                <div className="cost-row">
+                  <span className="k">no data</span>
+                  <span className="v">$0.00</span>
+                </div>
+              ) : null}
+            </div>
+          </article>
+        </aside>
+      </section>
+      <AgentDrawer sessionId={selectedSession} onClose={() => setSelectedSession(null)} />
+    </main>
+  );
+}

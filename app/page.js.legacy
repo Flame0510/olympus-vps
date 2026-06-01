@@ -1,0 +1,7 @@
+import DashboardClient from './components/DashboardClient';
+
+export const dynamic = 'force-dynamic';
+
+export default function HomePage() {
+  return <DashboardClient initialSessions={[]} initialCosts={{ today: 0, allTime: 0, byModel: [] }} initialEvents={[]} />;
+}

@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>👁️ OLYMPUS — Agency Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0A0A0B;
+    --bg2: #111114;
+    --bg3: #18181c;
+    --copper: #B87333;
+    --copper-dim: #7a4d22;
+    --text: #E8E8E8;
+    --text-dim: #888;
+    --green: #22c55e;
+    --red: #ef4444;
+    --gray: #4b5563;
+    --border: #222228;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'JetBrains Mono', monospace; overflow: hidden; }
+
+  /* HEADER */
+  #header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    height: 48px;
+  }
+  #header .logo { display: flex; align-items: center; gap: 10px; }
+  #header .logo span.eye { font-size: 20px; }
+  #header .logo span.title { font-family: 'Instrument Serif', serif; font-size: 20px; letter-spacing: 4px; color: var(--copper); }
+  #header .meta { display: flex; gap: 24px; font-size: 11px; color: var(--text-dim); }
+  #header .meta .val { color: var(--text); font-weight: 500; }
+  #header .meta .cost-val { color: var(--copper); font-weight: 700; }
+
+  /* AGENT FILTER TOOLBAR */
+  #agent-toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    overflow-x: auto;
+    flex-shrink: 0;
+  }
+  #agent-toolbar::-webkit-scrollbar { height: 3px; }
+  #agent-toolbar::-webkit-scrollbar-thumb { background: var(--copper-dim); border-radius: 2px; }
+  .agent-filter-label {
+    font-size: 9px; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase;
+    white-space: nowrap; margin-right: 4px;
+  }
+  .agent-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 3px 10px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text-dim);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .agent-btn:hover { border-color: var(--copper-dim); color: var(--text); }
+  .agent-btn.active { border-color: var(--copper); color: var(--copper); background: #1a1208; }
+
+  /* MAIN LAYOUT */
+  #main {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    height: calc(100vh - 48px - 34px);
+  }
+
+  /* GRAPH PANEL */
+  #graph-panel {
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+    position: relative;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+  }
+  #graph-panel .panel-title {
+    padding: 8px 16px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--copper);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  #graph-svg { width: 100%; flex: 1; }
+
+  /* TOOLTIP */
+  #tooltip {
+    position: fixed;
+    background: var(--bg3);
+    border: 1px solid var(--copper-dim);
+    border-radius: 4px;
+    padding: 10px 14px;
+    font-size: 11px;
+    display: none;
+    z-index: 100;
+    max-width: 320px;
+    pointer-events: none;
+  }
+  #tooltip .tt-id { color: var(--copper); font-weight: 700; margin-bottom: 4px; word-break: break-all; }
+  #tooltip .tt-row { color: var(--text-dim); line-height: 1.8; }
+  #tooltip .tt-row span { color: var(--text); }
+
+  /* TASK PREVIEW */
+  #task-panel {
+    position: absolute;
+    bottom: 16px; left: 16px;
+    max-width: 340px;
+    background: var(--bg3);
+    border: 1px solid var(--copper-dim);
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 11px;
+    display: none;
+    z-index: 10;
+  }
+  #task-panel .tp-label { color: var(--copper); font-weight: 700; margin-bottom: 6px; }
+  #task-panel .tp-text { color: var(--text-dim); line-height: 1.5; }
+  #task-panel .tp-close { float: right; cursor: pointer; color: var(--text-dim); }
+
+  /* RIGHT PANEL */
+  #right-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  /* LIVE FEED */
+  #feed-panel {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  #feed-panel .panel-title {
+    padding: 8px 16px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--copper);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    text-transform: uppercase;
+  }
+  #feed-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  #feed-list::-webkit-scrollbar { width: 4px; }
+  #feed-list::-webkit-scrollbar-track { background: var(--bg2); }
+  #feed-list::-webkit-scrollbar-thumb { background: var(--copper-dim); border-radius: 2px; }
+  .feed-item {
+    padding: 5px 16px;
+    font-size: 10px;
+    line-height: 1.4;
+    border-bottom: 1px solid var(--border);
+  }
+  .feed-item .fi-ts { color: var(--text-dim); margin-right: 8px; }
+  .feed-item .fi-type { color: var(--copper); margin-right: 6px; font-weight: 700; }
+  .feed-item .fi-label { color: var(--text); }
+  .fi-type.spawn { color: var(--green); }
+  .fi-type.complete { color: #60a5fa; }
+  .fi-type.error { color: var(--red); }
+  .fi-type.tool_call { color: #a78bfa; }
+
+  /* COST BREAKDOWN */
+  #cost-panel {
+    border-top: 1px solid var(--border);
+    padding: 12px 16px;
+    background: var(--bg2);
+    font-size: 11px;
+  }
+  #cost-panel .panel-title {
+    font-size: 10px; letter-spacing: 2px; color: var(--copper);
+    text-transform: uppercase; margin-bottom: 10px;
+  }
+  #cost-rows { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+  .cost-row { display: flex; flex-direction: column; gap: 2px; }
+  .cost-row .model-name { color: var(--text-dim); font-size: 10px; }
+  .cost-row .model-cost { color: var(--text); font-weight: 700; }
+
+  /* GRAPH NODES */
+  .node circle { stroke-width: 2; transition: r 0.3s; }
+  .node.active circle { stroke: var(--green); fill: #0d2818; }
+  .node.idle circle { stroke: var(--gray); fill: #111; }
+  .node.completed circle { stroke: #4b5563; fill: #0a0a0b; }
+  .node.error circle { stroke: var(--red); fill: #1a0a0a; }
+  .node.working circle { stroke: var(--green); fill: #0d2818; }
+  .node.virtual circle { stroke: var(--copper); fill: #120d06; stroke-dasharray: 4,3; }
+
+  .node text { font-family: 'JetBrains Mono', monospace; fill: var(--text); font-size: 10px; }
+  .node text.model-text { fill: var(--text-dim); font-size: 9px; }
+  .node text.cost-text { fill: var(--copper); font-size: 9px; }
+
+  .link { fill: none; stroke: var(--border); stroke-width: 1.5; }
+  .link.virtual-link { stroke: var(--copper-dim); stroke-dasharray: 4,3; stroke-opacity: 0.5; }
+
+  @keyframes glow {
+    0%, 100% { filter: drop-shadow(0 0 4px #22c55e88); }
+    50% { filter: drop-shadow(0 0 12px #22c55ecc); }
+  }
+  .node.active, .node.working { animation: glow 2s ease-in-out infinite; }
+
+  @keyframes pulse-ring {
+    0% { r: 12; opacity: 0.8; }
+    100% { r: 22; opacity: 0; }
+  }
+  .pulse-ring { animation: pulse-ring 1.5s ease-out infinite; }
+
+  /* ===================== MOBILE LAYOUT — GAMMA: Dashboard Cards ===================== */
+  @media (max-width: 768px) {
+    html, body { overflow: auto; height: auto; }
+    #agent-toolbar, #main, #header { display: none !important; }
+    #mobile-layout { display: flex; }
+  }
+
+  /* Gamma: scrollable card layout */
+  #mobile-layout {
+    display: none;
+    flex-direction: column;
+    background: var(--bg);
+    min-height: 100vh;
+  }
+
+  /* Sticky header */
+  #gamma-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .gamma-logo {
+    font-family: 'Instrument Serif', serif;
+    font-size: 18px;
+    letter-spacing: 3px;
+    color: var(--copper);
+  }
+  .gamma-header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .gamma-cost-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--copper);
+    font-weight: 700;
+  }
+  .gamma-active-toggle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 4px 10px;
+    border: 1px solid #22c55e;
+    background: #0d2818;
+    color: #22c55e;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .gamma-active-toggle.off {
+    border-color: var(--border);
+    background: var(--bg3);
+    color: var(--text-dim);
+  }
+
+  /* Card container */
+  #gamma-cards {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-bottom: 24px;
+  }
+
+  /* Base card */
+  .gamma-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .gamma-card-title {
+    padding: 10px 14px;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--copper);
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Graph card */
+  #gamma-graph-card {
+    height: 50vh;
+    display: flex;
+    flex-direction: column;
+  }
+  #gamma-graph-svg { flex: 1; width: 100%; }
+
+  /* Stats card */
+  #gamma-stats-card .gamma-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+  }
+  .gamma-stat-cell {
+    background: var(--bg2);
+    padding: 14px;
+  }
+  .gamma-stat-cell-label {
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .gamma-stat-cell-val {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .gamma-stat-cell-val.copper { color: var(--copper); }
+
+  /* Active agents card */
+  .gamma-agent-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #1a1a20;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .gamma-agent-row:last-child { border-bottom: none; }
+  .gamma-agent-row:active { background: #1a1208; }
+  .gamma-agent-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .gamma-agent-name { font-size: 12px; color: var(--text); flex: 1; font-weight: 500; }
+  .gamma-agent-model { font-size: 9px; color: var(--text-dim); }
+  .gamma-agent-cost { font-size: 11px; color: var(--copper); font-weight: 700; }
+  .gamma-agent-empty {
+    padding: 16px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #444;
+  }
+
+  /* Feed card */
+  .gamma-feed-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 9px 14px;
+    border-bottom: 1px solid #1a1a20;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .gamma-feed-item:last-child { border-bottom: none; }
+  .gamma-feed-timeline {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 3px;
+    padding-top: 2px;
+  }
+  .gamma-feed-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .gamma-feed-line { width: 1px; height: 20px; background: #1a1a20; }
+  .gamma-feed-content { flex: 1; }
+  .gamma-feed-ts { font-size: 9px; color: #444; margin-bottom: 2px; }
+  .gamma-feed-name { font-size: 11px; color: var(--text); }
+  .gamma-feed-status { font-size: 9px; color: var(--text-dim); margin-top: 1px; }
+
+  /* Bottom sheet */
+  #gamma-sheet {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 55vh;
+    background: #111114;
+    border-top: 2px solid var(--copper);
+    border-radius: 16px 16px 0 0;
+    z-index: 300;
+    display: none;
+    overflow-y: auto;
+    padding: 0 0 20px;
+    font-family: 'JetBrains Mono', monospace;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .gamma-sheet-handle { display:flex; justify-content:center; padding:12px; }
+  .gamma-sheet-handle::before { content:''; width:36px; height:4px; background:var(--copper-dim); border-radius:2px; }
+  .gamma-sheet-hdr { padding: 0 20px 16px; border-bottom: 1px solid var(--border); margin-bottom: 16px; display:flex; justify-content:space-between; align-items:center; }
+  .gamma-sheet-title { color: var(--copper); font-size: 15px; font-weight: 700; }
+  .gamma-sheet-close { background:none; border:none; color:#555; font-size:20px; cursor:pointer; }
+  .gamma-sheet-body { padding: 0 20px; }
+  .gamma-sheet-row { margin-bottom: 14px; }
+  .gamma-sheet-row-label { font-size: 9px; letter-spacing:1px; color:#555; text-transform:uppercase; margin-bottom:4px; }
+  .gamma-sheet-row-val { font-size: 12px; color: var(--text); }
+  .gamma-sheet-row-val.cost { font-size:20px; color:var(--copper); font-weight:700; }
+  .gamma-sheet-row-val.working { color:#22c55e; }
+
+  /* Compat */
+  #m-graph-overlay { display: none; }
+  #m-graph-svg-container { flex: 1; overflow: hidden; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="logo">
+    <span class="eye">👁️</span>
+    <span class="title">OLYMPUS</span>
+  </div>
+  <div class="meta">
+    <div><span class="val" id="clock">—</span></div>
+    <div>SESSIONS <span class="val" id="hdr-sessions">—</span></div>
+    <div>TODAY <span class="cost-val" id="hdr-cost">$—</span></div>
+    <div>ALL TIME <span class="val" id="hdr-alltime">$—</span></div>
+    <div style="color:#4b5563;font-size:10px" id="refresh-indicator">⟳</div>
+  </div>
+</div>
+
+<div id="agent-toolbar">
+  <span class="agent-filter-label">AGENT:</span>
+</div>
+
+<div id="main">
+  <div id="graph-panel">
+    <div class="panel-title">AGENT GRAPH — live</div>
+    <svg id="graph-svg"></svg>
+    <div id="task-panel">
+      <span class="tp-close" onclick="document.getElementById('task-panel').style.display='none'">✕</span>
+      <div class="tp-label" id="tp-label"></div>
+      <div class="tp-text" id="tp-text"></div>
+    </div>
+  </div>
+
+  <div id="right-panel">
+    <div id="feed-panel">
+      <div class="panel-title">LIVE FEED</div>
+      <div id="feed-list"></div>
+    </div>
+    <div id="cost-panel">
+      <div class="panel-title">COST BREAKDOWN — today</div>
+      <div id="cost-rows"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MOBILE LAYOUT — GAMMA: Dashboard Cards -->
+<div id="mobile-layout">
+  <!-- Sticky header -->
+  <div id="gamma-header">
+    <span class="gamma-logo">◈ OLYMPUS</span>
+    <div class="gamma-header-right">
+      <span class="gamma-cost-badge">~$<span id="gamma-monthly-cost">...</span></span>
+      <button class="gamma-active-toggle" id="gamma-active-btn" onclick="gammaToggleActive()">⚡ ON</button>
+    </div>
+  </div>
+
+  <!-- Card list -->
+  <div id="gamma-cards">
+
+    <!-- Card 1: Graph -->
+    <div class="gamma-card" id="gamma-graph-card">
+      <div class="gamma-card-title">◈ Agent Graph — live</div>
+      <svg id="gamma-graph-svg"></svg>
+    </div>
+
+    <!-- Card 2: Stats -->
+    <div class="gamma-card" id="gamma-stats-card">
+      <div class="gamma-card-title">📊 Stats</div>
+      <div class="gamma-stats-grid">
+        <div class="gamma-stat-cell">
+          <div class="gamma-stat-cell-label">Sessioni</div>
+          <div class="gamma-stat-cell-val" id="gamma-total-sess">—</div>
+        </div>
+        <div class="gamma-stat-cell">
+          <div class="gamma-stat-cell-label">Attive</div>
+          <div class="gamma-stat-cell-val" id="gamma-active-sess">—</div>
+        </div>
+        <div class="gamma-stat-cell">
+          <div class="gamma-stat-cell-label">Costo Mese</div>
+          <div class="gamma-stat-cell-val copper" id="gamma-cost-month">$—</div>
+        </div>
+        <div class="gamma-stat-cell">
+          <div class="gamma-stat-cell-label">Modello top</div>
+          <div class="gamma-stat-cell-val" style="font-size:13px" id="gamma-top-model">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 3: Active agents -->
+    <div class="gamma-card">
+      <div class="gamma-card-title">⚡ Agenti Attivi</div>
+      <div id="gamma-agents-list"></div>
+    </div>
+
+    <!-- Card 4: Feed timeline -->
+    <div class="gamma-card">
+      <div class="gamma-card-title">📡 Feed Recente</div>
+      <div id="gamma-feed-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Gamma bottom sheet -->
+<div id="gamma-sheet">
+  <div class="gamma-sheet-handle"></div>
+  <div class="gamma-sheet-hdr">
+    <span class="gamma-sheet-title" id="gamma-sheet-title"></span>
+    <button class="gamma-sheet-close" onclick="gammaCloseSheet()">✕</button>
+  </div>
+  <div class="gamma-sheet-body" id="gamma-sheet-body"></div>
+</div>
+
+<!-- compat -->
+<div id="m-graph-overlay" style="display:none"><div id="m-graph-svg-container"></div></div>
+<div id="m-bottom-bar" style="display:none"></div>
+
+<div id="tooltip">
+  <div class="tt-id" id="tt-id"></div>
+  <div class="tt-row">model: <span id="tt-model">—</span></div>
+  <div class="tt-row">cost: <span id="tt-cost">—</span></div>
+  <div class="tt-row">status: <span id="tt-status">—</span></div>
+  <div class="tt-row" id="tt-task-row" style="max-width:260px;word-break:break-word;display:none">task: <span id="tt-task" style="color:var(--text);font-style:italic">—</span></div>
+</div>
+
+<script>
+const API_HEADERS = { 'Authorization': 'Bearer olympus2026' };
+let sessionsData = [];
+let costsData = {};
+let agentsList = [];
+let activeAgentFilter = 'ALL';
+let showCron = false;
+let showHistory = false;
+let showActiveOnly = true;
+let nodePositions = new Map(); // session_id → {x, y} — preserva posizioni tra refresh
+let _graphInitialized = false; // true dopo il primo caricamento — skippa fitToContent
+
+function isActive(session) {
+  const fiveMinAgo = Date.now() - (5 * 60 * 1000);
+  // updated_at potrebbe essere in secondi o millisecondi UNIX
+  let updatedMs = session.updated_at;
+  if (updatedMs && updatedMs < 1e12) updatedMs = updatedMs * 1000; // converti secondi → ms
+  return session.status === 'working' || (updatedMs && updatedMs > fiveMinAgo);
+}
+
+function isHistoric(session) {
+  const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+  const isOld = session.updated_at && session.updated_at < tenMinutesAgo;
+  const isDone = session.status === 'completed' || session.status === 'idle';
+  return isOld && isDone && session.session_id.includes(':subagent:');
+}
+
+function isCron(sessionId) {
+  return sessionId && sessionId.includes(':cron:');
+}
+
+// Clock
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleString('it-IT', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+function fmtCost(v) {
+  if (!v) return '$0.0000';
+  return '$' + (+v).toFixed(4);
+}
+
+function fmtTs(ts) {
+  if (!ts) return '—';
+  return new Date(ts * 1000).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function abbreviate(str, len=14) {
+  if (!str) return '?';
+  return str.length > len ? str.slice(0, len) + '…' : str;
+}
+
+// Extract agentId from session_id: "agent:website:main" → "website"
+function extractAgentId(sessionId) {
+  const parts = (sessionId || '').split(':');
+  return parts[1] || 'unknown';
+}
+
+// Short label from session_id:
+// "agent:website:subagent:14a06e1f-..." → "subagent:14a0"
+// "agent:website:main" → "website:main"
+// "agent:website:cron:xxx" → "cron:xxx(short)"
+function virtualNodeLabel(agentId) {
+  if (!agentId || agentId === '__root__') return '◈ Olympus';
+  const id = agentId.replace(/^__agent__:?/, '').replace(/^__root__/, '');
+  if (!id) return '◈ Olympus';
+  return '◈ ' + id.charAt(0).toUpperCase() + id.slice(1);
+}
+
+function shortLabel(sessionId) {
+  if (!sessionId || sessionId === '__root__') return 'Olympus';
+  if (sessionId.startsWith('__agent__:')) return sessionId.replace('__agent__:', '');
+  const parts = sessionId.split(':');
+  // parts: ["agent","website","subagent","uuid"] or ["agent","website","main"]
+  if (parts.length >= 4) {
+    const type = parts[2];
+    const tail = parts[3] ? parts[3].slice(0, 6) : '';
+    return `${type}:${tail}`;
+  } else if (parts.length === 3) {
+    return `${parts[1]}:${parts[2]}`;
+  }
+  return abbreviate(sessionId, 16);
+}
+
+function extractNodeName(session) {
+  if (session._virtual) return virtualNodeLabel(session.session_id);
+  const id = session.session_id || '';
+  const task = (session.task_preview || '').trim();
+
+  // Pattern 1: 'Sei [il/la] Nome Cognome' — cattura fino a 4 parole significative
+  // Es: 'Sei Argus' → 'Argus', 'Sei il Giudice UX/UI' → 'Giudice UX/UI'
+  // Es: 'Sei Team Gamma' → 'Team Gamma', 'Sei Olympus Developer' → 'Olympus Developer'
+  const seiMatch = task.match(/^Sei\s+(?:il\s+|la\s+|l['\'])?([A-Za-z][A-Za-zÀ-ÿ\/\-]{0,20}(?:\s+[A-Za-z][A-Za-zÀ-ÿ\/\-]{0,20}){0,2})/i);
+  if (seiMatch) return seiMatch[1].trim();
+
+  // Pattern 2: 'You are [Name]' (inglese)
+  const youMatch = task.match(/^You are\s+(?:the\s+)?([A-Za-z][A-Za-z\s\/\-]{0,30})/i);
+  if (youMatch) return youMatch[1].trim().split('\n')[0];
+
+  // Pattern 3: cerca nomi noti ovunque nel task
+  const knownAgents = ['Argus', 'Atlas', 'Hermes', 'Mercury', 'Forge', 'Olympus'];
+  for (const agent of knownAgents) {
+    if (task.includes(agent)) return agent;
+  }
+
+  // Pattern 3: session_id type
+  if (id.includes(':main')) {
+    const agent = id.split(':')[1] || 'Main';
+    return agent.charAt(0).toUpperCase() + agent.slice(1);
+  }
+  if (id.includes(':cron:')) return '⏱ Cron';
+  if (id.includes(':slash:')) return '/ Slash';
+  if (id.includes(':telegram:')) return '💬 Telegram';
+  if (id.includes(':subagent:')) {
+    const agentPart = id.split(':')[1] || '';
+    if (agentPart && agentPart !== 'website') return agentPart.charAt(0).toUpperCase() + agentPart.slice(1) + ' Agent';
+    return 'Sub-' + id.split(':subagent:')[1].slice(0,4);
+  }
+
+  return id.slice(0, 10);
+}
+
+// --- AGENT FILTER TOOLBAR ---
+function renderAgentToolbar(agents) {
+  const toolbar = document.getElementById('agent-toolbar');
+  // Keep label
+  toolbar.innerHTML = '<span class="agent-filter-label">AGENT:</span>';
+
+  // Cron toggle button
+  const cronBtn = document.createElement('button');
+  cronBtn.className = 'agent-btn' + (showCron ? ' active' : '');
+  cronBtn.textContent = showCron ? '⏱ cron: ON' : '⏱ cron: OFF';
+  cronBtn.style.marginLeft = 'auto';
+  cronBtn.onclick = () => { showCron = !showCron; renderAgentToolbar(agentsList); renderGraph(sessionsData); };
+  // will be appended after agent buttons
+
+  // History toggle button
+  const histBtn = document.createElement('button');
+  histBtn.className = 'agent-btn' + (showHistory ? ' active' : '');
+  histBtn.textContent = showHistory ? '📦 storici: ON' : '📦 storici: OFF';
+  histBtn.style.marginLeft = '4px';
+  histBtn.onclick = () => { showHistory = !showHistory; renderAgentToolbar(agentsList); renderGraph(sessionsData); };
+
+  // Active only toggle button
+  const activeBtn = document.createElement('button');
+  activeBtn.className = 'agent-btn' + (showActiveOnly ? ' active' : '');
+  activeBtn.textContent = showActiveOnly ? '⚡ attivi: ON' : '⚡ attivi: OFF';
+  activeBtn.style.marginLeft = '4px';
+  if (showActiveOnly) activeBtn.style.borderColor = '#22c55e';
+  activeBtn.onclick = () => {
+    showActiveOnly = !showActiveOnly;
+    renderAgentToolbar(agentsList);
+    renderGraph(sessionsData);
+  };
+
+  // Reset zoom button
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'agent-btn';
+  resetBtn.textContent = '⊙ Reset zoom';
+  resetBtn.style.marginLeft = '4px';
+  resetBtn.onclick = () => { window._zoomReset && window._zoomReset(); };
+
+  const allBtn = document.createElement('button');
+  allBtn.className = 'agent-btn' + (activeAgentFilter === 'ALL' ? ' active' : '');
+  allBtn.textContent = 'ALL';
+  allBtn.onclick = () => { activeAgentFilter = 'ALL'; renderAgentToolbar(agentsList); renderGraph(sessionsData); };
+  toolbar.appendChild(allBtn);
+
+  agents.forEach(agentId => {
+    const btn = document.createElement('button');
+    btn.className = 'agent-btn' + (activeAgentFilter === agentId ? ' active' : '');
+    btn.textContent = agentId;
+    btn.onclick = () => { activeAgentFilter = agentId; renderAgentToolbar(agentsList); renderGraph(sessionsData); };
+    toolbar.appendChild(btn);
+  });
+
+  toolbar.appendChild(cronBtn);
+  toolbar.appendChild(histBtn);
+  toolbar.appendChild(activeBtn);
+  toolbar.appendChild(resetBtn);
+
+  // Cost display
+  let costDisplay = document.getElementById('cost-display');
+  if (!costDisplay) {
+    costDisplay = document.createElement('div');
+    costDisplay.id = 'cost-display';
+    costDisplay.style.cssText = 'margin-left:auto; color:#B87333; font-size:12px; font-family:JetBrains Mono,monospace; white-space:nowrap; padding:0 8px;';
+    costDisplay.innerHTML = '~$<span id="cost-value">...</span> <span style="color:#555;font-size:10px;">stima mensile</span>';
+    toolbar.appendChild(costDisplay);
+  }
+}
+
+// --- GRAPH ---
+function buildTreeWithVirtualRoots(sessions, filterAgent) {
+  const byId = {};
+
+  // Filter sessions if needed
+  let visible = sessions;
+  if (filterAgent && filterAgent !== 'ALL') {
+    visible = sessions.filter(s => extractAgentId(s.session_id) === filterAgent);
+  }
+  // Filter cron if showCron is off
+  if (!showCron) {
+    visible = visible.filter(s => !isCron(s.session_id));
+  }
+  // Filter storici if showHistory is off
+  if (!showHistory) {
+    visible = visible.filter(s => !isHistoric(s));
+  }
+  // Filter attivi if showActiveOnly is on (virtual nodes are built after, not filtered here)
+  if (showActiveOnly) {
+    visible = visible.filter(s => isActive(s));
+  }
+
+  // Build map
+  visible.forEach(s => { byId[s.session_id] = { ...s, children: [], _virtual: false }; });
+
+  // Group by agentId for virtual root creation
+  const agentGroups = {};
+  visible.forEach(s => {
+    const aid = extractAgentId(s.session_id);
+    if (!agentGroups[aid]) agentGroups[aid] = [];
+    agentGroups[aid].push(s.session_id);
+  });
+
+  // Create virtual agent roots
+  const virtualRoots = [];
+  Object.keys(agentGroups).forEach(aid => {
+    const vId = `__agent__:${aid}`;
+    byId[vId] = {
+      session_id: vId,
+      label: aid,
+      model: '',
+      cost_usd: 0,
+      status: 'virtual',
+      task_preview: `Agent: ${aid}`,
+      children: [],
+      _virtual: true
+    };
+    virtualRoots.push(vId);
+  });
+
+  // Wire up children
+  visible.forEach(s => {
+    if (s.parent_id && byId[s.parent_id]) {
+      // Real parent exists in visible set
+      byId[s.parent_id].children.push(byId[s.session_id]);
+    } else {
+      // No visible parent → attach to virtual agent root
+      const aid = extractAgentId(s.session_id);
+      const vId = `__agent__:${aid}`;
+      if (byId[vId]) byId[vId].children.push(byId[s.session_id]);
+    }
+  });
+
+  if (virtualRoots.length === 0) return null;
+  if (virtualRoots.length === 1) return byId[virtualRoots[0]];
+  return {
+    session_id: '__root__',
+    label: 'Olympus',
+    model: '',
+    cost_usd: 0,
+    status: 'idle',
+    children: virtualRoots.map(vid => byId[vid]),
+    _virtual: true
+  };
+}
+
+function calcDepth(sessionId, sessions, visited) {
+  if (!visited) visited = new Set();
+  if (visited.has(sessionId)) return 0;
+  visited.add(sessionId);
+  const session = sessions.find(s => s.session_id === sessionId);
+  if (!session || !session.parent_id) return 0;
+  return 1 + calcDepth(session.parent_id, sessions, visited);
+}
+
+function renderGraph(sessions) {
+  if (!sessions || sessions.length === 0) return;
+  const svg = d3.select('#graph-svg');
+  svg.selectAll('*').remove();
+
+  const el = document.getElementById('graph-svg');
+  const W = el.clientWidth || 800;
+  const H = el.clientHeight || 600;
+
+  svg.attr('width', W).attr('height', H)
+     .attr('viewBox', `0 0 ${W} ${H}`)
+     .style('cursor', 'grab');
+
+  const root_data = buildTreeWithVirtualRoots(sessions, activeAgentFilter);
+  if (!root_data) return;
+
+  // Build flat nodes + links for force simulation
+  const allSessions = sessions.filter(s => showCron || !isCron(s.session_id));
+  function flattenTree(node, nodesArr, linksArr) {
+    nodesArr.push(node);
+    (node.children || []).forEach(child => {
+      linksArr.push({ source: node.session_id, target: child.session_id });
+      flattenTree(child, nodesArr, linksArr);
+    });
+  }
+  const flatNodes = [];
+  const flatLinks = [];
+  flattenTree(root_data, flatNodes, flatLinks);
+
+  // Build depth map
+  const depthMap = {};
+  const sessionArr = flatNodes.filter(n => !n._virtual).map(n => ({ session_id: n.session_id, parent_id: n.parent_id }));
+  flatNodes.forEach(n => {
+    depthMap[n.session_id] = n._virtual ? 0 : 1 + calcDepth(n.session_id, sessionArr);
+  });
+
+  const graphGroup = svg.append('g').attr('transform', 'translate(0, 0)');
+
+  // Setup zoom & pan
+  const zoomBehavior = d3.zoom()
+    .scaleExtent([0.1, 4])
+    .on('zoom', (event) => {
+      graphGroup.attr('transform', event.transform);
+      window._savedZoomTransform = event.transform; // salva per il prossimo refresh
+    });
+  svg.call(zoomBehavior);
+  // Ripristina zoom salvato tra refresh
+  if (window._savedZoomTransform && _graphInitialized) {
+    svg.call(zoomBehavior.transform, window._savedZoomTransform);
+  }
+  svg.on('dblclick.zoom', () => fitToContent && fitToContent());
+
+  function fitToContent() {
+    const bounds = graphGroup.node().getBBox();
+    const padding = 60;
+    if (bounds.width === 0 || bounds.height === 0) return;
+    const scale = Math.min(
+      (W - padding * 2) / bounds.width,
+      (H - padding * 2) / bounds.height,
+      1.5
+    );
+    const tx = (W - bounds.width * scale) / 2 - bounds.x * scale;
+    const ty = (H - bounds.height * scale) / 2 - bounds.y * scale;
+    svg.transition().duration(600).call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+  }
+
+  window._zoomReset = () => fitToContent();
+
+  const nodeData = flatNodes.map(n => ({ ...n, x: W / 2 + (Math.random() - 0.5) * 100, y: 60 + (depthMap[n.session_id] || 0) * 120 }));
+  // Ripristina posizioni salvate per nodi esistenti
+  nodeData.forEach(d => {
+    const saved = nodePositions.get(d.session_id);
+    if (saved) { d.x = saved.x; d.y = saved.y; d.fx = null; d.fy = null; }
+  });
+  const nodeMap = {};
+  nodeData.forEach(n => { nodeMap[n.session_id] = n; });
+
+  // simLinks: same array used by BOTH forceLink AND linkSel so D3 mutates source/target in place
+  const simLinks = flatLinks.map(l => ({
+    source: l.source, target: l.target,
+    _virtual_src: flatNodes.find(n => n.session_id === l.source)?._virtual,
+    _virtual_tgt: flatNodes.find(n => n.session_id === l.target)?._virtual
+  }));
+
+  const linkGroup = graphGroup.append('g').attr('class', 'links');
+  const nodeGroup = graphGroup.append('g').attr('class', 'nodes');
+
+  const linkSel = linkGroup.selectAll('.link')
+    .data(simLinks)
+    .enter().append('line')
+    .attr('class', d => 'link' + (d._virtual_src || d._virtual_tgt ? ' virtual-link' : ''))
+    .attr('stroke', '#444')
+    .attr('stroke-width', 1.5)
+    .attr('opacity', 0);
+  linkSel.transition().duration(500).attr('opacity', 1);
+
+  const simulation = d3.forceSimulation(nodeData)
+    .alphaDecay(0.03)
+    .velocityDecay(0.5)
+    .alphaMin(0.001)
+    .force('link', d3.forceLink(simLinks).id(d => d.session_id).distance(220).strength(0.3))
+    .force('charge', d3.forceManyBody().strength(-1200))
+    .force('center', d3.forceCenter(W / 2, H / 2))
+    .force('y', d3.forceY(d => 80 + (depthMap[d.session_id] || 0) * 120).strength(0.15))
+    .force('collision', d3.forceCollide(70));
+
+  // Nodes
+  const node = nodeGroup.selectAll('.node')
+    .data(nodeData)
+    .enter().append('g')
+    .attr('class', d => `node ${d._virtual ? 'virtual' : (d.status || 'idle')}`)
+    .attr('transform', d => `translate(${d.x},${d.y})`)
+    .style('cursor', 'pointer')
+    .style('opacity', 0)
+    .on('click', (event, d) => {
+      if (!d._virtual) {
+        if (window.innerWidth <= 768) {
+          openMobileSheet(d);
+        } else {
+          openDrawer(d);
+        }
+      }
+    })
+    .on('mousemove', (event, d) => {
+      const tt = document.getElementById('tooltip');
+      document.getElementById('tt-id').textContent = d.session_id;
+      document.getElementById('tt-model').textContent = d.model || '—';
+      document.getElementById('tt-cost').textContent = fmtCost(d.cost_usd);
+      document.getElementById('tt-status').textContent = d.status || '—';
+      const ttTask = document.getElementById('tt-task');
+      const ttTaskRow = document.getElementById('tt-task-row');
+      if (d.task_preview) {
+        ttTask.textContent = d.task_preview.substring(0, 120);
+        ttTaskRow.style.display = '';
+      } else {
+        ttTaskRow.style.display = 'none';
+      }
+      tt.style.display = 'block';
+      tt.style.left = (event.clientX + 14) + 'px';
+      tt.style.top = (event.clientY - 10) + 'px';
+    })
+    .on('mouseleave', () => {
+      document.getElementById('tooltip').style.display = 'none';
+    });
+
+  // Pulse ring for active/working nodes
+  node.filter(d => d.status === 'active' || d.status === 'working')
+    .append('circle')
+    .attr('class', 'pulse-ring')
+    .attr('r', 12)
+    .attr('fill', 'none')
+    .attr('stroke', '#22c55e')
+    .attr('stroke-width', 1.5)
+    .attr('opacity', 0.6);
+
+  node.append('circle')
+    .attr('r', d => d._virtual ? 13 : 10);
+
+  // Short label above node
+  node.append('text')
+    .attr('dy', -18)
+    .attr('text-anchor', 'middle')
+    .style('font-weight', d => d._virtual ? '700' : '400')
+    .style('fill', d => d._virtual ? 'var(--copper)' : 'var(--text)')
+    .text(d => extractNodeName(d));
+
+  // Task preview secondary label (below short label, above node)
+  node.filter(d => !d._virtual && d.task_preview)
+    .append('text')
+    .attr('dy', -7)
+    .attr('text-anchor', 'middle')
+    .style('font-size', '8px')
+    .style('fill', '#888')
+    .text(d => d.task_preview ? d.task_preview.substring(0, 30) : '');
+
+  // Model below node (not for virtual)
+  node.filter(d => !d._virtual)
+    .append('text')
+    .attr('class', 'model-text')
+    .attr('dy', 24)
+    .attr('text-anchor', 'middle')
+    .text(d => d.model ? abbreviate(d.model, 18) : '');
+
+  // Cost below model
+  node.filter(d => !d._virtual && d.cost_usd)
+    .append('text')
+    .attr('class', 'cost-text')
+    .attr('dy', 36)
+    .attr('text-anchor', 'middle')
+    .text(d => fmtCost(d.cost_usd));
+
+  // Wire up tick: update link and node positions live
+  simulation.on('tick', () => {
+    linkSel
+      .attr('x1', d => d.source.x || 0)
+      .attr('y1', d => d.source.y || 0)
+      .attr('x2', d => d.target.x || 0)
+      .attr('y2', d => d.target.y || 0);
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+
+  simulation.on('end', () => {
+    // Fade-in nodes after layout stabilizes
+    node.transition().duration(500).style('opacity', 1);
+    // fitToContent solo al primo caricamento — evita reset zoom ad ogni refresh
+    if (!_graphInitialized) {
+      fitToContent();
+      _graphInitialized = true;
+    }
+    simulation.stop();
+    // Salva posizioni per il prossimo refresh
+    simulation.nodes().forEach(d => {
+      if (d.session_id) nodePositions.set(d.session_id, { x: d.x, y: d.y });
+    });
+  });
+  simulation.restart();
+}
+
+// --- FEED ---
+function renderFeed(events) {
+  const list = document.getElementById('feed-list');
+  list.innerHTML = '';
+  events.slice(0, 20).forEach(ev => {
+    const div = document.createElement('div');
+    div.className = 'feed-item';
+    const typeClass = ['spawn','complete','error','tool_call'].includes(ev.type) ? ev.type : '';
+    div.innerHTML = `<span class="fi-ts">${fmtTs(ev.ts)}</span><span class="fi-type ${typeClass}">${ev.type}</span><span class="fi-label">${shortLabel(ev.session_id)}</span>`;
+    list.appendChild(div);
+  });
+}
+
+// --- COSTS ---
+function renderCosts(costs) {
+  document.getElementById('hdr-cost').textContent = fmtCost(costs.today);
+  document.getElementById('hdr-alltime').textContent = fmtCost(costs.allTime);
+  const rows = document.getElementById('cost-rows');
+  rows.innerHTML = '';
+  (costs.byModel || []).forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'cost-row';
+    div.innerHTML = `<span class="model-name">${abbreviate(m.model || 'unknown', 30)}</span><span class="model-cost">${fmtCost(m.cost)}</span>`;
+    rows.appendChild(div);
+  });
+}
+
+// --- POLL ---
+async function refresh() {
+  const ind = document.getElementById('refresh-indicator');
+  ind.style.color = '#B87333';
+  try {
+    const [sRes, cRes, eRes, aRes] = await Promise.all([
+      fetch('/api/sessions', { headers: API_HEADERS }),
+      fetch('/api/costs', { headers: API_HEADERS }),
+      fetch('/api/events?limit=50', { headers: API_HEADERS }),
+      fetch('/api/agents', { headers: API_HEADERS }),
+    ]);
+    const sessions = await sRes.json();
+    const costs = await cRes.json();
+    const events = await eRes.json();
+    const agents = await aRes.json();
+
+    sessionsData = sessions;
+    costsData = costs;
+    agentsList = agents;
+
+    document.getElementById('hdr-sessions').textContent = sessions.length;
+    renderAgentToolbar(agents);
+    renderGraph(sessions);
+    renderCosts(costs);
+    renderFeed(events);
+
+    // Update monthly cost display
+    fetch('/api/stats', { headers: API_HEADERS })
+      .then(r => r.json())
+      .then(data => {
+        const el = document.getElementById('cost-value');
+        if (el) el.textContent = (data.total?.total || 0).toFixed(4);
+      })
+      .catch(() => {});
+
+    ind.style.color = '#22c55e';
+  } catch (e) {
+    ind.style.color = '#ef4444';
+    console.error('Refresh error:', e);
+  }
+  setTimeout(() => { ind.style.color = '#4b5563'; }, 2000);
+}
+
+// ===================== MOBILE JS — GAMMA: Dashboard Cards =====================
+
+function isMobile() { return window.innerWidth <= 768; }
+
+let gammaNodePositions = new Map();
+let gammaGraphInitialized = false;
+
+function gammaToggleActive() {
+  showActiveOnly = !showActiveOnly;
+  const btn = document.getElementById('gamma-active-btn');
+  btn.textContent = showActiveOnly ? '⚡ ON' : '⚡ OFF';
+  btn.classList.toggle('off', !showActiveOnly);
+  renderGamma();
+}
+
+function gammaOpenSheet(session) {
+  const name = extractNodeName(session);
+  document.getElementById('gamma-sheet-title').textContent = name;
+  const status = session.status || 'idle';
+  const statusColor = status === 'working' ? '#22c55e' : status === 'error' ? '#ef4444' : '#888';
+  const trelloLink = session.trello_card_url
+    ? `<a href="${session.trello_card_url}" target="_blank" style="color:#B87333;text-decoration:none;">🔗 Trello card</a>`
+    : '<span style="color:#444;">Nessuna card Trello</span>';
+  document.getElementById('gamma-sheet-body').innerHTML = `
+    <div class="gamma-sheet-row">
+      <div class="gamma-sheet-row-label">Status</div>
+      <div class="gamma-sheet-row-val ${status}" style="color:${statusColor}">● ${status}</div>
+    </div>
+    <div class="gamma-sheet-row">
+      <div class="gamma-sheet-row-label">Model</div>
+      <div class="gamma-sheet-row-val">${session.model || '—'}</div>
+    </div>
+    <div class="gamma-sheet-row">
+      <div class="gamma-sheet-row-label">Tokens</div>
+      <div class="gamma-sheet-row-val">in: ${(session.tokens_in||0).toLocaleString()} / out: ${(session.tokens_out||0).toLocaleString()}</div>
+    </div>
+    <div class="gamma-sheet-row">
+      <div class="gamma-sheet-row-label">Costo</div>
+      <div class="gamma-sheet-row-val cost">$${(session.cost_usd||0).toFixed(4)}</div>
+    </div>
+    <div class="gamma-sheet-row">
+      <div class="gamma-sheet-row-label">Trello</div>
+      <div class="gamma-sheet-row-val">${trelloLink}</div>
+    </div>
+    ${session.task_preview ? `<div class="gamma-sheet-row">
+      <div class="gamma-sheet-row-label">Task</div>
+      <div class="gamma-sheet-row-val" style="font-size:10px;color:#888;line-height:1.5;word-break:break-word;">${session.task_preview.substring(0,300)}</div>
+    </div>` : ''}
+    <div class="gamma-sheet-row">
+      <div class="gamma-sheet-row-label">Session ID</div>
+      <div class="gamma-sheet-row-val" style="font-size:9px;color:#444;word-break:break-all;">${session.session_id}</div>
+    </div>
+  `;
+  const sheet = document.getElementById('gamma-sheet');
+  sheet.style.display = 'block';
+}
+
+function gammaCloseSheet() {
+  document.getElementById('gamma-sheet').style.display = 'none';
+}
+
+function renderGammaGraph() {
+  const svg = d3.select('#gamma-graph-svg');
+  svg.selectAll('*').remove();
+  const el = document.getElementById('gamma-graph-svg');
+  if (!el) return;
+  const W = el.clientWidth || window.innerWidth;
+  const H = el.clientHeight || Math.round(window.innerHeight * 0.5) - 36;
+  svg.attr('width', W).attr('height', H).style('cursor','grab');
+
+  const root_data = buildTreeWithVirtualRoots(sessionsData, 'ALL');
+  if (!root_data) return;
+
+  const flatNodes = [], flatLinks = [];
+  function flattenTree(node) {
+    flatNodes.push(node);
+    (node.children||[]).forEach(child => { flatLinks.push({source:node.session_id,target:child.session_id}); flattenTree(child); });
+  }
+  flattenTree(root_data);
+
+  const depthMap = {};
+  const sessionArr = flatNodes.filter(n=>!n._virtual).map(n=>({session_id:n.session_id,parent_id:n.parent_id}));
+  flatNodes.forEach(n => { depthMap[n.session_id] = n._virtual ? 0 : 1+calcDepth(n.session_id,sessionArr); });
+
+  const graphGroup = svg.append('g');
+  const zoomBehavior = d3.zoom().scaleExtent([0.05,4]).on('zoom',e=>{graphGroup.attr('transform',e.transform);window._gammaSavedZoom=e.transform;});
+  svg.call(zoomBehavior);
+  if (window._gammaSavedZoom && gammaGraphInitialized) svg.call(zoomBehavior.transform, window._gammaSavedZoom);
+
+  function fitToContent() {
+    const b = graphGroup.node().getBBox();
+    if (!b.width||!b.height) return;
+    const pad = 30;
+    const scale = Math.min((W-pad*2)/b.width,(H-pad*2)/b.height,1.5);
+    const tx = (W-b.width*scale)/2-b.x*scale;
+    const ty = (H-b.height*scale)/2-b.y*scale;
+    svg.transition().duration(600).call(zoomBehavior.transform,d3.zoomIdentity.translate(tx,ty).scale(scale));
+  }
+
+  const nodeData = flatNodes.map(n => {
+    const saved = gammaNodePositions.get(n.session_id);
+    return {...n, x:saved?saved.x:W/2+(Math.random()-0.5)*80, y:saved?saved.y:40+(depthMap[n.session_id]||0)*90};
+  });
+  const simLinks = flatLinks.map(l=>({source:l.source,target:l.target}));
+
+  const linkGroup = graphGroup.append('g');
+  const nodeGroup = graphGroup.append('g');
+
+  const linkSel = linkGroup.selectAll('line').data(simLinks).enter().append('line')
+    .attr('stroke','#333').attr('stroke-width',1.5).attr('opacity',0);
+  linkSel.transition().duration(400).attr('opacity',1);
+
+  const simulation = d3.forceSimulation(nodeData)
+    .alphaDecay(0.04).velocityDecay(0.5).alphaMin(0.001)
+    .force('link',d3.forceLink(simLinks).id(d=>d.session_id).distance(140).strength(0.3))
+    .force('charge',d3.forceManyBody().strength(-800))
+    .force('center',d3.forceCenter(W/2,H/2))
+    .force('y',d3.forceY(d=>40+(depthMap[d.session_id]||0)*90).strength(0.15))
+    .force('collision',d3.forceCollide(50));
+
+  const node = nodeGroup.selectAll('g').data(nodeData).enter().append('g')
+    .attr('class',d=>`node ${d._virtual?'virtual':(d.status||'idle')}`)
+    .attr('transform',d=>`translate(${d.x},${d.y})`)
+    .style('cursor','pointer').style('opacity',0)
+    .on('click',(event,d)=>{ if(!d._virtual){event.stopPropagation();gammaOpenSheet(d);} });
+
+  node.filter(d=>d.status==='working'||d.status==='active').append('circle')
+    .attr('class','pulse-ring').attr('r',9).attr('fill','none').attr('stroke','#22c55e').attr('stroke-width',1.5).attr('opacity',0.5);
+
+  node.append('circle').attr('r',d=>d._virtual?11:8);
+  node.append('text').attr('dy',-14).attr('text-anchor','middle')
+    .style('font-size','9px').style('font-weight',d=>d._virtual?'700':'400')
+    .style('fill',d=>d._virtual?'var(--copper)':'var(--text)')
+    .text(d=>extractNodeName(d));
+  node.filter(d=>!d._virtual&&d.cost_usd).append('text').attr('class','cost-text').attr('dy',20).attr('text-anchor','middle').text(d=>fmtCost(d.cost_usd));
+
+  simulation.on('tick',()=>{
+    linkSel.attr('x1',d=>d.source.x||0).attr('y1',d=>d.source.y||0).attr('x2',d=>d.target.x||0).attr('y2',d=>d.target.y||0);
+    node.attr('transform',d=>`translate(${d.x},${d.y})`);
+  });
+  simulation.on('end',()=>{
+    node.transition().duration(400).style('opacity',1);
+    if (!gammaGraphInitialized){fitToContent();gammaGraphInitialized=true;}
+    simulation.stop();
+    simulation.nodes().forEach(d=>{if(d.session_id)gammaNodePositions.set(d.session_id,{x:d.x,y:d.y});});
+  });
+  simulation.restart();
+}
+
+function renderGammaAgents() {
+  const el = document.getElementById('gamma-agents-list');
+  if (!el) return;
+  el.innerHTML = '';
+  const sessions = sessionsData || [];
+  const active = sessions.filter(s => isActive(s) && !s._virtual).sort((a,b)=>(b.cost_usd||0)-(a.cost_usd||0)).slice(0,8);
+  if (!active.length) {
+    el.innerHTML = '<div class="gamma-agent-empty">Nessun agente attivo</div>';
+    return;
+  }
+  active.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'gamma-agent-row';
+    const dotColor = s.status==='working'||s.status==='active' ? '#22c55e' : '#4b5563';
+    div.innerHTML = `
+      <div class="gamma-agent-dot" style="background:${dotColor}"></div>
+      <div class="gamma-agent-name">${extractNodeName(s)}</div>
+      <div class="gamma-agent-model">${abbreviate(s.model||'',14)}</div>
+      <div class="gamma-agent-cost">${fmtCost(s.cost_usd)}</div>
+    `;
+    div.onclick = () => gammaOpenSheet(s);
+    el.appendChild(div);
+  });
+}
+
+function renderGammaFeed() {
+  const el = document.getElementById('gamma-feed-list');
+  if (!el) return;
+  el.innerHTML = '';
+  const events = window._lastEvents || [];
+  events.slice(0,10).forEach((ev, i) => {
+    const div = document.createElement('div');
+    div.className = 'gamma-feed-item';
+    const dotColor = ev.type==='spawn'?'#22c55e':ev.type==='error'?'#ef4444':ev.type==='complete'?'#60a5fa':'#4b5563';
+    const isLast = i === Math.min(9, events.length-1);
+    div.innerHTML = `
+      <div class="gamma-feed-timeline">
+        <div class="gamma-feed-dot" style="background:${dotColor}"></div>
+        ${!isLast ? '<div class="gamma-feed-line"></div>' : ''}
+      </div>
+      <div class="gamma-feed-content">
+        <div class="gamma-feed-ts">${fmtTs(ev.ts)}</div>
+        <div class="gamma-feed-name">${shortLabel(ev.session_id)}</div>
+        <div class="gamma-feed-status">${ev.type}</div>
+      </div>
+    `;
+    el.appendChild(div);
+  });
+}
+
+function renderGammaStats() {
+  const sessions = sessionsData || [];
+  const active = sessions.filter(s => isActive(s)).length;
+  document.getElementById('gamma-total-sess').textContent = sessions.length;
+  document.getElementById('gamma-active-sess').textContent = active;
+
+  const costVal = document.getElementById('cost-value');
+  const gammaMonthly = document.getElementById('gamma-monthly-cost');
+  if (gammaMonthly && costVal) gammaMonthly.textContent = costVal.textContent || '...';
+
+  const el = document.getElementById('gamma-cost-month');
+  if (el && costVal) el.textContent = '~$' + (costVal.textContent || '...');
+
+  const byModel = costsData.byModel || [];
+  const topModel = byModel.sort((a,b)=>(b.cost||0)-(a.cost||0))[0];
+  document.getElementById('gamma-top-model').textContent = topModel ? abbreviate(topModel.model||'?',12) : '—';
+}
+
+function renderGamma() {
+  const costVal = document.getElementById('cost-value');
+  const gammaCV = document.getElementById('gamma-monthly-cost');
+  if (gammaCV && costVal) gammaCV.textContent = costVal.textContent || '...';
+
+  renderGammaGraph();
+  renderGammaAgents();
+  renderGammaFeed();
+  renderGammaStats();
+}
+
+function renderMobile() { renderGamma(); }
+function toggleMobileCron() { showCron = !showCron; renderGamma(); }
+function openMobileSheet(s) { gammaOpenSheet(s); }
+function closeMobileSheet() { gammaCloseSheet(); }
+function openGraphFullscreen() {}
+function closeGraphFullscreen() {}
+function toggleAgentCard() {}
+
+const _origRefresh = refresh;
+async function refreshWithMobile() {
+  const ind = document.getElementById('refresh-indicator');
+  ind.style.color = '#B87333';
+  try {
+    const [sRes, cRes, eRes, aRes] = await Promise.all([
+      fetch('/api/sessions', { headers: API_HEADERS }),
+      fetch('/api/costs', { headers: API_HEADERS }),
+      fetch('/api/events?limit=50', { headers: API_HEADERS }),
+      fetch('/api/agents', { headers: API_HEADERS }),
+    ]);
+    sessionsData = await sRes.json();
+    costsData = await cRes.json();
+    window._lastEvents = await eRes.json();
+    agentsList = await aRes.json();
+
+    document.getElementById('hdr-sessions').textContent = sessionsData.length;
+    renderAgentToolbar(agentsList);
+    renderGraph(sessionsData);
+    renderCosts(costsData);
+    renderFeed(window._lastEvents);
+
+    fetch('/api/stats', { headers: API_HEADERS }).then(r=>r.json()).then(data => {
+      const el = document.getElementById('cost-value');
+      if (el) el.textContent = (data.total?.total||0).toFixed(4);
+      renderGamma();
+    }).catch(() => renderGamma());
+
+    ind.style.color = '#22c55e';
+  } catch(e) {
+    ind.style.color = '#ef4444';
+  }
+  setTimeout(() => { ind.style.color = '#4b5563'; }, 2000);
+}
+
+refreshWithMobile();
+setInterval(refreshWithMobile, 10000);
+</script>
+<div id="node-drawer" style="display:none; position:fixed; top:48px; left:0; width:320px; height:calc(100vh - 48px); background:#111114; border-right:1px solid #222228; z-index:100; overflow-y:auto; padding:20px; font-family:'JetBrains Mono',monospace;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <span id="drawer-title" style="color:#B87333; font-size:14px; font-weight:700;"></span>
+    <button onclick="closeDrawer()" style="background:none; border:none; color:#888; font-size:18px; cursor:pointer;">✕</button>
+  </div>
+  <div id="drawer-content"></div>
+</div>
+
+<script>
+function openDrawer(session) {
+  const name = extractNodeName(session);
+  document.getElementById('drawer-title').textContent = name;
+  const cost = session.cost_usd ? `$${session.cost_usd.toFixed(4)}` : '$0.0000';
+  const tokIn = session.tokens_in || 0;
+  const tokOut = session.tokens_out || 0;
+  const trelloLink = session.trello_card_url
+    ? `<a href="${session.trello_card_url}" target="_blank" style="color:#B87333;">🔗 Trello card</a>`
+    : '<span style="color:#555;">Nessuna card Trello</span>';
+  const status = session.status || 'unknown';
+  const statusColor = status === 'working' ? '#22c55e' : '#4b5563';
+  const task = session.task_preview || 'N/A';
+
+  document.getElementById('drawer-content').innerHTML = `
+    <div style="margin-bottom:12px;">
+      <div style="color:#555; font-size:10px; margin-bottom:4px;">STATUS</div>
+      <div style="color:${statusColor}; font-size:12px;">● ${status}</div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <div style="color:#555; font-size:10px; margin-bottom:4px;">MODEL</div>
+      <div style="color:#E8E8E8; font-size:11px;">${session.model || 'unknown'}</div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <div style="color:#555; font-size:10px; margin-bottom:4px;">TOKENS</div>
+      <div style="color:#E8E8E8; font-size:11px;">in: ${tokIn.toLocaleString()} / out: ${tokOut.toLocaleString()}</div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <div style="color:#555; font-size:10px; margin-bottom:4px;">COSTO</div>
+      <div style="color:#B87333; font-size:13px; font-weight:700;">${cost}</div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <div style="color:#555; font-size:10px; margin-bottom:4px;">TRELLO</div>
+      ${trelloLink}
+    </div>
+    <div style="margin-bottom:12px;">
+      <div style="color:#555; font-size:10px; margin-bottom:4px;">SESSION ID</div>
+      <div style="color:#555; font-size:9px; word-break:break-all;">${session.session_id}</div>
+    </div>
+    <div>
+      <div style="color:#555; font-size:10px; margin-bottom:4px;">TASK</div>
+      <div style="color:#888; font-size:10px; line-height:1.5; max-height:200px; overflow-y:auto; white-space:pre-wrap;">${task}</div>
+    </div>
+  `;
+  const drawer = document.getElementById('node-drawer');
+  drawer.style.display = 'block';
+  if (window.innerWidth <= 768) {
+    drawer.style.width = '100vw';
+  } else {
+    drawer.style.width = '320px';
+  }
+}
+
+function closeDrawer() {
+  document.getElementById('node-drawer').style.display = 'none';
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDrawer(); closeMobileSheet(); } });
+
+function openMobileSheet(session) {
+  const title = document.getElementById('sheet-title');
+  const content = document.getElementById('sheet-content');
+  if (!title || !content) return;
+  title.textContent = extractNodeName ? extractNodeName(session) : (session.session_id || '');
+  const statusColor = session.status === 'working' ? '#22c55e' : session.status === 'error' ? '#ef4444' : '#888';
+  const trelloLink = session.trello_card_url ? `<div style="margin-top:12px"><a href="${session.trello_card_url}" target="_blank" style="color:#B87333;font-size:11px;">🔗 Trello card</a></div>` : '';
+  content.innerHTML = `
+    <div style="font-size:11px; color:#888; margin-bottom:8px;">${session.session_id}</div>
+    <div style="display:flex; gap:16px; margin-bottom:12px; font-size:12px;">
+      <span>Status: <span style="color:${statusColor}">${session.status || '—'}</span></span>
+      <span>Model: <span style="color:#E8E8E8">${session.model || '—'}</span></span>
+    </div>
+    <div style="font-size:12px; margin-bottom:8px;">Tokens in: <span style="color:#E8E8E8">${(session.tokens_in||0).toLocaleString()}</span> &nbsp; out: <span style="color:#E8E8E8">${(session.tokens_out||0).toLocaleString()}</span></div>
+    <div style="font-size:13px; color:#B87333; margin-bottom:12px;">Cost: $${(session.cost_usd||0).toFixed(4)}</div>
+    ${session.task_preview ? `<div style="font-size:11px; color:#888; line-height:1.5; background:#0A0A0B; padding:10px; border-radius:6px; word-break:break-word;">${session.task_preview}</div>` : ''}
+    ${trelloLink}
+  `;
+  document.getElementById('mobile-sheet').style.display = 'block';
+}
+
+function closeMobileSheet() {
+  const el = document.getElementById('mobile-sheet');
+  if (el) el.style.display = 'none';
+}
+</script>
+
+<div id="mobile-sheet" style="display:none; position:fixed; bottom:0; left:0; right:0; height:60vh; background:#111114; border-top:2px solid #B87333; border-radius:16px 16px 0 0; z-index:200; overflow-y:auto; padding:20px; font-family:'JetBrains Mono',monospace; transition:transform 0.3s ease;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <span id="sheet-title" style="color:#B87333; font-size:14px; font-weight:700;"></span>
+    <button onclick="closeMobileSheet()" style="background:none; border:none; color:#888; font-size:18px; cursor:pointer;">✕</button>
+  </div>
+  <div id="sheet-content"></div>
+</div>
+
+</body>
+</html>

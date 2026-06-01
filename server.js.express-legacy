@@ -1,0 +1,354 @@
+const express = require('express');
+const path = require('path');
+const Database = require('better-sqlite3');
+
+const { promisify } = require('util');
+const { exec: execCallback } = require('child_process');
+const exec = promisify(execCallback);
+
+const app = express();
+app.use(express.json());
+const PORT = process.env.PORT || 3700;
+const TOKEN = process.env.OLYMPUS_TOKEN || 'olympus2026';
+const DB_PATH = path.join(__dirname, 'events.db');
+
+// Auth middleware (not applied to /)
+const requireAuth = (req, res, next) => {
+  const auth = req.headers['authorization'];
+  if (!auth || auth !== `Bearer ${TOKEN}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+};
+
+// DB helper
+function getDb() {
+  return new Database(DB_PATH, { readonly: true });
+}
+function getDbWrite() {
+  return new Database(DB_PATH);
+}
+
+// Serve frontend
+app.use(express.static(path.join(__dirname, 'dashboard'), { etag: false, lastModified: false, setHeaders: (res) => { res.setHeader('Cache-Control', 'no-store'); } }));
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dashboard', 'index.html'));
+});
+
+// GET /api/sessions — all sessions with hierarchy
+app.get('/api/sessions', requireAuth, (req, res) => {
+  try {
+    const db = getDb();
+    const sessions = db.prepare('SELECT * FROM sessions ORDER BY started_at ASC').all();
+    db.close();
+    res.json(sessions);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/costs — today totals + model breakdown
+app.get('/api/costs', requireAuth, (req, res) => {
+  try {
+    const db = getDb();
+    const startOfDay = Math.floor(new Date().setHours(0,0,0,0) / 1000);
+    const total = db.prepare(
+      'SELECT SUM(cost_usd) as total FROM sessions WHERE started_at >= ?'
+    ).get(startOfDay);
+    const byModel = db.prepare(
+      'SELECT model, SUM(cost_usd) as cost, SUM(tokens_in) as tokens_in, SUM(tokens_out) as tokens_out FROM sessions WHERE started_at >= ? GROUP BY model'
+    ).all(startOfDay);
+    const allTime = db.prepare('SELECT SUM(cost_usd) as total FROM sessions').get();
+    db.close();
+    res.json({
+      today: total?.total || 0,
+      allTime: allTime?.total || 0,
+      byModel
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/events?limit=50 — latest N events
+app.get('/api/events', requireAuth, (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    const db = getDb();
+    const events = db.prepare(
+      'SELECT e.*, s.label FROM events e LEFT JOIN sessions s ON e.session_id = s.session_id ORDER BY e.ts DESC LIMIT ?'
+    ).all(limit);
+    db.close();
+    res.json(events);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/stream?token=... — SSE live updates (events/sessions/costs)
+app.get('/api/stream', (req, res) => {
+  try {
+    const token = req.query.token;
+    if (token !== TOKEN) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    let lastEventId = 0;
+    const send = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+
+    const poll = () => {
+      try {
+        const db = getDb();
+        const newEvents = db.prepare(
+          'SELECT e.*, s.label AS session_label FROM events e LEFT JOIN sessions s ON e.session_id = s.session_id WHERE e.id > ? ORDER BY e.ts ASC LIMIT 20'
+        ).all(lastEventId);
+        const sessions = db.prepare('SELECT * FROM sessions ORDER BY started_at DESC LIMIT 100').all();
+        const costs = db.prepare(
+          'SELECT SUM(cost_usd) AS today FROM sessions WHERE started_at >= ?'
+        ).get(Math.floor(new Date().setHours(0, 0, 0, 0) / 1000));
+        db.close();
+
+        if (newEvents.length > 0) {
+          lastEventId = newEvents[newEvents.length - 1].id;
+          send({ type: 'events', data: newEvents });
+        }
+        send({ type: 'sessions', data: sessions });
+        send({ type: 'costs', data: { today: costs?.today || 0 } });
+      } catch {
+        // Keep stream alive if DB query fails temporarily.
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 5000);
+    req.on('close', () => {
+      clearInterval(interval);
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/agents — unique agentIds extracted from session_ids, only active sessions (status active/idle/working) in last 2 days
+app.get('/api/agents', requireAuth, (req, res) => {
+  try {
+    const db = getDb();
+    const twoDaysAgo = Math.floor(Date.now() / 1000) - (2 * 24 * 60 * 60);
+    // Group by agent_id (second part of session_id) and get max updated_at
+    // Include only sessions with active/idle/working status and updated_at within last 2 days
+    const agents = db.prepare(`
+      SELECT 
+        CASE 
+          WHEN INSTR(session_id, ':') = 0 THEN 'unknown'
+          ELSE SUBSTR(session_id, INSTR(session_id, ':') + 1, INSTR(SUBSTR(session_id, INSTR(session_id, ':') + 1), ':') - 1)
+        END as agent_id,
+        MAX(updated_at) as last_seen
+      FROM sessions 
+      WHERE status IN ('active', 'idle', 'working') AND updated_at > ?
+      GROUP BY agent_id
+      ORDER BY agent_id
+    `).all(twoDaysAgo);
+    db.close();
+    // Extract agent_id values, filter out empty/unknown
+    const agentIds = agents.map(a => a.agent_id).filter(id => id && id !== 'unknown');
+    res.json(agentIds);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/stats', requireAuth, (req, res) => {
+  try {
+    const db = getDb();
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+    const totalCost = db.prepare(`
+      SELECT COALESCE(SUM(cost_usd), 0) as total,
+             COALESCE(SUM(tokens_in), 0) as total_in,
+             COALESCE(SUM(tokens_out), 0) as total_out,
+             COUNT(*) as sessions
+      FROM sessions WHERE started_at >= ?
+    `).get(startOfMonth);
+
+    const byModel = db.prepare(`
+      SELECT model,
+             COALESCE(SUM(cost_usd), 0) as cost,
+             COALESCE(SUM(tokens_in), 0) as tokens_in,
+             COALESCE(SUM(tokens_out), 0) as tokens_out,
+             COUNT(*) as sessions
+      FROM sessions WHERE started_at >= ?
+      GROUP BY model ORDER BY cost DESC
+    `).all(startOfMonth);
+
+    res.json({ month: now.toISOString().slice(0, 7), total: totalCost, byModel });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/cost-override — read manual override
+app.get('/api/cost-override', requireAuth, (req, res) => {
+  try {
+    const db = getDbWrite();
+    db.prepare(`CREATE TABLE IF NOT EXISTS cost_override (
+      month TEXT PRIMARY KEY,
+      amount REAL,
+      note TEXT,
+      updated_at INTEGER
+    )`).run();
+    const now = new Date();
+    const month = now.toISOString().slice(0, 7);
+    const row = db.prepare('SELECT * FROM cost_override WHERE month = ?').get(month);
+    db.close();
+    res.json(row || { month, amount: null, note: null });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/cost-override — save manual override
+app.post('/api/cost-override', requireAuth, (req, res) => {
+  try {
+    const db = getDbWrite();
+    db.prepare(`CREATE TABLE IF NOT EXISTS cost_override (
+      month TEXT PRIMARY KEY,
+      amount REAL,
+      note TEXT,
+      updated_at INTEGER
+    )`).run();
+    const { amount, note, month } = req.body || {};
+    const m = month || new Date().toISOString().slice(0, 7);
+    if (amount === undefined || isNaN(parseFloat(amount))) {
+      db.close();
+      return res.status(400).json({ error: 'amount required' });
+    }
+    db.prepare('INSERT OR REPLACE INTO cost_override (month, amount, note, updated_at) VALUES (?, ?, ?, ?)')
+      .run(m, parseFloat(amount), note || null, Date.now());
+    db.close();
+    res.json({ ok: true, month: m, amount: parseFloat(amount) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/lineage — dichiara la gerarchia parent→child
+// Chiamato da Forge/Atlas/Prometheus dopo ogni sessions_spawn
+// Body: { childId: "agent:website:subagent:uuid", parentId: "agent:website:subagent:uuid" }
+app.post('/api/lineage', requireAuth, (req, res) => {
+  try {
+    const db = getDbWrite();
+    db.prepare(`CREATE TABLE IF NOT EXISTS lineage (
+      child_id TEXT PRIMARY KEY,
+      parent_id TEXT NOT NULL,
+      declared_at INTEGER NOT NULL
+    )`).run();
+    const { childId, parentId } = req.body || {};
+    if (!childId || !parentId) {
+      db.close();
+      return res.status(400).json({ error: 'childId and parentId required' });
+    }
+    db.prepare('INSERT OR REPLACE INTO lineage (child_id, parent_id, declared_at) VALUES (?, ?, ?)')
+      .run(childId, parentId, Date.now());
+    // Also update sessions.parent_id if the session already exists
+    db.prepare('UPDATE sessions SET parent_id = ? WHERE session_id = ?')
+      .run(parentId, childId);
+    db.close();
+    res.json({ ok: true, childId, parentId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/stats-since?ts=<unix_ms> — costo sessioni avviate dopo ts
+app.get('/api/stats-since', requireAuth, (req, res) => {
+  try {
+    const since = parseInt(req.query.ts) || 0;
+    const db = getDb();
+    const row = db.prepare(`
+      SELECT COALESCE(SUM(cost_usd), 0) as total
+      FROM sessions WHERE started_at >= ?
+    `).get(since);
+    db.close();
+    res.json({ total: row.total });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/tool-calls?session_id=xxx&limit=50 — tool call tracing
+app.get('/api/tool-calls', requireAuth, (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const sessionId = req.query.session_id;
+    const db = getDb();
+    let rows;
+    if (sessionId) {
+      rows = db.prepare(
+        'SELECT * FROM tool_calls WHERE session_id = ? ORDER BY ts DESC LIMIT ?'
+      ).all(sessionId, limit);
+    } else {
+      rows = db.prepare(
+        'SELECT * FROM tool_calls ORDER BY ts DESC LIMIT ?'
+      ).all(limit);
+    }
+    db.close();
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/crons — cron job status from openclaw
+app.get('/api/crons', requireAuth, async (req, res) => {
+  try {
+    const { stdout } = await exec('openclaw cron list --json', { timeout: 5000 });
+    const jobs = JSON.parse(stdout.trim()).jobs || [];
+    res.json(jobs);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch crons: ' + err.message });
+  }
+});
+
+// GET /api/metrics?limit=60&range=24h — system metrics (CPU, RAM, disk)
+app.get('/api/metrics', requireAuth, (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 60, 1000);
+    const range = req.query.range || '24h';
+    const rangeSeconds = range === '7d' ? 7*24*3600 : range === '1h' ? 3600 : 24*3600;
+    const since = Math.floor(Date.now() / 1000) - rangeSeconds;
+
+    const db = getDb();
+
+    const latest = db.prepare(
+      'SELECT cpu_percent as cpu, ram_used_mb, ram_total_mb, disk_used_gb, disk_total_gb, load_avg_1m as load_avg, ts FROM system_metrics ORDER BY ts DESC LIMIT 1'
+    ).get();
+
+    const history = db.prepare(
+      'SELECT cpu_percent as cpu, ram_used_mb, ram_total_mb, disk_used_gb, disk_total_gb, load_avg_1m as load_avg, ts FROM system_metrics ORDER BY ts DESC LIMIT ?'
+    ).all(limit);
+
+    const stats = db.prepare(`
+      SELECT
+        ROUND(AVG(cpu_percent)) as cpu_avg,
+        MAX(cpu_percent) as cpu_max,
+        ROUND(AVG(ram_used_mb)) as ram_avg_mb,
+        MAX(ram_used_mb) as ram_max_mb
+      FROM system_metrics WHERE ts >= ?
+    `).get(since);
+
+    db.close();
+    res.json({
+      latest: latest || null,
+      history: history.reverse(), // chronological order
+      stats_24h: {
+        cpu_avg: stats?.cpu_avg || 0,
+        cpu_max: stats?.cpu_max || 0,
+        ram_avg_mb: stats?.ram_avg_mb || 0,
+        ram_max_mb: stats?.ram_max_mb || 0,
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`👁️  Olympus server running on http://localhost:${PORT}`);
+});

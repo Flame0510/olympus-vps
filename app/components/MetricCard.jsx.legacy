@@ -1,0 +1,21 @@
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+export default function MetricCard({ title, value = '—', subtitle = '', tone = 'default' }) {
+  const toneClass = tone ? ` metric-card--${escapeHtml(tone)}` : '';
+  const subtitleHtml = subtitle
+    ? `<div class="metric-card__subtitle">${escapeHtml(subtitle)}</div>`
+    : '';
+
+  return `<article class="metric-card${toneClass}">
+    <div class="metric-card__title">${escapeHtml(title)}</div>
+    <div class="metric-card__value">${escapeHtml(value)}</div>
+    ${subtitleHtml}
+  </article>`;
+}

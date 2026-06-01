@@ -1,0 +1,358 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+
+const TOKEN = 'olympus2026';
+const API_HEADERS = { Authorization: `Bearer ${TOKEN}` };
+
+function fileKind(filePath) {
+  const p = (filePath || '').toLowerCase();
+  if (p.endsWith('.md')) return 'markdown';
+  if (p.endsWith('.json')) return 'json';
+  return 'text';
+}
+
+function buildTree(files) {
+  const tree = {};
+  for (const f of files) {
+    const relPath = f.rel_path || f.name || '';
+    const parts = relPath.split('/');
+    const dir = parts.length > 1 ? parts[0] : '';
+    if (!tree[dir]) tree[dir] = [];
+    tree[dir].push({ ...f, displayName: parts[parts.length - 1] });
+  }
+  return tree;
+}
+
+export default function AgentsPage() {
+  const [agents, setAgents] = useState([]);
+  const [selectedAgentId, setSelectedAgentId] = useState('');
+  const [selectedFilePath, setSelectedFilePath] = useState('');
+  const [editorContent, setEditorContent] = useState('');
+  const [mobileStep, setMobileStep] = useState(1);
+  const [openDirs, setOpenDirs] = useState({});
+
+  function toggleDir(dirName) {
+    setOpenDirs((prev) => ({ ...prev, [dirName]: !prev[dirName] }));
+  }
+  const [savingState, setSavingState] = useState('idle');
+  const [loadingFile, setLoadingFile] = useState(false);
+
+  const selectedAgent = useMemo(
+    () => agents.find((a) => a.agent_id === selectedAgentId) || null,
+    [agents, selectedAgentId]
+  );
+
+  const files = selectedAgent?.files || [];
+  const fileTree = useMemo(() => buildTree(files), [files]);
+  const rootFiles = fileTree[''] || [];
+  const directoryNames = useMemo(
+    () => Object.keys(fileTree).filter((k) => k).sort((a, b) => a.localeCompare(b)),
+    [fileTree]
+  );
+
+  async function fetchAgents() {
+    try {
+      const res = await fetch('/api/agents-active', { headers: API_HEADERS, cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      setAgents(Array.isArray(data) ? data : []);
+      if (!selectedAgentId && Array.isArray(data) && data.length) {
+        setSelectedAgentId(data[0].agent_id);
+      }
+    } catch {
+      // keep UI responsive on polling failures
+    }
+  }
+
+  async function loadFile(path) {
+    if (!path) return;
+    setLoadingFile(true);
+    setSelectedFilePath(path);
+    setSavingState('idle');
+
+    try {
+      const url = `/api/workspace?path=${encodeURIComponent(path)}`;
+      const res = await fetch(url, { headers: API_HEADERS, cache: 'no-store' });
+      if (!res.ok) throw new Error('load failed');
+      const data = await res.json();
+      setEditorContent(data.content || '');
+      setMobileStep(3);
+    } catch {
+      setEditorContent('');
+      setSavingState('error');
+    } finally {
+      setLoadingFile(false);
+    }
+  }
+
+  async function saveFile() {
+    if (!selectedFilePath) return;
+    setSavingState('saving');
+    try {
+      const res = await fetch('/api/workspace', {
+        method: 'PUT',
+        headers: {
+          ...API_HEADERS,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ path: selectedFilePath, content: editorContent })
+      });
+      if (!res.ok) throw new Error('save failed');
+      setSavingState('saved');
+      setTimeout(() => setSavingState('idle'), 1500);
+    } catch {
+      setSavingState('error');
+    }
+  }
+
+  useEffect(() => {
+    fetchAgents();
+    const id = setInterval(fetchAgents, 15000);
+    return () => clearInterval(id);
+  }, []);
+
+  const saveLabel =
+    savingState === 'saving' ? 'Saving...' : savingState === 'saved' ? 'Saved ✓' : savingState === 'error' ? 'Error ✗' : 'SAVE';
+
+  return (
+    <div style={{
+      height: '100vh',
+      background: 'var(--bg)',
+      color: 'var(--text)',
+      fontFamily: 'var(--font-mono-stack)',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
+      <div style={{
+        padding: '10px 14px',
+        borderBottom: '1px solid var(--border)',
+        color: 'var(--copper)',
+        fontSize: 12,
+        letterSpacing: '0.08em'
+      }}>
+        AGENTS ACTIVE
+      </div>
+
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        <section className="pane pane-agents" style={{ width: '28%', minWidth: 250, borderRight: '1px solid var(--border)', overflow: 'auto' }}>
+          {agents.map((agent) => {
+            const isActive = selectedAgentId === agent.agent_id;
+            const hasWorking = agent.status === 'working';
+            const model = agent.config_model || agent.sessions[0]?.model || 'unknown';
+            return (
+              <button
+                key={agent.agent_id}
+                onClick={() => {
+                  setSelectedAgentId(agent.agent_id);
+                  setSelectedFilePath('');
+                  setEditorContent('');
+                  setMobileStep(2);
+                }}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  background: isActive ? '#1a1208' : 'transparent',
+                  border: 'none',
+                  borderBottom: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  padding: '10px 12px',
+                  cursor: 'pointer'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: hasWorking ? '#22c55e' : '#888',
+                      display: 'inline-block'
+                    }} />
+                    <span style={{ color: isActive ? 'var(--copper)' : 'var(--text)', fontSize: 12 }}>{agent.agent_id}</span>
+                  </div>
+                  <span style={{ fontSize: 10, color: '#555' }}>{agent.sessions.length} sess</span>
+                </div>
+                <div style={{ fontSize: 10, color: '#888', marginTop: 6 }}>{model}</div>
+                <div style={{ fontSize: 10, color: '#555', marginTop: 4 }}>{agent.workspace_path}</div>
+              </button>
+            );
+          })}
+        </section>
+
+        <section className="pane pane-files" style={{ width: '28%', minWidth: 260, borderRight: '1px solid var(--border)', overflow: 'auto', background: 'var(--bg2)' }}>
+          <div className="mobile-header-files" style={{ display: 'none', padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+            <button
+              onClick={() => setMobileStep(1)}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--copper)',
+                padding: 0,
+                fontFamily: 'inherit',
+                fontSize: 11,
+                letterSpacing: '0.06em',
+                cursor: 'pointer'
+              }}
+            >
+              ← AGENTS
+            </button>
+          </div>
+          <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 10, color: '#888' }}>
+            {selectedAgent ? selectedAgent.workspace_path : 'No agent selected'}
+          </div>
+          {rootFiles.map((file) => {
+            const isFileActive = selectedFilePath === file.path;
+            const type = file.type || fileKind(file.path);
+            return (
+              <button
+                key={file.path}
+                onClick={() => loadFile(file.path)}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  background: isFileActive ? '#1a1208' : 'transparent',
+                  border: 'none',
+                  borderBottom: '1px solid var(--border)',
+                  color: '#E8E8E8',
+                  padding: '8px 10px',
+                  cursor: 'pointer'
+                }}
+              >
+                  <div style={{ fontSize: 11 }}>📄 {file.displayName || file.name}</div>
+                  <div style={{ fontSize: 10, color: type === 'markdown' ? '#B87333' : type === 'json' ? '#60a5fa' : '#888' }}>{type}</div>
+                </button>
+              );
+            })}
+          {directoryNames.map((dirName) => (
+            <div key={dirName}>
+              <button
+                onClick={() => toggleDir(dirName)}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: '1px solid var(--border)',
+                  color: '#888',
+                  padding: '8px 10px',
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  fontFamily: 'inherit',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6
+                }}
+              >
+                <span style={{ fontSize: 10, color: '#555' }}>{openDirs[dirName] ? '▾' : '▸'}</span>
+                <span style={{ color: '#555', fontSize: 10 }}>📁 {dirName}/</span>
+              </button>
+              {openDirs[dirName] && fileTree[dirName].map((file) => {
+                const isFileActive = selectedFilePath === file.path;
+                const type = file.type || fileKind(file.path);
+                return (
+                  <button
+                    key={file.path}
+                    onClick={() => loadFile(file.path)}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      background: isFileActive ? '#1a1208' : 'transparent',
+                      border: 'none',
+                      borderBottom: '1px solid var(--border)',
+                      color: '#E8E8E8',
+                      padding: '8px 10px 8px 26px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <div style={{ fontSize: 11 }}>📄 {file.displayName || file.name}</div>
+                    <div style={{ fontSize: 10, color: type === 'markdown' ? '#B87333' : type === 'json' ? '#60a5fa' : '#888' }}>{type}</div>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </section>
+
+        <section className="pane pane-editor" style={{ flex: 1, minWidth: 320, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            borderBottom: '1px solid var(--border)',
+            background: 'var(--bg2)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, maxWidth: '80%' }}>
+              <button
+                className="mobile-back-files"
+                onClick={() => setMobileStep(2)}
+                style={{
+                  display: 'none',
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'var(--copper)',
+                  padding: 0,
+                  fontFamily: 'inherit',
+                  fontSize: 11,
+                  letterSpacing: '0.06em',
+                  cursor: 'pointer'
+                }}
+              >
+                ← FILES
+              </button>
+              <div style={{ fontSize: 10, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selectedFilePath ? selectedFilePath.split('/').pop() : 'Select a file to edit'}
+              </div>
+            </div>
+            <button
+              onClick={saveFile}
+              disabled={!selectedFilePath || savingState === 'saving'}
+              style={{
+                border: '1px solid var(--border)',
+                background: savingState === 'saved' ? '#143018' : 'var(--bg3)',
+                color: savingState === 'error' ? '#ef4444' : savingState === 'saved' ? '#22c55e' : 'var(--copper)',
+                padding: '5px 10px',
+                fontFamily: 'inherit',
+                fontSize: 11,
+                cursor: 'pointer'
+              }}
+            >
+              {saveLabel}
+            </button>
+          </div>
+          <textarea
+            value={editorContent}
+            onChange={(e) => setEditorContent(e.target.value)}
+            placeholder={loadingFile ? 'Loading...' : 'No file selected'}
+            style={{
+              flex: 1,
+              width: '100%',
+              border: 'none',
+              outline: 'none',
+              resize: 'none',
+              background: '#0A0A0B',
+              color: '#E8E8E8',
+              padding: 12,
+              fontSize: 12,
+              fontFamily: 'JetBrains Mono, monospace',
+              lineHeight: 1.45
+            }}
+          />
+        </section>
+      </div>
+
+      <style jsx>{`
+        @media (max-width: 900px) {
+          .pane { display: none; width: 100% !important; min-width: 0 !important; border-right: none !important; }
+          .pane-agents { display: ${mobileStep === 1 ? 'block' : 'none'}; }
+          .pane-files { display: ${mobileStep === 2 ? 'block' : 'none'}; }
+          .pane-editor { display: ${mobileStep === 3 ? 'flex' : 'none'}; }
+          .mobile-header-files { display: block !important; }
+          .mobile-back-files { display: inline-block !important; }
+        }
+      `}</style>
+    </div>
+  );
+}

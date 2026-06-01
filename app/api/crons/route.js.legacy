@@ -1,0 +1,13 @@
+import { NextResponse } from 'next/server';
+import { execSync } from 'child_process';
+const TOKEN = process.env.OLYMPUS_TOKEN || 'olympus2026';
+export const dynamic = 'force-dynamic';
+export async function GET(request) {
+  const auth = request.headers.get('authorization');
+  if (auth !== `Bearer ${TOKEN}`) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const stdout = execSync('openclaw cron list --json', { timeout: 5000 }).toString();
+    const jobs = JSON.parse(stdout.trim()).jobs || [];
+    return NextResponse.json(jobs);
+  } catch (err) { return NextResponse.json([], { status: 200 }); }
+}
