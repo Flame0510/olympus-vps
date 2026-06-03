@@ -81,8 +81,10 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const isActive = (href: string) =>
-    href === '/' ? pathname === '/' : pathname.startsWith(href);
+  const isActive = (href: string) => {
+    const targetPath = href.split('?')[0] || '/';
+    return targetPath === '/' ? pathname === '/' : pathname.startsWith(targetPath);
+  };
 
   const navItems = (
     <nav className="sidebar__nav">
