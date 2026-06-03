@@ -76,8 +76,7 @@ export default function DashboardLayout({ initialCosts }: DashboardLayoutProps) 
       <section className="layout" style={isMobile ? { display: 'block', height: 'calc(100vh - 150px)' } : undefined}>
         {(!isMobile || mobileTab === 'graph') && (
           <article className="panel graph-panel" style={isMobile ? { height: '100%', borderRight: 'none' } : undefined}>
-            <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
-              <h2 style={{ margin: 0 }}>Topologia Sessioni</h2>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
               <button
                 type="button"
                 className="agent-btn"
