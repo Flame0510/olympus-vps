@@ -12,7 +12,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const db = openDb();
     const session = db
-      .prepare('SELECT * FROM sessions WHERE session_id = ?')
+      .prepare(`SELECT s.*, l.label AS lineage_label, l.agent_name AS lineage_agent_name
+        FROM sessions s
+        LEFT JOIN lineage l ON s.session_id = l.child_id
+        WHERE s.session_id = ?`)
       .get(sessionId);
     if (!session) {
       db.close();
@@ -23,7 +26,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .all(sessionId);
     const children = db
       .prepare(
-        `SELECT s.*, l.agent_name FROM sessions s
+        `SELECT s.*, l.label AS lineage_label, l.agent_name AS lineage_agent_name
+         FROM sessions s
          JOIN lineage l ON s.session_id = l.child_id
          WHERE l.parent_id = ? ORDER BY s.started_at DESC LIMIT 10`,
       )

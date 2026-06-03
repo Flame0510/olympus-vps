@@ -45,26 +45,62 @@ export function shortLabel(sessionId: string): string {
   return sessionId.slice(0, 14);
 }
 
-export function nodeLabel(session: TreeNode): string {
+function normalizeDisplayLabel(value: string | null | undefined): string {
+  const label = String(value ?? '').trim();
+  if (!label) return '';
+  if (/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(label)) return '';
+  if (/^(agent:[^\s]+:subagent:[0-9a-f-]+|subagent:[0-9a-f-]{8,}|session:[0-9a-f-]{8,})$/i.test(label)) return '';
+  return label;
+}
+
+function prettifyAgentName(value: string): string {
+  return value
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function taskDerivedLabel(taskPreview: string | null | undefined): string {
+  const task = String(taskPreview ?? '').trim();
+  if (!task) return '';
+  if (/Sei Olympus Developer/i.test(task)) return 'Olympus Developer';
+  if (/Sei Olympus QA/i.test(task)) return 'Olympus QA';
+  if (/\bqa\b|test|smoke/i.test(task)) return 'QA 🧪';
+  if (/\bdev\b|fix|implement|bug|refactor|code/i.test(task)) return 'Dev 🛠️';
+  return '';
+}
+
+function subagentFallback(sessionId: string): string {
+  const suffix = sessionId.split(':').pop()?.replace(/[^a-z0-9]/gi, '').slice(0, 6) ?? '';
+  return suffix ? `Subagent ${suffix}` : 'Subagent';
+}
+
+export function nodeLabel(session: TreeNode & { lineage_label?: string | null; task_preview?: string | null }): string {
   if (session._virtualRoot) return '';
   if (session._agentNode) {
-    const raw = (session as TreeNode & { name: string }).name || '';
-    return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Agent';
+    const raw = normalizeDisplayLabel((session as TreeNode & { name: string }).name);
+    return raw ? prettifyAgentName(raw) : 'Agent';
   }
 
   const sid = session.session_id || '';
-  const label = (session.name || '').trim();
+  const lineageLabel = normalizeDisplayLabel(session.lineage_label);
+  const directLabel = normalizeDisplayLabel(session.name || '');
+  const taskLabel = taskDerivedLabel(session.task_preview);
 
-  // lineage label umano ha priorità assoluta
-  if (label && !label.startsWith('agent:')) return label;
+  if (lineageLabel) return lineageLabel;
+  if (directLabel && !directLabel.startsWith('agent:')) return directLabel;
+  if (taskLabel) return taskLabel;
 
-  // main sessions: mostra nome workspace invece del session_id tecnico
   if (sid.endsWith(':main')) {
     const agent = extractAgentId(sid);
-    if (agent) return agent.charAt(0).toUpperCase() + agent.slice(1);
+    if (agent) return prettifyAgentName(agent);
   }
 
-  return label || shortLabel(sid);
+  if (sid.startsWith('agent:ops:subagent:')) return subagentFallback(sid);
+  if (sid.startsWith('subagent:')) return subagentFallback(sid);
+
+  return shortLabel(sid);
 }
 
 export function isCronSession(sessionId: string): boolean {
@@ -92,9 +128,11 @@ export function buildSessionTree(sessions: Session[], filter: string): TreeNode 
 
   for (const session of filtered) {
     if (!session.session_id) continue;
-    const node: TreeNode = {
+    const node: TreeNode & { lineage_label?: string | null; task_preview?: string | null } = {
       session_id: session.session_id,
       name: session.label ?? shortLabel(session.session_id),
+      lineage_label: session.lineage_label ?? session.label ?? null,
+      task_preview: session.task_preview ?? null,
       status: session.status,
       model: session.model,
       cost_usd: session.cost_usd ?? 0,

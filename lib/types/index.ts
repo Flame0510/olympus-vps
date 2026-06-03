@@ -4,6 +4,8 @@ export interface Session {
   session_id: string;
   parent_id?: string | null;
   label?: string | null;
+  lineage_label?: string | null;
+  lineage_agent_name?: string | null;
   model?: string | null;
   status: SessionStatus;
   tokens_in?: number | null;
@@ -84,6 +86,8 @@ export interface TreeNode {
   session_id: string;
   name: string;
   status: SessionStatus;
+  lineage_label?: string | null;
+  task_preview?: string | null;
   model?: string | null;
   cost_usd?: number;
   children?: TreeNode[];

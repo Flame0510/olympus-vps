@@ -7,7 +7,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (denied) return denied;
   try {
     const db = openDb();
-    const sessions = db.prepare('SELECT * FROM sessions ORDER BY started_at DESC LIMIT 2000').all();
+    const sessions = db.prepare(`
+      SELECT s.*,
+             l.label AS lineage_label,
+             l.agent_name AS lineage_agent_name
+      FROM sessions s
+      LEFT JOIN lineage l ON s.session_id = l.child_id
+      ORDER BY s.started_at DESC
+      LIMIT 2000
+    `).all();
     db.close();
     return NextResponse.json(sessions);
   } catch (e: unknown) {

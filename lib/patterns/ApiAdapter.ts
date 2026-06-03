@@ -25,6 +25,8 @@ export function adaptSession(raw: Record<string, unknown>): Session {
     session_id: String(raw.session_id ?? raw.sessionId ?? raw.id ?? ''),
     parent_id: toString(raw.parent_id ?? raw.parentId) ?? null,
     label: toString(raw.label ?? raw.session_label) ?? null,
+    lineage_label: toString(raw.lineage_label ?? raw.lineageLabel ?? raw.agent_name) ?? null,
+    lineage_agent_name: toString(raw.lineage_agent_name ?? raw.agent_name) ?? null,
     model: toString(raw.model) ?? null,
     status: toStatus(raw.status),
     tokens_in: toNumber(raw.tokens_in),
