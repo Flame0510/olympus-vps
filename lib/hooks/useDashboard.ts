@@ -7,7 +7,7 @@ import type { Session, SessionEvent, Costs, FilterConfig, Period, AgentFilter } 
 import { OlympusEventBus } from '../patterns/EventBus';
 import { buildFilterStrategy } from '../patterns/FilterStrategy';
 import { isCronSession, extractAgentId } from '../patterns/SessionFactory';
-import { PERIOD_MS as PERIOD_MAP, PERIODS } from '../types';
+import { ACTIVE_STATUSES, PERIOD_MS as PERIOD_MAP, PERIODS } from '../types';
 
 function filterFromParams(params: URLSearchParams): Partial<FilterConfig> {
   const patch: Partial<FilterConfig> = {};
@@ -29,6 +29,27 @@ function filterToParams(filter: FilterConfig): URLSearchParams {
   if (filter.showOnlyActive) p.set('active', '1');
   if (!filter.showCron) p.set('cron', '0');
   return p;
+}
+
+function expandSessionsWithVisibleParents(allSessions: Session[], visibleLeafSessions: Session[]): Session[] {
+  if (!visibleLeafSessions.length) return [];
+
+  const byId = new Map(allSessions.map((session) => [session.session_id, session]));
+  const included = new Map<string, Session>();
+
+  for (const session of visibleLeafSessions) {
+    let currentSession: Session | undefined = session;
+    const seenInChain = new Set<string>();
+
+    while (currentSession?.session_id && !seenInChain.has(currentSession.session_id)) {
+      seenInChain.add(currentSession.session_id);
+      included.set(currentSession.session_id, currentSession);
+      const parentId: string | null = currentSession.parent_id ?? null;
+      currentSession = parentId ? byId.get(parentId) : undefined;
+    }
+  }
+
+  return allSessions.filter((session) => included.has(session.session_id));
 }
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -95,7 +116,6 @@ export function useDashboard({ initialCosts }: UseDashboardOptions = {}) {
     selectedSessionId: null,
   });
 
-  // Subscribe to EventBus (Observer pattern)
   useEffect(() => {
     const unsubscribe = OlympusEventBus.subscribe({
       onSessions: (sessions) => dispatch({ type: 'SET_SESSIONS', sessions }),
@@ -105,7 +125,6 @@ export function useDashboard({ initialCosts }: UseDashboardOptions = {}) {
     return unsubscribe;
   }, []);
 
-  // Fetch agent list from OpenClaw API
   const [availableAgents, setAvailableAgents] = useState<string[]>(['all']);
   useEffect(() => {
     const load = () =>
@@ -120,13 +139,23 @@ export function useDashboard({ initialCosts }: UseDashboardOptions = {}) {
     return () => clearInterval(t);
   }, []);
 
-  // Apply Strategy pattern to derive filtered sessions
-  const visibleSessions = useMemo(() => {
+  const visibleLeafSessions = useMemo(() => {
     const strategy = buildFilterStrategy(state.filter);
     return strategy.filter(state.sessions);
   }, [state.sessions, state.filter]);
 
-  // Derive filtered events (agent + cron + period)
+  const visibleSessions = useMemo(() => {
+    const expanded = expandSessionsWithVisibleParents(state.sessions, visibleLeafSessions);
+    if (expanded.length) return expanded;
+
+    if (!state.filter.showOnlyActive) return visibleLeafSessions;
+
+    const fallbackStrategy = buildFilterStrategy({ ...state.filter, showOnlyActive: false });
+    const baseVisible = fallbackStrategy.filter(state.sessions);
+    const activeVisible = baseVisible.filter((session) => ACTIVE_STATUSES.has(session.status));
+    return activeVisible.length ? expandSessionsWithVisibleParents(baseVisible, activeVisible) : [];
+  }, [state.sessions, state.filter, visibleLeafSessions]);
+
   const visibleEvents = useMemo(() => {
     const { agent, showCron, period } = state.filter;
     const cutoff =

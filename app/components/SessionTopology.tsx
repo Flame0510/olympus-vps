@@ -10,6 +10,7 @@ interface SessionTopologyProps {
   sessions: Session[];
   filter: string;
   onNodeClick: (sessionId: string) => void;
+  emptyMessage?: string;
 }
 
 function formatCost(value: number | null | undefined): string {
@@ -31,7 +32,6 @@ function draw(
 
   const g = svg.append('g').attr('transform', 'translate(40,20)');
 
-  // Pan + pinch zoom — nodes are fixed, only the viewport moves
   const zoom = d3.zoom<SVGSVGElement, unknown>()
     .scaleExtent([0.2, 5])
     .on('zoom', (event) => g.attr('transform', event.transform));
@@ -114,12 +114,13 @@ function draw(
     .style('fill', '#89a1ad');
 }
 
-export default function SessionTopology({ sessions, filter, onNodeClick }: SessionTopologyProps) {
+export default function SessionTopology({ sessions, filter, onNodeClick, emptyMessage = 'No sessions visible' }: SessionTopologyProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [isTouch, setIsTouch] = useState(false);
 
   const treeData = useMemo(() => buildSessionTree(sessions, filter), [sessions, filter]);
+  const hasVisibleNodes = useMemo(() => (treeData.children ?? []).some((node) => node._agentNode ? (node.children?.length ?? 0) > 0 : true), [treeData]);
 
   useEffect(() => {
     const check = () => {
@@ -134,7 +135,7 @@ export default function SessionTopology({ sessions, filter, onNodeClick }: Sessi
   useEffect(() => {
     const svgEl = svgRef.current;
     const tooltipEl = tooltipRef.current;
-    if (!svgEl) return;
+    if (!svgEl || !hasVisibleNodes) return;
 
     const render = () => {
       const width = svgEl.clientWidth || 900;
@@ -146,11 +147,11 @@ export default function SessionTopology({ sessions, filter, onNodeClick }: Sessi
     const ro = new ResizeObserver(render);
     ro.observe(svgEl);
     return () => ro.disconnect();
-  }, [isTouch, treeData, onNodeClick]);
+  }, [hasVisibleNodes, isTouch, treeData, onNodeClick]);
 
   return (
     <div className="graph-shell">
-      <svg ref={svgRef} id="graph-svg" />
+      {hasVisibleNodes ? <svg ref={svgRef} id="graph-svg" /> : <div className="empty-state">{emptyMessage}</div>}
       <div ref={tooltipRef} className="graph-tooltip" />
     </div>
   );

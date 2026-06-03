@@ -36,9 +36,31 @@ interface TelegramAccountUpdateInput extends JsonObject {
   tokenReplacement?: string;
 }
 
+interface BindingMatchInput extends JsonObject {
+  channel?: string;
+  accountId?: string;
+  from?: string;
+  to?: string;
+  peer?: string;
+}
+
+interface BindingUpdateInput extends JsonObject {
+  currentIndex?: number;
+  bindingKey?: string;
+  type?: string;
+  agentId?: string;
+  enabled?: boolean;
+  allowFrom?: string[];
+  defaultTo?: string | string[];
+  dmPolicy?: string;
+  match?: BindingMatchInput;
+}
+
 interface UpdatePayload {
   agents?: AgentUpdateInput[];
   telegramAccounts?: TelegramAccountUpdateInput[];
+  bindingScopeAgentId?: string;
+  bindings?: BindingUpdateInput[];
 }
 
 const OPENCLAW_CONFIG_PATH = '/data/.openclaw/openclaw.json';
@@ -122,10 +144,12 @@ function sanitizeTelegramAccount(accountId: string, account: JsonObject): JsonOb
   };
 }
 
-function sanitizeBinding(binding: JsonObject): JsonObject {
+function sanitizeBinding(binding: JsonObject, index: number): JsonObject {
   const match = typeof binding.match === 'object' && binding.match !== null ? (binding.match as JsonObject) : null;
 
   return {
+    bindingKey: String(index),
+    currentIndex: index,
     ...pickOptional(binding, ['type', 'agentId', 'enabled', 'allowFrom', 'defaultTo', 'dmPolicy']),
     ...(match
       ? {
@@ -210,6 +234,96 @@ function normalizeTelegramAccountUpdate(input: TelegramAccountUpdateInput): { ac
   return { accountId, patch, tokenReplacement };
 }
 
+function normalizeBindingUpdate(input: BindingUpdateInput): { currentIndex?: number; value: JsonObject } {
+  const type = normalizeString(input.type) || 'telegram';
+  const agentId = normalizeString(input.agentId);
+  if (!agentId) throw new Error('binding agentId is required');
+
+  const matchSource = cloneJsonObject(input.match);
+  const channel = normalizeString(matchSource.channel) || 'telegram';
+  const accountId = normalizeString(matchSource.accountId);
+  if (!accountId) throw new Error('binding match.accountId is required');
+  if (channel !== 'telegram') throw new Error('binding match.channel must be telegram');
+
+  const match: JsonObject = {
+    ...matchSource,
+    channel,
+    accountId,
+  };
+
+  const from = normalizeString(matchSource.from);
+  const to = normalizeString(matchSource.to);
+  const peer = normalizeString(matchSource.peer);
+  if (from) match.from = from;
+  else delete match.from;
+  if (to) match.to = to;
+  else delete match.to;
+  if (peer) match.peer = peer;
+  else delete match.peer;
+
+  const base = cloneJsonObject(input);
+  delete base.currentIndex;
+  delete base.bindingKey;
+  delete base.match;
+
+  const value: JsonObject = {
+    ...base,
+    type,
+    agentId,
+    match,
+  };
+
+  if (input.enabled !== undefined) value.enabled = ensureBoolean(input.enabled, 'binding enabled');
+  if (input.allowFrom !== undefined) value.allowFrom = ensureStringArray(input.allowFrom, 'binding allowFrom');
+  if (input.defaultTo !== undefined) value.defaultTo = ensureStringOrStringArray(input.defaultTo, 'binding defaultTo');
+  if (input.dmPolicy !== undefined) value.dmPolicy = input.dmPolicy;
+
+  const currentIndex = typeof input.currentIndex === 'number' && Number.isInteger(input.currentIndex) ? input.currentIndex : undefined;
+  return { currentIndex, value };
+}
+
+function buildBindingConflictKey(binding: JsonObject): string {
+  const match = cloneJsonObject(binding.match);
+  const enabled = binding.enabled !== false;
+  if (!enabled) return '';
+  const accountId = normalizeString(match.accountId);
+  const channel = normalizeString(match.channel) || 'telegram';
+  const from = normalizeString(match.from) || '*';
+  const to = normalizeString(match.to) || '*';
+  const peer = normalizeString(match.peer) || '*';
+  const defaultTo = binding.defaultTo;
+  const defaultToKey = Array.isArray(defaultTo)
+    ? defaultTo.map((item) => normalizeString(item)).filter(Boolean).sort().join('|')
+    : normalizeString(defaultTo) || '*';
+  return [channel, accountId, from, to, peer, defaultToKey].join('::');
+}
+
+function validateTelegramBindings(bindings: JsonObject[], agentIds: Set<string>, accountIds: Set<string>): void {
+  const seen = new Map<string, number>();
+
+  bindings.forEach((binding, index) => {
+    const agentId = normalizeString(binding.agentId);
+    if (!agentId) throw new Error(`binding ${index + 1}: agentId is required`);
+    if (!agentIds.has(agentId)) throw new Error(`binding ${index + 1}: unknown agentId ${agentId}`);
+
+    const match = cloneJsonObject(binding.match);
+    const accountId = normalizeString(match.accountId);
+    if (!accountId) throw new Error(`binding ${index + 1}: accountId is required`);
+    if (!accountIds.has(accountId)) throw new Error(`binding ${index + 1}: unknown accountId ${accountId}`);
+
+    const channel = normalizeString(match.channel);
+    if (channel !== 'telegram') throw new Error(`binding ${index + 1}: match.channel must be telegram`);
+
+    const conflictKey = buildBindingConflictKey(binding);
+    if (!conflictKey) return;
+    const existing = seen.get(conflictKey);
+    if (existing !== undefined) {
+      throw new Error(`binding ${index + 1}: conflicts with binding ${existing + 1}`);
+    }
+    seen.set(conflictKey, index);
+  });
+}
+
 function buildConfigPayload(config: OpenClawConfig) {
   const agents = Array.isArray(config.agents?.list) ? config.agents.list : [];
   const telegramAccounts = config.channels?.telegram?.accounts ?? {};
@@ -219,13 +333,13 @@ function buildConfigPayload(config: OpenClawConfig) {
     .filter((agent): agent is JsonObject => !!agent && typeof agent.id === 'string')
     .map((agent) => {
       const agentId = String(agent.id);
-      const agentBindings = bindings.filter(
-        (binding) => !!binding && typeof binding.agentId === 'string' && binding.agentId === agentId,
-      );
+      const agentBindings = bindings
+        .map((binding, index) => ({ binding, index }))
+        .filter(({ binding }) => !!binding && typeof binding.agentId === 'string' && binding.agentId === agentId);
       const telegramAccountIds = Array.from(
         new Set(
           agentBindings
-            .map((binding) => {
+            .map(({ binding }) => {
               const match = typeof binding.match === 'object' && binding.match !== null ? (binding.match as JsonObject) : null;
               if (!match || match.channel !== 'telegram' || typeof match.accountId !== 'string') return null;
               return match.accountId;
@@ -240,11 +354,11 @@ function buildConfigPayload(config: OpenClawConfig) {
         telegram: {
           accounts: telegramAccountIds.map((accountId) => sanitizeTelegramAccount(accountId, telegramAccounts[accountId] ?? {})),
           bindings: agentBindings
-            .filter((binding) => {
+            .filter(({ binding }) => {
               const match = typeof binding.match === 'object' && binding.match !== null ? (binding.match as JsonObject) : null;
               return match?.channel === 'telegram';
             })
-            .map(sanitizeBinding),
+            .map(({ binding, index }) => sanitizeBinding(binding, index)),
         },
       };
     });
@@ -270,11 +384,13 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     const config = readConfig();
     const currentAgents = Array.isArray(config.agents?.list) ? config.agents.list : [];
     const currentAccounts = config.channels?.telegram?.accounts ?? {};
+    const currentBindings = Array.isArray(config.bindings) ? config.bindings : [];
 
     let nextAgents = currentAgents.map((agent) => cloneJsonObject(agent));
     let nextAccounts = Object.fromEntries(
       Object.entries(currentAccounts).map(([accountId, account]) => [accountId, cloneJsonObject(account)]),
     ) as Record<string, JsonObject>;
+    let nextBindings = currentBindings.map((binding) => cloneJsonObject(binding));
 
     if (body.agents !== undefined) {
       if (!Array.isArray(body.agents)) throw new Error('agents must be an array');
@@ -340,6 +456,49 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       nextAccounts = rebuiltAccounts;
     }
 
+    if (body.bindings !== undefined) {
+      if (!Array.isArray(body.bindings)) throw new Error('bindings must be an array');
+      const scopeAgentId = normalizeString(body.bindingScopeAgentId);
+      if (!scopeAgentId) throw new Error('bindingScopeAgentId is required when updating bindings');
+
+      const scopedExisting = currentBindings
+        .map((binding, index) => ({ binding: cloneJsonObject(binding), index }))
+        .filter(({ binding }) => normalizeString(binding.agentId) === scopeAgentId && normalizeString(cloneJsonObject(binding.match).channel) === 'telegram');
+      const scopedByIndex = new Map(scopedExisting.map(({ binding, index }) => [index, binding]));
+
+      const normalizedBindings = body.bindings.map((input) => {
+        const { currentIndex, value } = normalizeBindingUpdate(input);
+        const preserved = currentIndex !== undefined ? cloneJsonObject(scopedByIndex.get(currentIndex)) : {};
+        const preservedMatch = cloneJsonObject(preserved.match);
+        return {
+          ...preserved,
+          ...value,
+          match: {
+            ...preservedMatch,
+            ...cloneJsonObject(value.match),
+          },
+        };
+      });
+
+      const nextAgentIds = new Set(nextAgents.map((agent) => normalizeString(agent.id)).filter(Boolean));
+      const nextAccountIds = new Set(Object.keys(nextAccounts).map((accountId) => normalizeString(accountId)).filter(Boolean));
+      const preservedOtherBindings = currentBindings.filter((binding) => {
+        const jsonBinding = cloneJsonObject(binding);
+        return !(normalizeString(jsonBinding.agentId) === scopeAgentId && normalizeString(cloneJsonObject(jsonBinding.match).channel) === 'telegram');
+      });
+
+      validateTelegramBindings(
+        [
+          ...preservedOtherBindings.filter((binding) => normalizeString(cloneJsonObject(binding.match).channel) === 'telegram'),
+          ...normalizedBindings,
+        ],
+        nextAgentIds,
+        nextAccountIds,
+      );
+
+      nextBindings = [...preservedOtherBindings.map((binding) => cloneJsonObject(binding)), ...normalizedBindings.map((binding) => cloneJsonObject(binding))];
+    }
+
     const nextConfig: OpenClawConfig = {
       ...config,
       agents: {
@@ -353,6 +512,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
           accounts: nextAccounts,
         },
       },
+      bindings: nextBindings,
     };
 
     writeConfig(nextConfig);

@@ -133,13 +133,9 @@ export function buildSessionTree(sessions: Session[], filter: string): TreeNode 
       if (!node) continue;
 
       const parentNode = s.parent_id ? byId.get(s.parent_id) : undefined;
-      if (parentNode && !parentNode._virtualRoot) {
-        parentNode.children = parentNode.children ?? [];
-        if (!hasChild(parentNode, sid)) parentNode.children.push(node);
-      } else {
-        agentNode.children = agentNode.children ?? [];
-        if (!hasChild(agentNode, sid)) agentNode.children.push(node);
-      }
+      const fallbackParent = parentNode && !parentNode._virtualRoot ? parentNode : agentNode;
+      fallbackParent.children = fallbackParent.children ?? [];
+      if (!hasChild(fallbackParent, sid)) fallbackParent.children.push(node);
     }
   }
 
