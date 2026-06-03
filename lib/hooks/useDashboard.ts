@@ -25,9 +25,9 @@ function filterFromParams(params: URLSearchParams): Partial<FilterConfig> {
 function filterToParams(filter: FilterConfig): URLSearchParams {
   const p = new URLSearchParams();
   if (filter.agent !== 'all') p.set('agent', filter.agent);
-  if (filter.period !== '7d') p.set('period', filter.period);
+  if (filter.period !== '1d') p.set('period', filter.period);
   if (filter.showOnlyActive) p.set('active', '1');
-  if (!filter.showCron) p.set('cron', '0');
+  if (filter.showCron) p.set('cron', '1');
   return p;
 }
 
@@ -81,9 +81,9 @@ export function useDashboard({ initialCosts }: UseDashboardOptions = {}) {
 
   const initialFilter: FilterConfig = {
     agent: 'all',
-    showOnlyActive: false,
-    showCron: true,
-    period: '7d',
+    showOnlyActive: true,
+    showCron: false,
+    period: '1d',
     ...filterFromParams(searchParams),
   };
 
