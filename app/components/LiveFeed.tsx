@@ -11,7 +11,7 @@ interface LiveFeedProps {
 export default function LiveFeed({ events }: LiveFeedProps) {
   return (
     <article className="panel feed-panel">
-      <h2>Live Feed</h2>
+      <h2>Feed in Tempo Reale</h2>
       <div>
         {events.map((item, index) => (
           <div

@@ -51,9 +51,9 @@ export default function DashboardLayout({ initialCosts }: DashboardLayoutProps) 
       {isMobile && (
         <div style={{ display: 'flex', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
           {[
-            { key: 'graph', label: 'GRAPH' },
+            { key: 'graph', label: 'GRAFO' },
             { key: 'feed', label: 'FEED' },
-            { key: 'costs', label: 'COSTS' },
+            { key: 'costs', label: 'COSTI' },
           ].map((t) => (
             <button
               key={t.key}
@@ -78,17 +78,17 @@ export default function DashboardLayout({ initialCosts }: DashboardLayoutProps) 
           <article className="panel graph-panel" style={isMobile ? { height: '100%', borderRight: 'none' } : undefined}>
             <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
               <div>
-                <h2 style={{ margin: 0 }}>Session Topology</h2>
-                <div style={{ color: 'var(--text-dim)', fontSize: 11, marginTop: 4 }}>Reset recenters and restores the graph zoom.</div>
+                <h2 style={{ margin: 0 }}>Topologia Sessioni</h2>
+                <div style={{ color: 'var(--text-dim)', fontSize: 11, marginTop: 4 }}>Reset ricentra e ripristina lo zoom del grafo.</div>
               </div>
               <button
                 type="button"
                 className="agent-btn"
-                aria-label="Reset graph view"
+                aria-label="Reimposta vista grafo"
                 onClick={() => topologyRef.current?.resetView()}
                 style={resetButtonStyle}
               >
-                ⊙ Reset graph view
+                ⊙ Reimposta vista
               </button>
             </div>
             <SessionTopology

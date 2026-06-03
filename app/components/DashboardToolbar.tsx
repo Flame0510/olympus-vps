@@ -12,7 +12,7 @@ interface DashboardToolbarProps {
 export default function DashboardToolbar({ filter, onChange, agents = ['all'] }: DashboardToolbarProps) {
   return (
     <section className="toolbar">
-      <span className="toolbar-label">AGENTS</span>
+      <span className="toolbar-label">AGENTI</span>
 
       {agents.map((name) => (
         <button

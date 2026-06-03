@@ -85,9 +85,9 @@ function draw(
       tooltipEl.style.top = `${event.clientY - rect.top + 18}px`;
       tooltipEl.innerHTML = [
         `<div><strong>${nodeLabel(d.data)}</strong></div>`,
-        `<div>model: ${d.data.model ?? '-'}</div>`,
-        `<div>cost: ${formatCost(d.data.cost_usd)}</div>`,
-        `<div>status: ${d.data.status ?? 'idle'}</div>`,
+        `<div>modello: ${d.data.model ?? '-'}</div>`,
+        `<div>costo: ${formatCost(d.data.cost_usd)}</div>`,
+        `<div>stato: ${d.data.status ?? 'idle'}</div>`,
       ].join('');
     })
     .on('mouseleave', () => {
@@ -207,7 +207,14 @@ const SessionTopology = forwardRef<SessionTopologyHandle, SessionTopologyProps>(
 
   return (
     <div className="graph-shell">
-      {hasVisibleNodes ? <svg ref={svgRef} id="graph-svg" /> : <div className="empty-state">{emptyMessage}</div>}
+      {hasVisibleNodes ? (
+        <svg ref={svgRef} id="graph-svg" />
+      ) : (
+        <div className="empty-state">
+          <span className="empty-state-icon">◎</span>
+          <span className="empty-state-msg">{emptyMessage}</span>
+        </div>
+      )}
       <div ref={tooltipRef} className="graph-tooltip" />
     </div>
   );

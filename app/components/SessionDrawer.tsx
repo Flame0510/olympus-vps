@@ -104,22 +104,22 @@ export default function SessionDrawer({ sessionId, onClose }: SessionDrawerProps
               {truncate(session.session_id, 60)}
             </div>
             <Grid>
-              <Row label="STATUS">
+              <Row label="STATO">
                 <span style={{ color: statusColor(session.status) }}>●</span>{' '}
                 {session.status ?? 'idle'}
               </Row>
-              <Row label="KIND">
-                {session.session_id.includes(':cron:') ? 'cron' : 'session'}
+              <Row label="TIPO">
+                {session.session_id.includes(':cron:') ? 'cron' : 'sessione'}
               </Row>
-              <Row label="MODEL">{session.model ?? '-'}</Row>
-              <Row label="COST">{formatUsdOrDash(session.cost_usd)}</Row>
-              <Row label="TOKENS">
+              <Row label="MODELLO">{session.model ?? '-'}</Row>
+              <Row label="COSTO">{formatUsdOrDash(session.cost_usd)}</Row>
+              <Row label="TOKEN">
                 in: {formatTokens(session.tokens_in)} out: {formatTokens(session.tokens_out)}
               </Row>
-              <Row label="STARTED">{formatTimeFromUnixSeconds(session.started_at)}</Row>
-              <Row label="UPDATED">{formatTimeFromUnixSeconds(session.updated_at)}</Row>
-              <Row label="ENDED">{formatTimeFromUnixSeconds(session.ended_at)}</Row>
-              <Row label="DURATION">{formatDuration(session.started_at, endedOrUpdated)}</Row>
+              <Row label="INIZIO">{formatTimeFromUnixSeconds(session.started_at)}</Row>
+              <Row label="AGGIORN.">{formatTimeFromUnixSeconds(session.updated_at)}</Row>
+              <Row label="FINE">{formatTimeFromUnixSeconds(session.ended_at)}</Row>
+              <Row label="DURATA">{formatDuration(session.started_at, endedOrUpdated)}</Row>
               <Row label="TASK">{truncate(session.task_preview ?? '-', 200)}</Row>
             </Grid>
           </Section>
