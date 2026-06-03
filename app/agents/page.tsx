@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 
 const TOKEN = 'olympus2026';
 const API_HEADERS = { Authorization: `Bearer ${TOKEN}` };
@@ -26,6 +26,55 @@ interface Agent {
   workspace_path?: string;
 }
 
+interface AgentConfigRecord {
+  id: string;
+  name?: string;
+  label?: string;
+  workspace?: string;
+  agentDir?: string;
+  model?: string;
+  defaultModel?: string;
+  default_model?: string;
+  identity?: {
+    name?: string;
+    emoji?: string;
+  };
+}
+
+interface TelegramAccountSummary {
+  accountId: string;
+  name?: string;
+  enabled?: boolean;
+  allowFrom?: string[];
+  defaultTo?: string | string[];
+  dmPolicy?: string;
+  tokenStatus?: 'masked' | 'present' | 'missing';
+}
+
+interface TelegramBindingSummary {
+  type?: string;
+  agentId?: string;
+  enabled?: boolean;
+  allowFrom?: string[];
+  defaultTo?: string | string[];
+  dmPolicy?: string;
+  match?: {
+    channel?: string;
+    accountId?: string;
+    from?: string;
+    to?: string;
+  };
+}
+
+interface AgentChannelSummary {
+  agentId: string;
+  config: AgentConfigRecord;
+  telegram: {
+    accounts: TelegramAccountSummary[];
+    bindings: TelegramBindingSummary[];
+  };
+}
+
 type FileTree = Record<string, AgentFile[]>;
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -48,8 +97,37 @@ function buildTree(files: AgentFile[]): FileTree {
   return tree;
 }
 
+function formatValue(value: string | string[] | undefined): string {
+  if (!value) return '—';
+  return Array.isArray(value) ? value.join(', ') : value;
+}
+
+function badgeStyle(color: string): CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '2px 6px',
+    border: `1px solid ${color}`,
+    color,
+    borderRadius: 999,
+    fontSize: 10,
+    lineHeight: 1.2,
+  };
+}
+
+function metaLineStyle(): CSSProperties {
+  return {
+    fontSize: 10,
+    color: '#888',
+    marginTop: 4,
+    wordBreak: 'break-word',
+  };
+}
+
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [agentChannels, setAgentChannels] = useState<Record<string, AgentChannelSummary>>({});
   const [selectedAgentId, setSelectedAgentId] = useState('');
   const [selectedFilePath, setSelectedFilePath] = useState('');
   const [editorContent, setEditorContent] = useState('');
@@ -67,6 +145,7 @@ export default function AgentsPage() {
     [agents, selectedAgentId],
   );
 
+  const selectedAgentChannel = selectedAgentId ? agentChannels[selectedAgentId] : undefined;
   const files = selectedAgent?.files ?? [];
   const fileTree = useMemo(() => buildTree(files), [files]);
   const rootFiles = fileTree[''] ?? [];
@@ -77,12 +156,23 @@ export default function AgentsPage() {
 
   async function fetchAgents() {
     try {
-      const res = await fetch('/api/agents-active', { headers: API_HEADERS, cache: 'no-store' });
-      if (!res.ok) return;
-      const data = (await res.json()) as Agent[];
-      setAgents(Array.isArray(data) ? data : []);
-      if (!selectedAgentId && Array.isArray(data) && data.length) {
-        setSelectedAgentId(data[0].agent_id);
+      const [agentsRes, channelsRes] = await Promise.all([
+        fetch('/api/agents-active', { headers: API_HEADERS, cache: 'no-store' }),
+        fetch('/api/agents-config', { headers: API_HEADERS, cache: 'no-store' }),
+      ]);
+      if (!agentsRes.ok || !channelsRes.ok) return;
+      const agentData = (await agentsRes.json()) as Agent[];
+      const channelData = (await channelsRes.json()) as AgentChannelSummary[];
+      const nextAgents = Array.isArray(agentData) ? agentData : [];
+      const nextChannels = Array.isArray(channelData)
+        ? Object.fromEntries(channelData.map((item) => [item.agentId, item]))
+        : {};
+
+      setAgents(nextAgents);
+      setAgentChannels(nextChannels);
+
+      if (!selectedAgentId && nextAgents.length) {
+        setSelectedAgentId(nextAgents[0].agent_id);
       }
     } catch {
       // keep UI responsive on polling failures
@@ -209,11 +299,10 @@ export default function AgentsPage() {
       )}
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0, flexDirection: isMobile ? 'column' : 'row' }}>
-        {/* Agent list */}
         <section
           style={{
-            width: isMobile ? '100%' : '28%',
-            minWidth: isMobile ? 0 : 250,
+            width: isMobile ? '100%' : '32%',
+            minWidth: isMobile ? 0 : 290,
             borderRight: isMobile ? 'none' : '1px solid var(--border)',
             display: isMobile && mobileStep !== 1 ? 'none' : 'block',
             overflow: 'auto',
@@ -223,6 +312,10 @@ export default function AgentsPage() {
             const isActive = selectedAgentId === agent.agent_id;
             const hasWorking = agent.status === 'working';
             const model = agent.config_model ?? agent.sessions[0]?.model ?? 'unknown';
+            const channelSummary = agentChannels[agent.agent_id];
+            const telegramAccounts = channelSummary?.telegram.accounts ?? [];
+            const telegramBindings = channelSummary?.telegram.bindings ?? [];
+            const primaryAccount = telegramAccounts[0];
             return (
               <button
                 key={agent.agent_id}
@@ -261,17 +354,33 @@ export default function AgentsPage() {
                   <span style={{ fontSize: 10, color: '#555' }}>{agent.sessions.length} sess</span>
                 </div>
                 <div style={{ fontSize: 10, color: '#888', marginTop: 6 }}>{model}</div>
-                <div style={{ fontSize: 10, color: '#555', marginTop: 4 }}>{agent.workspace_path}</div>
+                <div style={{ ...metaLineStyle(), marginTop: 6 }}>{agent.workspace_path}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                  <span style={badgeStyle('#B87333')}>
+                    cfg {channelSummary?.config.name ?? channelSummary?.config.label ?? channelSummary?.config.id ?? agent.agent_id}
+                  </span>
+                  <span style={badgeStyle(primaryAccount ? '#60a5fa' : '#555')}>
+                    tg {primaryAccount ? primaryAccount.accountId : 'none'}
+                  </span>
+                  <span style={badgeStyle(telegramBindings.length ? '#22c55e' : '#555')}>
+                    route {telegramBindings.length ? 'active' : 'none'}
+                  </span>
+                </div>
+                {primaryAccount && (
+                  <div style={metaLineStyle()}>
+                    token {primaryAccount.tokenStatus ?? 'missing'} · dm {primaryAccount.dmPolicy ?? '—'} · enabled{' '}
+                    {typeof primaryAccount.enabled === 'boolean' ? String(primaryAccount.enabled) : '—'}
+                  </div>
+                )}
               </button>
             );
           })}
         </section>
 
-        {/* File tree */}
         <section
           style={{
             width: isMobile ? '100%' : '28%',
-            minWidth: isMobile ? 0 : 260,
+            minWidth: isMobile ? 0 : 280,
             borderRight: isMobile ? 'none' : '1px solid var(--border)',
             display: isMobile && mobileStep !== 2 ? 'none' : 'block',
             overflow: 'auto',
@@ -280,13 +389,58 @@ export default function AgentsPage() {
         >
           <div
             style={{
-              padding: '8px 12px',
+              padding: '10px 12px',
               borderBottom: '1px solid var(--border)',
               fontSize: 10,
               color: '#888',
             }}
           >
-            {selectedAgent ? selectedAgent.workspace_path : 'No agent selected'}
+            <div>{selectedAgent ? selectedAgent.workspace_path : 'No agent selected'}</div>
+            {selectedAgentChannel && (
+              <div style={{ marginTop: 8, display: 'grid', gap: 8 }}>
+                <div style={{ padding: 8, border: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
+                  <div style={{ color: 'var(--copper)', fontSize: 10, marginBottom: 6 }}>AGENT CONFIG</div>
+                  <div>id: {selectedAgentChannel.config.id}</div>
+                  <div>name: {selectedAgentChannel.config.name ?? selectedAgentChannel.config.label ?? '—'}</div>
+                  <div>model: {selectedAgentChannel.config.model ?? selectedAgentChannel.config.defaultModel ?? selectedAgentChannel.config.default_model ?? '—'}</div>
+                </div>
+                <div style={{ padding: 8, border: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
+                  <div style={{ color: 'var(--copper)', fontSize: 10, marginBottom: 6 }}>TELEGRAM</div>
+                  {selectedAgentChannel.telegram.accounts.length ? (
+                    selectedAgentChannel.telegram.accounts.map((account) => (
+                      <div key={account.accountId} style={{ marginTop: 6 }}>
+                        <div>account: {account.accountId}</div>
+                        <div>enabled: {typeof account.enabled === 'boolean' ? String(account.enabled) : '—'}</div>
+                        <div>dmPolicy: {account.dmPolicy ?? '—'}</div>
+                        <div>allowFrom: {formatValue(account.allowFrom)}</div>
+                        <div>defaultTo: {formatValue(account.defaultTo)}</div>
+                        <div>token: {account.tokenStatus ?? 'missing'}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div>No Telegram account associated</div>
+                  )}
+                </div>
+                <div style={{ padding: 8, border: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
+                  <div style={{ color: 'var(--copper)', fontSize: 10, marginBottom: 6 }}>BINDINGS</div>
+                  {selectedAgentChannel.telegram.bindings.length ? (
+                    selectedAgentChannel.telegram.bindings.map((binding, index) => (
+                      <div key={`${binding.agentId ?? selectedAgentChannel.agentId}-${index}`} style={{ marginTop: index ? 8 : 0 }}>
+                        <div>type: {binding.type ?? '—'}</div>
+                        <div>channel: {binding.match?.channel ?? '—'}</div>
+                        <div>accountId: {binding.match?.accountId ?? '—'}</div>
+                        <div>enabled: {typeof binding.enabled === 'boolean' ? String(binding.enabled) : '—'}</div>
+                        <div>allowFrom: {formatValue(binding.allowFrom)}</div>
+                        <div>defaultTo: {formatValue(binding.defaultTo)}</div>
+                        <div>dmPolicy: {binding.dmPolicy ?? '—'}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div>No Telegram routing active</div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           {rootFiles.map((file) => (
             <FileButton key={file.path} file={file} />
@@ -324,7 +478,6 @@ export default function AgentsPage() {
           ))}
         </section>
 
-        {/* Editor */}
         <section
           style={{ flex: 1, minWidth: isMobile ? 0 : 320, display: isMobile && mobileStep !== 3 ? 'none' : 'flex', flexDirection: 'column', minHeight: 0 }}
         >
