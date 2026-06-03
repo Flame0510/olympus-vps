@@ -1102,3 +1102,5 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 
 .cost-row .k { color: var(--text-dim); font-size: 10px; }
 .cost-row .v { color: var(--copper); font-weight: 700; }
+
+@media (max-width: 900px) { .screenshot-btn-desktop { display: none; } }

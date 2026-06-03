@@ -13,6 +13,8 @@
   "dependencies": {
     "better-sqlite3": "^11.10.0",
     "d3": "^7.9.0",
+    "html-to-image": "^1.11.13",
+    "html2canvas": "^1.4.1",
     "jose": "^6.2.3",
     "next": "^16.0.1",
     "react": "^19.2.0",
