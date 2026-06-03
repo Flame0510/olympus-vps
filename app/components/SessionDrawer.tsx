@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { SessionDetail } from '@/lib/types';
 import { OlympusApiClient } from '@/lib/patterns/ApiClient';
+import { deriveSessionDisplayLabel } from '@/lib/patterns/sessionPresentation';
 import {
   formatUsd,
   formatUsdOrDash,
@@ -97,7 +98,7 @@ export default function SessionDrawer({ sessionId, onClose }: SessionDrawerProps
         <>
           <Section>
             <div style={{ color: 'var(--copper)', fontSize: 12, marginBottom: 8 }}>
-              {truncate(session.label ?? session.session_id, 40)}
+              {truncate(deriveSessionDisplayLabel(session), 40)}
             </div>
             <div style={{ color: 'var(--text-dim)', fontSize: 11, marginBottom: 10 }}>
               {truncate(session.session_id, 60)}
@@ -142,7 +143,7 @@ export default function SessionDrawer({ sessionId, onClose }: SessionDrawerProps
             {children.length === 0 && <Muted>Nessuna sessione figlia</Muted>}
             {children.map((child) => (
               <div key={child.session_id} style={{ fontSize: 12 }}>
-                <div>{truncate(child.session_id, 44)}</div>
+                <div>{truncate(deriveSessionDisplayLabel(child), 44)}</div>
                 <Muted>
                   {child.status ?? 'idle'} {formatUsdOrDash(child.cost_usd)}
                 </Muted>

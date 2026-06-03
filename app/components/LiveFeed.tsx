@@ -1,7 +1,8 @@
 'use client';
 
 import type { SessionEvent } from '@/lib/types';
-import { formatTimeFromUnixSeconds, truncate, parseEventData } from '@/lib/utils/format';
+import { deriveSessionDisplayLabel } from '@/lib/patterns/sessionPresentation';
+import { formatTimeFromUnixSeconds } from '@/lib/utils/format';
 
 interface LiveFeedProps {
   events: SessionEvent[];
@@ -20,7 +21,12 @@ export default function LiveFeed({ events }: LiveFeedProps) {
             <span className="feed-time">{formatTimeFromUnixSeconds(item.ts)}</span>
             <span className="feed-type">{item.type ?? item.event ?? 'event'}</span>
             <span className="feed-label">
-              {item.session_label ?? item.session_id ?? item.label ?? '-'}
+              {deriveSessionDisplayLabel({
+                session_id: item.session_id ?? '',
+                label: item.session_label ?? item.label ?? null,
+                lineage_label: null,
+                task_preview: null,
+              })}
             </span>
           </div>
         ))}

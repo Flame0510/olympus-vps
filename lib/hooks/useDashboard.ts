@@ -7,7 +7,8 @@ import type { Session, SessionEvent, Costs, FilterConfig, Period, AgentFilter } 
 import { OlympusEventBus } from '../patterns/EventBus';
 import { buildFilterStrategy } from '../patterns/FilterStrategy';
 import { isCronSession, extractAgentId } from '../patterns/SessionFactory';
-import { ACTIVE_STATUSES, PERIOD_MS as PERIOD_MAP, PERIODS } from '../types';
+import { isSessionActive } from '../patterns/sessionPresentation';
+import { PERIOD_MS as PERIOD_MAP, PERIODS } from '../types';
 
 function filterFromParams(params: URLSearchParams): Partial<FilterConfig> {
   const patch: Partial<FilterConfig> = {};
@@ -146,32 +147,31 @@ export function useDashboard({ initialCosts }: UseDashboardOptions = {}) {
 
   const visibleSessions = useMemo(() => {
     const expanded = expandSessionsWithVisibleParents(state.sessions, visibleLeafSessions);
-    if (expanded.length) return expanded;
-
-    if (!state.filter.showOnlyActive) return visibleLeafSessions;
-
-    const fallbackStrategy = buildFilterStrategy({ ...state.filter, showOnlyActive: false });
-    const baseVisible = fallbackStrategy.filter(state.sessions);
-    const activeVisible = baseVisible.filter((session) => ACTIVE_STATUSES.has(session.status));
-    return activeVisible.length ? expandSessionsWithVisibleParents(baseVisible, activeVisible) : [];
-  }, [state.sessions, state.filter, visibleLeafSessions]);
+    return expanded.length ? expanded : visibleLeafSessions;
+  }, [state.sessions, visibleLeafSessions]);
 
   const visibleEvents = useMemo(() => {
-    const { agent, showCron, period } = state.filter;
+    const { agent, showCron, period, showOnlyActive } = state.filter;
     const cutoff =
       period !== 'all'
         ? Date.now() - PERIOD_MAP[period as Exclude<Period, 'all'>]
         : 0;
+    const visibleSessionIds = new Set(visibleLeafSessions.map((session) => session.session_id));
+    const activeSessionIds = showOnlyActive
+      ? new Set(state.sessions.filter(isSessionActive).map((session) => session.session_id))
+      : null;
 
     return state.events
       .filter((e) => {
-        if (agent !== 'all' && extractAgentId(e.session_id ?? '') !== agent) return false;
-        if (!showCron && isCronSession(e.session_id ?? '')) return false;
+        const sessionId = e.session_id ?? '';
+        if (agent !== 'all' && extractAgentId(sessionId) !== agent) return false;
+        if (!showCron && isCronSession(sessionId)) return false;
         if (cutoff && Number(e.ts ?? 0) * 1000 < cutoff) return false;
-        return true;
+        if (showOnlyActive) return activeSessionIds?.has(sessionId) ?? false;
+        return visibleSessionIds.size === 0 || visibleSessionIds.has(sessionId);
       })
       .slice(0, 20);
-  }, [state.events, state.filter]);
+  }, [state.events, state.filter, state.sessions, visibleLeafSessions]);
 
   const setFilter = useCallback((patch: Partial<FilterConfig>) => {
     dispatch({ type: 'SET_FILTER', patch });
