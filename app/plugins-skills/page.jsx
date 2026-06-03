@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-const TOKEN = 'olympus2026';
-const AUTH = { Authorization: `Bearer ${TOKEN}` };
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -97,7 +95,7 @@ export function PluginsTab() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/plugins', { headers: AUTH });
+      const res = await fetch('/api/plugins');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setPlugins(data.plugins || []);
@@ -127,7 +125,7 @@ export function PluginsTab() {
     try {
       const res = await fetch('/api/plugins', {
         method: 'POST',
-        headers: { ...AUTH, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, pluginId: plugin.id }),
       });
       const data = await res.json();
@@ -346,7 +344,7 @@ export function SkillsTab() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/skills', { headers: AUTH });
+      const res = await fetch('/api/skills');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setSkills(data.skills || []);
@@ -386,7 +384,7 @@ export function SkillsTab() {
     if (skill.skillMdPath) {
       setLoadingContent(true);
       try {
-        const res = await fetch(`/api/skills/save?path=${encodeURIComponent(skill.skillMdPath)}`, { headers: AUTH });
+        const res = await fetch(`/api/skills/save?path=${encodeURIComponent(skill.skillMdPath)}`);
         const data = await res.json();
         setSkillContent(data.content || null);
       } catch {
@@ -413,7 +411,7 @@ export function SkillsTab() {
     try {
       const res = await fetch('/api/skills/save', {
         method: 'POST',
-        headers: { ...AUTH, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ skillPath: selected.skillMdPath, content: editText }),
       });
       const data = await res.json();

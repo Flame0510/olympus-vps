@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from 'react';
 
-const TOKEN = 'olympus2026';
-const HEADERS = { Authorization: `Bearer ${TOKEN}` };
 
 interface OAuthProvider {
   provider: string;
@@ -83,7 +81,7 @@ export default function ProvidersPage() {
 
   async function load() {
     try {
-      const res = await fetch('/api/providers', { headers: HEADERS, cache: 'no-store' });
+      const res = await fetch('/api/providers', { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json() as ModelsData;
       setData(json);

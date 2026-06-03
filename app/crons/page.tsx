@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from 'react';
 
-const TOKEN = 'olympus2026';
-const HEADERS = { Authorization: `Bearer ${TOKEN}` };
 
 interface CronJob {
   id?: string;
@@ -56,8 +54,8 @@ export default function CronsPage() {
   async function load() {
     try {
       const [jobsRes, sessRes] = await Promise.all([
-        fetch('/api/crons', { headers: HEADERS, cache: 'no-store' }),
-        fetch('/api/sessions?filter=cron&limit=50', { headers: HEADERS, cache: 'no-store' }),
+        fetch('/api/crons', { cache: 'no-store' }),
+        fetch('/api/sessions?filter=cron&limit=50', { cache: 'no-store' }),
       ]);
       if (jobsRes.ok) setJobs((await jobsRes.json()) as CronJob[]);
       if (sessRes.ok) {
