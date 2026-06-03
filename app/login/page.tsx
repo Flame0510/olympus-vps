@@ -50,7 +50,7 @@ export default function LoginPage() {
           border: '1px solid #333',
           borderRadius: 8,
           padding: '2rem',
-          width: 320,
+          width: 'min(92vw, 360px)',
         }}
       >
         <div style={{ color: '#fff', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>

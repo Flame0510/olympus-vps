@@ -78,6 +78,8 @@ export default function ProvidersPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedProvider, setSelectedProvider] = useState('');
+  const [isMobile, setIsMobile] = useState(false);
+  const [tab, setTab] = useState<'providers' | 'details'>('providers');
 
   async function load() {
     try {
@@ -96,6 +98,13 @@ export default function ProvidersPage() {
   }
 
   useEffect(() => { void load(); }, []);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 900);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const oauthByProvider = new Map<string, OAuthProvider>(
     (data?.auth?.oauth?.providers ?? []).map((p) => [p.provider, p])
@@ -130,10 +139,17 @@ export default function ProvidersPage() {
       {loading && <div style={{ padding: 20, color: '#555', fontSize: 12 }}>Loading...</div>}
       {error && <div style={{ padding: 20, color: '#ef4444', fontSize: 12 }}>{error}</div>}
 
+      {isMobile && data && (
+        <div style={{ display: 'flex', gap: 8, padding: '8px 10px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
+          <button onClick={() => setTab('providers')} style={{ fontSize: 10, padding: '6px 8px', border: '1px solid var(--border)', background: tab === 'providers' ? 'var(--bg3)' : 'transparent', color: tab === 'providers' ? 'var(--copper)' : '#888' }}>PROVIDERS</button>
+          <button onClick={() => setTab('details')} style={{ fontSize: 10, padding: '6px 8px', border: '1px solid var(--border)', background: tab === 'details' ? 'var(--bg3)' : 'transparent', color: tab === 'details' ? 'var(--copper)' : '#888' }}>DETAILS</button>
+        </div>
+      )}
+
       {data && (
-        <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: 0 }}>
           {/* Provider list */}
-          <section style={{ width: 220, borderRight: '1px solid var(--border)', overflow: 'auto', flexShrink: 0 }}>
+          <section style={{ width: isMobile ? '100%' : 220, borderRight: isMobile ? 'none' : '1px solid var(--border)', overflow: 'auto', flexShrink: 0, display: isMobile && tab !== 'providers' ? 'none' : 'block' }}>
             {data.auth.providers.map((p) => {
               const oauth = oauthByProvider.get(p.provider);
               const status = oauth?.status ?? 'static';
@@ -141,7 +157,10 @@ export default function ProvidersPage() {
               return (
                 <button
                   key={p.provider}
-                  onClick={() => setSelectedProvider(p.provider)}
+                  onClick={() => {
+                    setSelectedProvider(p.provider);
+                    if (isMobile) setTab('details');
+                  }}
                   style={{
                     width: '100%', textAlign: 'left',
                     background: isActive ? '#1a1208' : 'transparent',
@@ -167,7 +186,7 @@ export default function ProvidersPage() {
           </section>
 
           {/* Detail panel */}
-          <section style={{ flex: 1, overflow: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <section style={{ flex: 1, overflow: 'auto', padding: isMobile ? 10 : 16, display: isMobile && tab !== 'details' ? 'none' : 'flex', flexDirection: 'column', gap: 16 }}>
             {selected && (
               <>
                 {/* Auth detail */}

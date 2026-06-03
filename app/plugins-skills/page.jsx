@@ -84,6 +84,14 @@ export function PluginsTab() {
   const [filter, setFilter] = useState('all');
   const [toggling, setToggling] = useState(null);
   const [toastMsg, setToastMsg] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 900);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -144,9 +152,9 @@ export function PluginsTab() {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100%', overflow: 'hidden' }}>
       {/* List */}
-      <div style={{ width: 340, borderRight: '1px solid #222228', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ width: isMobile ? '100%' : 340, maxHeight: isMobile ? '45%' : '100%', borderRight: isMobile ? 'none' : '1px solid #222228', borderBottom: isMobile ? '1px solid #222228' : 'none', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Filter bar */}
         <div style={{ padding: '8px 12px', borderBottom: '1px solid #222228', background: '#111114', display: 'flex', gap: 6 }}>
           {['all', 'enabled', 'disabled'].map(f => (
@@ -323,6 +331,15 @@ export function SkillsTab() {
   const [editText, setEditText] = useState('');
   const [saving, setSaving] = useState(false);
   const [toastMsg, setToastMsg] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileStep, setMobileStep] = useState(1);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 900);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const [loadingContent, setLoadingContent] = useState(false);
 
   const load = useCallback(async () => {
@@ -365,6 +382,7 @@ export function SkillsTab() {
     setSelected(skill);
     setEditMode(false);
     setSkillContent(null);
+    if (isMobile) setMobileStep(2);
     if (skill.skillMdPath) {
       setLoadingContent(true);
       try {
@@ -416,9 +434,17 @@ export function SkillsTab() {
   const typeColor = { shared: 'copper', workspace: 'green', bundled: 'blue' };
 
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {isMobile && (
+        <div style={{ display: 'flex', gap: 8, padding: '8px 10px', borderBottom: '1px solid #222228', background: '#111114' }}>
+          <button onClick={() => setMobileStep(1)} style={{ fontSize: 10, padding: '6px 8px', border: '1px solid #222228', background: mobileStep === 1 ? '#18181c' : 'transparent', color: mobileStep === 1 ? '#B87333' : '#888' }}>LIST</button>
+          <button onClick={() => setMobileStep(2)} disabled={!selected} style={{ fontSize: 10, padding: '6px 8px', border: '1px solid #222228', background: mobileStep === 2 ? '#18181c' : 'transparent', color: mobileStep === 2 ? '#B87333' : '#888', opacity: selected ? 1 : 0.5 }}>EDITOR</button>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100%', overflow: 'hidden' }}>
       {/* List */}
-      <div style={{ width: 300, borderRight: '1px solid #222228', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ width: isMobile ? '100%' : 300, borderRight: isMobile ? 'none' : '1px solid #222228', borderBottom: isMobile ? '1px solid #222228' : 'none', display: isMobile && mobileStep !== 1 ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Filter bar */}
         <div style={{ padding: '8px 12px', borderBottom: '1px solid #222228', background: '#111114', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {['all', 'shared', 'workspace', 'bundled'].map(f => (
@@ -473,7 +499,7 @@ export function SkillsTab() {
       </div>
 
       {/* Detail / Editor */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: isMobile && mobileStep !== 2 ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {!selected ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333', fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
             ← select a skill
@@ -570,6 +596,8 @@ export function SkillsTab() {
             </div>
           </>
         )}
+      </div>
+
       </div>
 
       {/* Toast */}

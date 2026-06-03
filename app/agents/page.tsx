@@ -57,6 +57,7 @@ export default function AgentsPage() {
   const [openDirs, setOpenDirs] = useState<Record<string, boolean>>({});
   const [savingState, setSavingState] = useState<SaveState>('idle');
   const [loadingFile, setLoadingFile] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   const toggleDir = (dirName: string) =>
     setOpenDirs((prev) => ({ ...prev, [dirName]: !prev[dirName] }));
@@ -133,6 +134,13 @@ export default function AgentsPage() {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 900);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const saveLabel =
     savingState === 'saving'
       ? 'Saving...'
@@ -192,13 +200,22 @@ export default function AgentsPage() {
         AGENTS ACTIVE
       </div>
 
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+      {isMobile && (
+        <div style={{ display: 'flex', gap: 8, padding: '8px 10px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
+          <button onClick={() => setMobileStep(1)} style={{ fontSize: 10, padding: '6px 8px', border: '1px solid var(--border)', background: mobileStep === 1 ? 'var(--bg3)' : 'transparent', color: mobileStep === 1 ? 'var(--copper)' : '#888' }}>AGENTS</button>
+          <button onClick={() => setMobileStep(2)} style={{ fontSize: 10, padding: '6px 8px', border: '1px solid var(--border)', background: mobileStep === 2 ? 'var(--bg3)' : 'transparent', color: mobileStep === 2 ? 'var(--copper)' : '#888' }}>FILES</button>
+          <button onClick={() => setMobileStep(3)} disabled={!selectedFilePath} style={{ fontSize: 10, padding: '6px 8px', border: '1px solid var(--border)', background: mobileStep === 3 ? 'var(--bg3)' : 'transparent', color: mobileStep === 3 ? 'var(--copper)' : '#888', opacity: selectedFilePath ? 1 : 0.5 }}>EDITOR</button>
+        </div>
+      )}
+
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, flexDirection: isMobile ? 'column' : 'row' }}>
         {/* Agent list */}
         <section
           style={{
-            width: '28%',
-            minWidth: 250,
-            borderRight: '1px solid var(--border)',
+            width: isMobile ? '100%' : '28%',
+            minWidth: isMobile ? 0 : 250,
+            borderRight: isMobile ? 'none' : '1px solid var(--border)',
+            display: isMobile && mobileStep !== 1 ? 'none' : 'block',
             overflow: 'auto',
           }}
         >
@@ -253,9 +270,10 @@ export default function AgentsPage() {
         {/* File tree */}
         <section
           style={{
-            width: '28%',
-            minWidth: 260,
-            borderRight: '1px solid var(--border)',
+            width: isMobile ? '100%' : '28%',
+            minWidth: isMobile ? 0 : 260,
+            borderRight: isMobile ? 'none' : '1px solid var(--border)',
+            display: isMobile && mobileStep !== 2 ? 'none' : 'block',
             overflow: 'auto',
             background: 'var(--bg2)',
           }}
@@ -308,7 +326,7 @@ export default function AgentsPage() {
 
         {/* Editor */}
         <section
-          style={{ flex: 1, minWidth: 320, display: 'flex', flexDirection: 'column', minHeight: 0 }}
+          style={{ flex: 1, minWidth: isMobile ? 0 : 320, display: isMobile && mobileStep !== 3 ? 'none' : 'flex', flexDirection: 'column', minHeight: 0 }}
         >
           <div
             style={{
@@ -364,8 +382,8 @@ export default function AgentsPage() {
               resize: 'none',
               background: '#0A0A0B',
               color: '#E8E8E8',
-              padding: 12,
-              fontSize: 12,
+              padding: isMobile ? 10 : 12,
+              fontSize: isMobile ? 14 : 12,
               fontFamily: 'JetBrains Mono, monospace',
               lineHeight: 1.45,
             }}

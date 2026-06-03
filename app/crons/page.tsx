@@ -50,6 +50,8 @@ export default function CronsPage() {
   const [jobs, setJobs] = useState<CronJob[]>([]);
   const [sessions, setSessions] = useState<CronSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+  const [tab, setTab] = useState<'jobs' | 'runs'>('jobs');
 
   async function load() {
     try {
@@ -73,6 +75,13 @@ export default function CronsPage() {
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 900);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   return (
     <div style={{
       height: '100vh', background: 'var(--bg)', color: 'var(--text)',
@@ -88,9 +97,16 @@ export default function CronsPage() {
 
       {loading && <div style={{ padding: 20, color: '#555', fontSize: 12 }}>Loading...</div>}
 
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+      {isMobile && (
+        <div style={{ display: 'flex', gap: 8, padding: '8px 10px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
+          <button onClick={() => setTab('jobs')} style={{ fontSize: 10, padding: '6px 8px', border: '1px solid var(--border)', background: tab === 'jobs' ? 'var(--bg3)' : 'transparent', color: tab === 'jobs' ? 'var(--copper)' : '#888' }}>JOBS</button>
+          <button onClick={() => setTab('runs')} style={{ fontSize: 10, padding: '6px 8px', border: '1px solid var(--border)', background: tab === 'runs' ? 'var(--bg3)' : 'transparent', color: tab === 'runs' ? 'var(--copper)' : '#888' }}>RUNS</button>
+        </div>
+      )}
+
+      <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: 0, overflow: 'hidden' }}>
         {/* Scheduled jobs */}
-        <section style={{ width: '40%', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <section style={{ width: isMobile ? '100%' : '40%', borderRight: isMobile ? 'none' : '1px solid var(--border)', display: isMobile && tab !== 'jobs' ? 'none' : 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 10, color: '#555', flexShrink: 0 }}>
             SCHEDULED JOBS ({jobs.length})
           </div>
@@ -147,7 +163,7 @@ export default function CronsPage() {
         </section>
 
         {/* Cron session history */}
-        <section style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <section style={{ flex: 1, display: isMobile && tab !== 'runs' ? 'none' : 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 10, color: '#555', flexShrink: 0 }}>
             RUN HISTORY
           </div>
@@ -165,7 +181,7 @@ export default function CronsPage() {
                 return (
                   <div key={s.session_id} style={{
                     padding: '8px 12px', borderBottom: '1px solid var(--border)',
-                    display: 'grid', gridTemplateColumns: '1fr auto', gap: '4px 12px', alignItems: 'start',
+                    display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto', gap: '4px 12px', alignItems: 'start',
                   }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
