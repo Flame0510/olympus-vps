@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { execSync } from 'child_process';
-import { requireAuth } from '@/lib/db';
+import { requireAuthJWT } from '@/lib/olympus-auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const denied = requireAuth(request);
+  const denied = await requireAuthJWT(request);
   if (denied) return denied;
   try {
     const stdout = execSync('openclaw models status --json', { timeout: 8000 }).toString();

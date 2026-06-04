@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-
-const TOKEN = process.env.OLYMPUS_TOKEN || 'olympus2026';
+import { requireAuthJWT } from '@/lib/olympus-auth';
 
 const SKILL_ROOTS = [
   { type: 'shared', dir: '/data/.openclaw/shared-skills' },
@@ -37,10 +36,8 @@ function readSkillMeta(skillDir, name, type) {
 }
 
 export async function GET(request) {
-  const auth = request.headers.get('authorization');
-  if (auth !== `Bearer ${TOKEN}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const denied = await requireAuthJWT(request);
+  if (denied) return denied;
 
   const skills = [];
 

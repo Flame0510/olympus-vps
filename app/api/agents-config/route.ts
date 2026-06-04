@@ -364,6 +364,63 @@ function buildConfigPayload(config: OpenClawConfig) {
     });
 }
 
+interface CreateAgentPayload {
+  id?: string;
+  name?: string;
+  label?: string;
+  workspace?: string;
+  agentDir?: string;
+  model?: string;
+  defaultModel?: string;
+  identity?: { name?: string; emoji?: string };
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const denied = await requireBrowserAuth(request);
+  if (denied) return denied;
+
+  try {
+    const body = (await request.json()) as CreateAgentPayload;
+    const id = normalizeString(body.id);
+    if (!id) throw new Error('agent id is required');
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) throw new Error('agent id must be lowercase alphanumeric with hyphens');
+
+    const config = readConfig();
+    const currentAgents = Array.isArray(config.agents?.list) ? config.agents.list : [];
+
+    if (currentAgents.some((a) => normalizeString(cloneJsonObject(a).id) === id)) {
+      throw new Error(`agent id already in use: ${id}`);
+    }
+
+    const newAgent: JsonObject = { id };
+    if (body.name) newAgent.name = normalizeString(body.name);
+    if (body.label) newAgent.label = normalizeString(body.label);
+    if (body.workspace) newAgent.workspace = normalizeString(body.workspace);
+    if (body.agentDir) newAgent.agentDir = normalizeString(body.agentDir);
+    if (body.model) newAgent.model = normalizeString(body.model);
+    if (body.defaultModel) newAgent.defaultModel = normalizeString(body.defaultModel);
+    if (body.identity && typeof body.identity === 'object') {
+      const ident: JsonObject = {};
+      if (body.identity.name) ident.name = body.identity.name;
+      if (body.identity.emoji) ident.emoji = body.identity.emoji;
+      if (Object.keys(ident).length) newAgent.identity = ident;
+    }
+
+    const nextConfig: OpenClawConfig = {
+      ...config,
+      agents: {
+        ...(config.agents ?? {}),
+        list: [...currentAgents.map((a) => cloneJsonObject(a)), newAgent],
+      },
+    };
+
+    writeConfig(nextConfig);
+    return NextResponse.json({ success: true, data: buildConfigPayload(nextConfig) });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+  }
+}
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const denied = await requireBrowserAuth(request);
   if (denied) return denied;

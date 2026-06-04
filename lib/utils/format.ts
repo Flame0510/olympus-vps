@@ -16,10 +16,26 @@ export function formatTokens(value: number | null | undefined): string {
   return String(n);
 }
 
+let _timezone = process.env.OLYMPUS_TIMEZONE || 'Europe/Rome';
+
+export function setTimeZone(tz: string): void {
+  _timezone = tz;
+}
+
+export function getTimeZone(): string {
+  return _timezone;
+}
+
 export function formatTimeFromUnixSeconds(ts: number | null | undefined): string {
   if (!ts) return '--:--:--';
   const ms = Number(ts) < 1e12 ? Number(ts) * 1000 : Number(ts);
-  return new Date(ms).toISOString().slice(11, 19);
+  return new Date(ms).toLocaleString('it-IT', {
+    timeZone: _timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
 }
 
 export function formatDuration(
