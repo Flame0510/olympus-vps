@@ -16,11 +16,18 @@ export interface IDashboardObserver {
 
 // ── Singleton EventBus ─────────────────────────────────────────────────────
 
+function sessionsFingerprint(data: unknown[]): string {
+  return (data as { session_id?: string; status?: string; cost_usd?: number; label?: string }[])
+    .map((s) => `${s.session_id}|${s.status}|${s.cost_usd}|${s.label}`)
+    .join('\n');
+}
+
 class OlympusEventBusClass {
   private static _instance: OlympusEventBusClass | null = null;
   private observers = new Set<IDashboardObserver>();
   private source: EventSource | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastSessionsHash = '';
 
   private constructor() {}
 
@@ -72,6 +79,12 @@ class OlympusEventBusClass {
   }
 
   private dispatch(msg: StreamMessage): void {
+    if (msg.type === 'sessions') {
+      const hash = sessionsFingerprint(Array.isArray(msg.data) ? msg.data : []);
+      if (hash === this.lastSessionsHash) return;
+      this.lastSessionsHash = hash;
+    }
+
     for (const obs of this.observers) {
       if (msg.type === 'sessions' && obs.onSessions) {
         obs.onSessions(SessionFactory.createMany(msg.data));

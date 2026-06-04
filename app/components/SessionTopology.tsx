@@ -32,6 +32,7 @@ function draw(
   isTouch: boolean,
   onNodeClick: (id: string) => void,
   registerReset: (reset: () => void) => void,
+  autoReset: boolean,
 ) {
   const svg = d3.select(svgEl);
   svg.selectAll('*').remove();
@@ -156,7 +157,7 @@ function draw(
   };
 
   registerReset(resetView);
-  requestAnimationFrame(resetView);
+  if (autoReset) requestAnimationFrame(resetView);
 }
 
 const SessionTopology = forwardRef<SessionTopologyHandle, SessionTopologyProps>(function SessionTopology(
@@ -166,6 +167,7 @@ const SessionTopology = forwardRef<SessionTopologyHandle, SessionTopologyProps>(
   const svgRef = useRef<SVGSVGElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const resetRef = useRef<() => void>(() => {});
+  const prevTopologyRef = useRef<string>('');
   const [isTouch, setIsTouch] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -199,16 +201,25 @@ const SessionTopology = forwardRef<SessionTopologyHandle, SessionTopologyProps>(
     const tooltipEl = tooltipRef.current;
     if (!svgEl || !hasVisibleNodes) return;
 
-    const render = () => {
+    // Topology fingerprint: node ids + parent links. Position/layout only changes when topology changes.
+    const topologyKey = JSON.stringify(
+      (treeData.children ?? []).flatMap((n) =>
+        [n.session_id, ...(n.children ?? []).map((c) => c.session_id)]
+      )
+    );
+    const topologyChanged = topologyKey !== prevTopologyRef.current;
+    prevTopologyRef.current = topologyKey;
+
+    const render = (autoReset: boolean) => {
       const width = svgEl.clientWidth || 900;
       const height = svgEl.clientHeight || 480;
       draw(svgEl, tooltipEl, width, height, treeData, isTouch, onNodeClick, (reset) => {
         resetRef.current = reset;
-      });
+      }, autoReset);
     };
 
-    render();
-    const ro = new ResizeObserver(render);
+    render(topologyChanged);
+    const ro = new ResizeObserver(() => render(false));
     ro.observe(svgEl);
     return () => ro.disconnect();
   }, [hasVisibleNodes, isTouch, treeData, onNodeClick]);
