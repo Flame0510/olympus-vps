@@ -27,6 +27,34 @@ export default function SessionDrawer({ sessionId, onClose }: SessionDrawerProps
   const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [isMobile, setIsMobile] = useState(false);
 
+  // ── Drag-to-close per bottom sheet mobile ─────────────────────────────
+  const dragStartY = useRef<number | null>(null);
+  const sheetRef = useRef<HTMLElement>(null);
+
+  const onDragStart = (e: React.TouchEvent) => {
+    dragStartY.current = e.touches[0].clientY;
+    if (sheetRef.current) sheetRef.current.style.transition = 'none';
+  };
+
+  const onDragMove = (e: React.TouchEvent) => {
+    if (dragStartY.current === null || !sheetRef.current) return;
+    const dy = e.touches[0].clientY - dragStartY.current;
+    if (dy > 0) sheetRef.current.style.transform = `translateY(${dy}px)`;
+  };
+
+  const onDragEnd = (e: React.TouchEvent) => {
+    if (dragStartY.current === null || !sheetRef.current) return;
+    const dy = e.changedTouches[0].clientY - dragStartY.current;
+    sheetRef.current.style.transition = 'transform 0.25s ease';
+    if (dy > 80) {
+      sheetRef.current.style.transform = 'translateY(100%)';
+      setTimeout(onClose, 250);
+    } else {
+      sheetRef.current.style.transform = 'translateY(0)';
+    }
+    dragStartY.current = null;
+  };
+
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
     check();
@@ -66,34 +94,6 @@ export default function SessionDrawer({ sessionId, onClose }: SessionDrawerProps
 
   const { session, events, children } = detail ?? { session: null, events: [], children: [] };
   const endedOrUpdated = session?.ended_at ?? session?.updated_at ?? null;
-
-  // ── Drag-to-close per bottom sheet mobile ────────────────────────────────
-  const dragStartY = useRef<number | null>(null);
-  const sheetRef = useRef<HTMLElement>(null);
-
-  const onDragStart = (e: React.TouchEvent) => {
-    dragStartY.current = e.touches[0].clientY;
-    if (sheetRef.current) sheetRef.current.style.transition = 'none';
-  };
-
-  const onDragMove = (e: React.TouchEvent) => {
-    if (dragStartY.current === null || !sheetRef.current) return;
-    const dy = e.touches[0].clientY - dragStartY.current;
-    if (dy > 0) sheetRef.current.style.transform = `translateY(${dy}px)`;
-  };
-
-  const onDragEnd = (e: React.TouchEvent) => {
-    if (dragStartY.current === null || !sheetRef.current) return;
-    const dy = e.changedTouches[0].clientY - dragStartY.current;
-    sheetRef.current.style.transition = 'transform 0.25s ease';
-    if (dy > 80) {
-      sheetRef.current.style.transform = 'translateY(100%)';
-      setTimeout(onClose, 250);
-    } else {
-      sheetRef.current.style.transform = 'translateY(0)';
-    }
-    dragStartY.current = null;
-  };
 
   return (
     <>
