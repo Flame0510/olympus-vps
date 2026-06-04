@@ -74,7 +74,6 @@ export default function SessionDrawer({ sessionId, onClose }: SessionDrawerProps
         borderLeft: '1px solid var(--border)',
         color: 'var(--text)',
         padding: '20px 14px 14px',
-        position: 'relative',
       }}
     >
       <button
