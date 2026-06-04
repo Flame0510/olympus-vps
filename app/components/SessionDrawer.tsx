@@ -75,6 +75,7 @@ export default function SessionDrawer({ sessionId, onClose }: SessionDrawerProps
         color: 'var(--text)',
         padding: '20px 14px 14px',
         position: 'relative',
+      }}
     >
       <button
         type="button"
