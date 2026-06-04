@@ -75,6 +75,20 @@ const NAV: NavItem[] = [
       </svg>
     ),
   },
+  {
+    href: '/tools',
+    label: 'Tools',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M10.5 2a3.5 3.5 0 0 1 0 7 3.5 3.5 0 0 1-3.36-2.5H2v-1h5.14A3.5 3.5 0 0 1 10.5 2Zm0 1.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z" fill="currentColor"/>
+        <path d="M2 10.5h5.14a3.5 3.5 0 1 0 0-1H2v1Z" fill="none" stroke="currentColor" strokeWidth="1.2"/>
+        <circle cx="10.5" cy="5.5" r="2" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+        <path d="M2 10.5h4.5M2 13h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+        <circle cx="11" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+        <path d="M11 10.5v1.5l1 1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
 ];
 
 export default function Sidebar() {

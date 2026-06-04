@@ -4,9 +4,9 @@
   "description": "Olympus Agency Monitor — SQLite event logger daemon",
   "main": "daemon.js",
   "scripts": {
-    "dev": "next dev -p 3731",
+    "dev": "next dev -p 3720",
     "build": "next build",
-    "start": "next start -p 3731",
+    "start": "next start -p 3720",
     "daemon": "node daemon.js",
     "smoke:db-bootstrap": "node scripts/smoke-db-bootstrap.mjs"
   },
