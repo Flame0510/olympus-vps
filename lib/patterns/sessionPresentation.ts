@@ -6,6 +6,7 @@ function normalizeDisplayLabel(value: string | null | undefined): string {
   if (!label) return '';
   if (/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(label)) return '';
   if (/^(agent:[^\s]+:subagent:[0-9a-f-]+|subagent:[0-9a-f-]{8,}|session:[0-9a-f-]{8,})$/i.test(label)) return '';
+  if (/^agent:[a-z0-9_-]+(:[a-z0-9_-]+)*$/i.test(label)) return ''; // agent:ops:main, agent:ops:telegram:...
   if (/^sub\s*agent\b[:\s-]*[a-z0-9-]+$/i.test(label)) return '';
   return label;
 }

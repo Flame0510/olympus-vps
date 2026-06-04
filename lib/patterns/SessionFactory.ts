@@ -67,7 +67,7 @@ export function buildSessionTree(sessions: Session[], filter: string): TreeNode 
     const node: TreeNode & { lineage_label?: string | null; task_preview?: string | null } = {
       session_id: session.session_id,
       name: session.label ?? shortLabel(session.session_id),
-      lineage_label: session.lineage_label ?? session.label ?? null,
+      lineage_label: session.lineage_label ?? (session.label !== session.session_id ? session.label : null) ?? null,
       task_preview: session.task_preview ?? null,
       status: session.status,
       model: session.model,
