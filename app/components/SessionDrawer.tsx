@@ -73,22 +73,31 @@ export default function SessionDrawer({ sessionId, onClose }: SessionDrawerProps
         background: 'var(--bg)',
         borderLeft: '1px solid var(--border)',
         color: 'var(--text)',
-        padding: 14,
-      }}
+        padding: '20px 14px 14px',
+        position: 'relative',
     >
       <button
         type="button"
         onClick={onClose}
+        aria-label="Chiudi"
         style={{
-          border: '1px solid var(--border)',
+          position: 'absolute',
+          top: 14,
+          right: 14,
+          border: 'none',
           background: 'transparent',
-          color: 'var(--text)',
-          padding: '4px 8px',
+          color: 'var(--text-dim)',
+          fontSize: 18,
+          lineHeight: 1,
           cursor: 'pointer',
-          marginBottom: 10,
+          padding: 4,
+          borderRadius: 4,
+          transition: 'color 0.15s',
         }}
+        onMouseEnter={e => (e.currentTarget.style.color = 'var(--text)')}
+        onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-dim)')}
       >
-        [X] chiudi
+        ✕
       </button>
 
       {loading && <div>Caricamento...</div>}
