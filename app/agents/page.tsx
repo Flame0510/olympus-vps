@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { SkeletonLines } from '../components/Skeleton';
-import { Pill } from '../components/ui';
+import { Pill, Surface } from '../components/ui';
 
 const API_FETCH_OPTIONS: RequestInit = {
   cache: 'no-store',
@@ -160,6 +160,7 @@ function fieldStyle(): CSSProperties {
     background: '#0A0A0B',
     color: '#E8E8E8',
     border: '1px solid var(--border)',
+    borderRadius: 4,
     padding: '6px 8px',
     fontSize: 11,
     fontFamily: 'inherit',
@@ -542,18 +543,18 @@ export default function AgentsPage() {
             <div>{selectedAgent ? selectedAgent.workspace_path : 'No agent selected'}</div>
             {selectedAgentChannel && editableConfig && (
               <div style={{ marginTop: 8, display: 'grid', gap: 8 }}>
-                <div style={{ padding: 8, border: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
-                  <div style={{ color: 'var(--copper)', fontSize: 10, marginBottom: 6 }}>AGENT CONFIG</div>
-                  <div style={{ display: 'grid', gap: 6 }}>
+                <Surface as="div" variant="panel">
+                  <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', color: 'var(--copper)', fontSize: 10 }}>AGENT CONFIG</div>
+                  <div style={{ padding: 10, display: 'grid', gap: 6 }}>
                     {(['id', 'name', 'label', 'workspace', 'agentDir', 'model'] as const).map((key) => (
                       <input key={key} value={String(editableConfig[key] ?? '')} onChange={(e) => setEditableConfig((prev) => (prev ? { ...prev, [key]: e.target.value } : prev))} placeholder={key} style={fieldStyle()} />
                     ))}
                   </div>
-                </div>
-                <div style={{ padding: 8, border: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
-                  <div style={{ color: 'var(--copper)', fontSize: 10, marginBottom: 6 }}>TELEGRAM ACCOUNTS</div>
+                </Surface>
+                <Surface as="div" variant="panel">
+                  <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', color: 'var(--copper)', fontSize: 10 }}>TELEGRAM ACCOUNTS</div>
                   {editableAccounts.length ? editableAccounts.map((account, index) => (
-                    <div key={`${account.currentAccountId ?? account.accountId}-${index}`} style={{ marginTop: index ? 10 : 0, display: 'grid', gap: 6, borderTop: index ? '1px solid var(--border)' : 'none', paddingTop: index ? 10 : 0 }}>
+                    <div key={`${account.currentAccountId ?? account.accountId}-${index}`} style={{ padding: '8px 10px', display: 'grid', gap: 6, borderTop: index ? '1px solid var(--border)' : 'none' }}>
                       <input value={account.accountId} onChange={(e) => setEditableAccounts((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, accountId: e.target.value } : item))} placeholder="accountId" style={fieldStyle()} />
                       <input value={account.name ?? ''} onChange={(e) => setEditableAccounts((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, name: e.target.value } : item))} placeholder="name" style={fieldStyle()} />
                       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#E8E8E8' }}><input type="checkbox" checked={!!account.enabled} onChange={(e) => setEditableAccounts((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, enabled: e.target.checked } : item))} />enabled</label>
@@ -563,15 +564,15 @@ export default function AgentsPage() {
                       <input value={account.tokenReplacement ?? ''} onChange={(e) => setEditableAccounts((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, tokenReplacement: e.target.value } : item))} placeholder="tokenReplacement (write-only)" style={fieldStyle()} />
                       <div>token: {account.tokenStatus ?? 'missing'}</div>
                     </div>
-                  )) : <div>No Telegram account associated</div>}
-                </div>
-                <div style={{ padding: 8, border: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}><div style={{ color: 'var(--copper)', fontSize: 10 }}>BINDINGS</div><button onClick={addBinding} style={{ border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--copper)', fontSize: 10, padding: '4px 8px' }}>ADD</button></div>
-                  <div style={{ color: '#888', marginBottom: 6 }}>Telegram routes only. Unknown fields are preserved on edited bindings.</div>
+                  )) : <div style={{ padding: '8px 10px', fontSize: 11, color: '#555' }}>No Telegram account associated</div>}
+                </Surface>
+                <Surface as="div" variant="panel">
+                  <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div style={{ color: 'var(--copper)', fontSize: 10 }}>BINDINGS</div><button onClick={addBinding} style={{ border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg3)', color: 'var(--copper)', fontSize: 10, padding: '4px 8px' }}>ADD</button></div>
+                  <div style={{ padding: '6px 10px', color: '#555', fontSize: 10 }}>Telegram routes only. Unknown fields are preserved on edited bindings.</div>
                   {editableBindings.length ? editableBindings.map((binding, index) => {
                     const incomplete = !cleanString(binding.agentId) || !cleanString(binding.match?.accountId);
                     return (
-                      <div key={binding._localId} style={{ marginTop: index ? 10 : 0, display: 'grid', gap: 6, borderTop: index ? '1px solid var(--border)' : 'none', paddingTop: index ? 10 : 0 }}>
+                      <div key={binding._localId} style={{ padding: '8px 10px', display: 'grid', gap: 6, borderTop: index ? '1px solid var(--border)' : 'none' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
                           <Pill tone={binding.enabled === false ? 'danger' : incomplete ? 'warning' : 'success'}>{binding.enabled === false ? 'disabled' : incomplete ? 'incomplete' : 'active'}</Pill>
                           <button onClick={() => setEditableBindings((prev) => prev.filter((_, itemIndex) => itemIndex !== index))} style={{ border: '1px solid #5b2323', background: 'transparent', color: '#ef4444', fontSize: 10, padding: '4px 8px' }}>DELETE</button>
@@ -590,11 +591,11 @@ export default function AgentsPage() {
                         <input value={binding.match?.channel ?? 'telegram'} onChange={(e) => updateBindingMatch(index, { channel: e.target.value })} placeholder="match.channel" style={fieldStyle()} />
                       </div>
                     );
-                  }) : <div>No Telegram routing active</div>}
-                  {bindingErrors.length > 0 && <div style={{ marginTop: 8, color: '#ef4444' }}>{bindingErrors[0]}</div>}
-                </div>
-                {configError && <div style={{ color: '#ef4444' }}>{configError}</div>}
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button onClick={() => void saveConfig()} disabled={configSavingState === 'saving'} style={{ border: '1px solid var(--border)', background: configSavingState === 'saved' ? '#143018' : 'var(--bg3)', color: configSavingState === 'error' ? '#ef4444' : configSavingState === 'saved' ? '#22c55e' : 'var(--copper)', padding: '8px 10px', fontFamily: 'inherit', fontSize: 11, cursor: 'pointer' }}>{configSaveLabel}</button></div>
+                  }) : <div style={{ padding: '8px 10px', fontSize: 11, color: '#555' }}>No Telegram routing active</div>}
+                  {bindingErrors.length > 0 && <div style={{ padding: '0 10px 8px', color: '#ef4444', fontSize: 11 }}>{bindingErrors[0]}</div>}
+                </Surface>
+                {configError && <div style={{ color: '#ef4444', fontSize: 11 }}>{configError}</div>}
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button onClick={() => void saveConfig()} disabled={configSavingState === 'saving'} style={{ border: '1px solid var(--border)', borderRadius: 4, background: configSavingState === 'saved' ? '#143018' : 'var(--bg3)', color: configSavingState === 'error' ? '#ef4444' : configSavingState === 'saved' ? '#22c55e' : 'var(--copper)', padding: '8px 10px', fontFamily: 'inherit', fontSize: 11, cursor: 'pointer' }}>{configSaveLabel}</button></div>
               </div>
             )}
           </div>
