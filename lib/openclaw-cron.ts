@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { CronExpressionParser } from 'cron-parser';
 
 const OPENCLAW_CRON_JOBS_PATH = process.env.OPENCLAW_CRON_JOBS_PATH ?? '/data/.openclaw/cron/jobs.json';
 
@@ -62,14 +63,35 @@ function readJobsFile(): OpenClawCronJob[] | null {
   }
 }
 
+function computeNextRun(expr: string, tz?: string): number | null {
+  try {
+    const interval = CronExpressionParser.parse(expr, tz ? { tz } : {});
+    return interval.next().toDate().getTime();
+  } catch {
+    return null;
+  }
+}
+
 function normalizeJob(job: OpenClawCronJob): OpenClawCronJob {
+  const sched = job.schedule as CronSchedule | undefined;
   const schedExpr =
     typeof job.schedule === 'object' && job.schedule !== null
-      ? (job.schedule as CronSchedule).expr ?? ''
+      ? sched?.expr ?? ''
       : typeof job.schedule === 'string'
         ? job.schedule
         : '';
-  return { ...job, scheduleExpr: schedExpr };
+  const tz = sched?.tz;
+
+  const computedNextRunAtMs =
+    job.enabled !== false && schedExpr
+      ? computeNextRun(schedExpr, tz ?? undefined)
+      : null;
+
+  return {
+    ...job,
+    scheduleExpr: schedExpr,
+    computedNextRunAtMs,
+  };
 }
 
 export interface CronPatchResult {

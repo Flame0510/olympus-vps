@@ -10,14 +10,21 @@ interface CronSchedule { kind?: string; expr?: string; tz?: string; [k: string]:
 interface CronPayload { kind?: string; message?: string; model?: string; [k: string]: unknown }
 interface CronState { lastStatus?: string; nextRunAtMs?: number | null; lastRunAtMs?: number | null; [k: string]: unknown }
 
+interface CronDelivery { mode?: string; channel?: string; to?: string; [k: string]: unknown }
+
 interface CronJob {
   id?: string;
   name?: string;
   description?: string;
   agentId?: string;
+  sessionKey?: string;
+  sessionTarget?: string;
+  wakeMode?: string;
   schedule?: CronSchedule | string;
   scheduleExpr?: string;
+  computedNextRunAtMs?: number | null;
   payload?: CronPayload;
+  delivery?: CronDelivery;
   state?: CronState;
   enabled?: boolean;
   createdAtMs?: number;
@@ -157,74 +164,106 @@ export default function CronsPage() {
                 ? (job.schedule as CronSchedule).tz : undefined;
               const model = job.payload?.model;
               const prompt = job.payload?.message ?? (job.payload as { text?: string } | undefined)?.text;
-              const nextRun = job.state?.nextRunAtMs;
+              const nextRun = job.computedNextRunAtMs ?? job.state?.nextRunAtMs;
               const lastRun = job.state?.lastRunAtMs;
               const lastStatus = job.state?.lastStatus;
+              const isEnabled = job.enabled !== false;
               return (
-                <div key={job.id ?? i} style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ color: 'var(--copper)', fontSize: 12 }}>{job.name ?? job.id ?? `job-${i}`}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {job.id && (
-                        <button
-                          onClick={() => void toggleJob(job)}
-                          disabled={toggling === job.id}
-                          title={job.enabled !== false ? 'Disable job' : 'Enable job'}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 5,
-                            padding: '3px 8px 3px 5px',
-                            border: `1px solid ${job.enabled !== false ? '#255b3f' : 'var(--border)'}`,
-                            borderRadius: 20,
-                            background: job.enabled !== false ? 'rgba(34,197,94,0.08)' : 'var(--bg2)',
-                            cursor: toggling === job.id ? 'not-allowed' : 'pointer',
-                            opacity: toggling === job.id ? 0.5 : 1,
-                            transition: 'all 0.15s',
-                            outline: 'none',
-                          }}
-                        >
-                          {/* track */}
-                          <span style={{
-                            display: 'inline-flex', width: 26, height: 14, borderRadius: 7,
-                            background: toggling === job.id ? '#555' : job.enabled !== false ? 'var(--green)' : '#3a3a3a',
-                            alignItems: 'center', padding: '0 2px',
-                            justifyContent: job.enabled !== false ? 'flex-end' : 'flex-start',
-                            transition: 'background 0.15s',
-                            flexShrink: 0,
-                          }}>
-                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#fff', display: 'inline-block' }} />
-                          </span>
-                          <span style={{ fontSize: 9, letterSpacing: '0.07em', color: job.enabled !== false ? 'var(--green)' : '#666' }}>
-                            {toggling === job.id ? '···' : job.enabled !== false ? 'ON' : 'OFF'}
-                          </span>
-                        </button>
+                <div key={job.id ?? i} style={{
+                  padding: '12px 14px', borderBottom: '1px solid var(--border)',
+                  opacity: isEnabled ? 1 : 0.6,
+                }}>
+                  {/* Header row */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6, gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: 'var(--copper)', fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {job.name ?? job.id ?? `job-${i}`}
+                      </div>
+                      {job.description && (
+                        <div style={{ fontSize: 10, color: '#888', marginTop: 2, lineHeight: 1.4 }}>{String(job.description)}</div>
                       )}
                     </div>
+                    {job.id && (
+                      <button
+                        onClick={() => void toggleJob(job)}
+                        disabled={toggling === job.id}
+                        title={isEnabled ? 'Disable job' : 'Enable job'}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
+                          padding: '3px 8px 3px 5px',
+                          border: `1px solid ${isEnabled ? '#255b3f' : 'var(--border)'}`,
+                          borderRadius: 20,
+                          background: isEnabled ? 'rgba(34,197,94,0.08)' : 'var(--bg2)',
+                          cursor: toggling === job.id ? 'not-allowed' : 'pointer',
+                          opacity: toggling === job.id ? 0.5 : 1,
+                          transition: 'all 0.15s', outline: 'none',
+                        }}
+                      >
+                        <span style={{
+                          display: 'inline-flex', width: 26, height: 14, borderRadius: 7,
+                          background: toggling === job.id ? '#555' : isEnabled ? 'var(--green)' : '#3a3a3a',
+                          alignItems: 'center', padding: '0 2px',
+                          justifyContent: isEnabled ? 'flex-end' : 'flex-start',
+                          transition: 'all 0.15s', flexShrink: 0,
+                        }}>
+                          <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#fff' }} />
+                        </span>
+                        <span style={{ fontSize: 9, letterSpacing: '0.07em', color: isEnabled ? 'var(--green)' : '#666' }}>
+                          {toggling === job.id ? '···' : isEnabled ? 'ON' : 'OFF'}
+                        </span>
+                      </button>
+                    )}
                   </div>
+
+                  {/* Schedule */}
                   {expr && (
-                    <div style={{ fontSize: 11, color: '#60a5fa', fontFamily: 'monospace', marginBottom: 4 }}>
-                      {expr}{tz ? ` (${tz})` : ''}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                      <span style={{ fontSize: 10, color: '#555' }}>schedule</span>
+                      <span style={{ fontSize: 11, color: '#60a5fa', fontFamily: 'monospace' }}>{expr}</span>
+                      {tz && <span style={{ fontSize: 10, color: '#555' }}>{tz}</span>}
                     </div>
                   )}
-                  {job.description && (
-                    <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>{String(job.description)}</div>
-                  )}
-                  {job.agentId && <div style={{ fontSize: 10, color: '#666' }}>agent: {String(job.agentId)}</div>}
-                  {model && <div style={{ fontSize: 10, color: '#666' }}>model: {model}</div>}
+
+                  {/* Timing grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', marginBottom: 6 }}>
+                    {nextRun != null && (
+                      <div>
+                        <div style={{ fontSize: 9, color: '#555', letterSpacing: '0.06em', marginBottom: 1 }}>PROSSIMO AVVIO</div>
+                        <div style={{ fontSize: 11, color: isEnabled ? '#22c55e' : '#666' }}>{formatTs(nextRun)}</div>
+                      </div>
+                    )}
+                    {lastRun != null && (
+                      <div>
+                        <div style={{ fontSize: 9, color: '#555', letterSpacing: '0.06em', marginBottom: 1 }}>ULTIMO AVVIO</div>
+                        <div style={{ fontSize: 11, color: '#888' }}>{formatTs(lastRun)}</div>
+                      </div>
+                    )}
+                    {job.createdAtMs != null && (
+                      <div>
+                        <div style={{ fontSize: 9, color: '#555', letterSpacing: '0.06em', marginBottom: 1 }}>CREATO</div>
+                        <div style={{ fontSize: 11, color: '#888' }}>{formatTs(job.createdAtMs as number)}</div>
+                      </div>
+                    )}
+                    {lastStatus && (
+                      <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                        <Pill tone={lastStatus === 'ok' ? 'success' : lastStatus === 'error' ? 'danger' : 'neutral'}>{lastStatus.toUpperCase()}</Pill>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Meta row */}
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 10, color: '#555', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
+                    {job.agentId && <span>agent: <span style={{ color: '#888' }}>{String(job.agentId)}</span></span>}
+                    {model && <span>model: <span style={{ color: '#888' }}>{String(model)}</span></span>}
+                    {job.sessionTarget && <span>target: <span style={{ color: '#888' }}>{String(job.sessionTarget)}</span></span>}
+                    {job.delivery?.channel && <span>→ <span style={{ color: '#888' }}>{String(job.delivery.channel)}</span></span>}
+                    {job.id && <span style={{ color: '#444', marginLeft: 'auto' }}>{String(job.id).slice(0, 8)}</span>}
+                  </div>
+
+                  {/* Prompt preview */}
                   {prompt && (
-                    <div style={{ fontSize: 10, color: '#555', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {String(prompt).slice(0, 100)}
-                    </div>
-                  )}
-                  {job.createdAtMs != null && (
-                    <div style={{ fontSize: 10, color: '#555', marginTop: 2 }}>
-                      created: <span style={{ color: '#888' }}>{formatTs(job.createdAtMs as number)}</span>
-                    </div>
-                  )}
-                  {(lastRun != null || nextRun != null || lastStatus) && (
-                    <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                      {lastStatus && <Pill tone={lastStatus === 'ok' ? 'success' : lastStatus === 'error' ? 'danger' : 'neutral'}>{lastStatus.toUpperCase()}</Pill>}
-                      {lastRun != null && <span style={{ color: '#555' }}>last: <span style={{ color: '#888' }}>{formatTs(lastRun)}</span></span>}
-                      {nextRun != null && <span style={{ color: '#555' }}>next: <span style={{ color: '#888' }}>{formatTs(nextRun)}</span></span>}
+                    <div style={{ fontSize: 10, color: '#444', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontStyle: 'italic' }}>
+                      "{String(prompt).slice(0, 120)}{String(prompt).length > 120 ? '…' : ''}"
                     </div>
                   )}
                 </div>
