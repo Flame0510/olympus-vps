@@ -1181,6 +1181,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .ui-pill.ui-tone--warning { border-color: #7c5a1a; color: #f6c66b; background: rgba(245,158,11,0.08); }
 .ui-pill.ui-tone--danger { border-color: #7f1d1d; color: #fca5a5; background: rgba(239,68,68,0.08); }
 .ui-pill.ui-tone--accent { border-color: var(--copper-dim); color: var(--copper); background: rgba(184,115,51,0.08); }
+.ui-pill.ui-tone--info { border-color: rgba(99,102,241,0.28); color: #818cf8; background: rgba(99,102,241,0.12); }
+.ui-tone--info { border-color: rgba(99,102,241,0.28); }
 
 .cockpit { overflow: auto; height: 100%; padding: 20px; }
 .cockpit__metrics { display: grid; grid-template-columns: minmax(260px, 1.2fr) repeat(3, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }

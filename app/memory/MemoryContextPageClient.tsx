@@ -1,14 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { MemoryContextPayload, StrategyHealth } from '@/lib/memory-context';
-import { SkeletonLines, SkeletonMetric } from '../components/Skeleton';
-
-function cardTone(health: StrategyHealth): { border: string; text: string; bg: string } {
-  if (health === 'ok') return { border: '#255b3f', text: '#5ee9a0', bg: 'rgba(34, 197, 94, 0.08)' };
-  if (health === 'warning') return { border: '#7c5a1a', text: '#f6c66b', bg: 'rgba(245, 158, 11, 0.08)' };
-  return { border: '#7f1d1d', text: '#fca5a5', bg: 'rgba(239, 68, 68, 0.08)' };
-}
+import type { MemoryContextPayload } from '@/lib/memory-context';
+import { Pill, Metric, Surface, Page, PageHeader, toneFromHealth } from '../components/ui';
+import { SkeletonLines } from '../components/Skeleton';
 
 function formatBytes(value: number | null): string {
   if (value === null) return '—';
@@ -20,15 +15,6 @@ function formatBytes(value: number | null): string {
 function formatDate(value: string | null): string {
   if (!value) return '—';
   return new Date(value).toLocaleString('it-IT');
-}
-
-function pill(value: string, tone: StrategyHealth | 'neutral' = 'neutral') {
-  const theme = tone === 'neutral' ? { border: '#2b2b31', text: '#b8b8c2', bg: 'rgba(255,255,255,0.02)' } : cardTone(tone);
-  return (
-    <span style={{ border: `1px solid ${theme.border}`, color: theme.text, background: theme.bg, borderRadius: 999, padding: '2px 8px', fontSize: 10, letterSpacing: '0.04em' }}>
-      {value}
-    </span>
-  );
 }
 
 export default function MemoryContextPageClient() {
@@ -62,32 +48,24 @@ export default function MemoryContextPageClient() {
   }, [data]);
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)', padding: '24px 20px 40px' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <header style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ color: 'var(--copper)', fontSize: 12, letterSpacing: '0.08em', marginBottom: 6 }}>OBSERVATORY</div>
-            <h1 style={{ margin: 0, fontFamily: 'var(--font-serif)', fontSize: 34, fontWeight: 400 }}>Memory / Context</h1>
-            <p style={{ margin: '10px 0 0', color: 'var(--text-dim)', maxWidth: 760, lineHeight: 1.5, fontSize: 13 }}>
-              USER condiviso quando serve identità comune, MEMORY locale per ogni agente, SOUL e AGENTS locali come bootstrap operativo.
-            </p>
-          </div>
-          {data?.strategy && pill(`health: ${data.strategy.health}`, data.strategy.health)}
-        </header>
+    <Page>
+      <PageHeader
+        eyebrow="OBSERVATORY"
+        title="Memory / Context"
+        description="USER condiviso quando serve identità comune, MEMORY locale per ogni agente, SOUL e AGENTS locali come bootstrap operativo."
+        action={data?.strategy ? <Pill tone={toneFromHealth(data.strategy.health)}>health: {data.strategy.health}</Pill> : undefined}
+      />
 
         {loading && (
           <>
             <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
               {Array.from({ length: 4 }).map((_, index) => (
-                <article key={index} style={{ border: '1px solid var(--border)', background: 'var(--bg2)', padding: 16 }}>
-                  <SkeletonLines count={1} />
-                  <div style={{ marginTop: 10 }}><SkeletonMetric /></div>
-                </article>
+                <Metric key={index} title="" value="" loading />
               ))}
             </section>
-            <section style={{ border: '1px solid var(--border)', background: 'var(--bg2)', padding: 16 }}>
+            <Surface variant="panel">
               <SkeletonLines count={8} />
-            </section>
+            </Surface>
           </>
         )}
         {error && <div style={{ color: '#fca5a5', fontSize: 13 }}>{error}</div>}
@@ -96,19 +74,16 @@ export default function MemoryContextPageClient() {
           <>
             <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
               {metrics.map((metric) => (
-                <article key={metric.label} style={{ border: '1px solid var(--border)', background: 'var(--bg2)', padding: 16 }}>
-                  <div style={{ color: '#8a8a92', fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{metric.label}</div>
-                  <div style={{ marginTop: 10, fontSize: 30, color: 'var(--copper)', fontFamily: 'var(--font-serif)' }}>{metric.value}</div>
-                </article>
+                <Metric key={metric.label} title={metric.label} value={metric.value} tone="accent" />
               ))}
             </section>
 
-            <section style={{ border: '1px solid var(--border)', background: 'var(--bg2)' }}>
+            <Surface variant="panel">
               <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <strong style={{ fontSize: 12, letterSpacing: '0.08em', color: 'var(--copper)' }}>Agent Memory Health</strong>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {pill(`user: ${data.strategy.userProfile}`)}
-                  {pill(`memory: ${data.strategy.memory}`)}
+                  <Pill>user: {data.strategy.userProfile}</Pill>
+                  <Pill>memory: {data.strategy.memory}</Pill>
                 </div>
               </div>
               <div style={{ overflowX: 'auto' }}>
@@ -131,7 +106,7 @@ export default function MemoryContextPageClient() {
                         {Object.values(agent.files).map((file) => (
                           <td key={`${agent.agentId}-${file.key}`} style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', fontSize: 11, minWidth: 150 }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                              {pill(file.exists ? (file.isSymlink ? 'linked' : 'local') : 'missing', file.exists ? 'ok' : 'warning')}
+                              <Pill tone={toneFromHealth(file.exists ? 'ok' : 'warning')}>{file.exists ? (file.isSymlink ? 'linked' : 'local') : 'missing'}</Pill>
                               <div style={{ color: '#8a8a92' }}>{formatBytes(file.size)} · {formatDate(file.mtime)}</div>
                               <div style={{ color: '#73737c', wordBreak: 'break-word' }}>{file.path}</div>
                               {file.symlinkTarget && <div style={{ color: '#b8b8c2', wordBreak: 'break-word' }}>→ {file.symlinkTarget}</div>}
@@ -140,18 +115,18 @@ export default function MemoryContextPageClient() {
                         ))}
                         <td style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', fontSize: 11 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {pill(agent.strategy.health, agent.strategy.health)}
+                            <Pill tone={toneFromHealth(agent.strategy.health)}>{agent.strategy.health}</Pill>
                             <div>USER: {agent.strategy.userProfile}</div>
                             <div>MEMORY: {agent.strategy.memory}</div>
                           </div>
                         </td>
                         <td style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', fontSize: 11 }}>
                           {agent.warnings.length ? (
-                            <ul style={{ margin: 0, paddingLeft: 16, color: '#f6c66b' }}>
+                            <ul style={{ margin: 0, paddingLeft: 16, color: 'var(--warning, #f6c66b)' }}>
                               {agent.warnings.map((warning) => <li key={warning}>{warning}</li>)}
                             </ul>
                           ) : (
-                            <span style={{ color: '#5ee9a0' }}>No warnings</span>
+                            <span style={{ color: 'var(--green)' }}>No warnings</span>
                           )}
                         </td>
                       </tr>
@@ -159,46 +134,44 @@ export default function MemoryContextPageClient() {
                   </tbody>
                 </table>
               </div>
-            </section>
+            </Surface>
 
-            <section style={{ border: '1px solid var(--border)', background: 'var(--bg2)' }}>
+            <Surface variant="panel">
               <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
                 <strong style={{ fontSize: 12, letterSpacing: '0.08em', color: 'var(--copper)' }}>Global Context files</strong>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, padding: 14 }}>
-                {data.globalContext.map((file) => {
-                  const tone = file.exists ? 'ok' : 'warning';
-                  return (
-                    <article key={file.key} style={{ border: '1px solid var(--border)', background: 'var(--bg)', padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-                        <strong style={{ fontSize: 13 }}>{file.key}</strong>
-                        {pill(file.exists ? 'present' : 'missing', tone)}
-                      </div>
-                      <div style={{ color: '#8a8a92', fontSize: 11, wordBreak: 'break-word' }}>{file.path}</div>
-                      <div style={{ color: '#b8b8c2', fontSize: 11 }}>{formatBytes(file.size)} · {formatDate(file.mtime)}</div>
-                      {file.symlinkTarget && <div style={{ color: '#b8b8c2', fontSize: 11, wordBreak: 'break-word' }}>→ {file.symlinkTarget}</div>}
-                      {file.warnings.length > 0 && (
-                        <ul style={{ margin: 0, paddingLeft: 16, color: '#f6c66b', fontSize: 11 }}>
-                          {file.warnings.map((warning) => <li key={warning}>{warning}</li>)}
-                        </ul>
-                      )}
-                    </article>
-                  );
-                })}
+                {data.globalContext.map((file) => (
+                  <Surface key={file.key} as="article" tone={toneFromHealth(file.exists ? 'ok' : 'warning')}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+                      <strong style={{ fontSize: 13 }}>{file.key}</strong>
+                      <Pill tone={toneFromHealth(file.exists ? 'ok' : 'warning')}>{file.exists ? 'present' : 'missing'}</Pill>
+                    </div>
+                    <div style={{ color: '#8a8a92', fontSize: 11, wordBreak: 'break-word', marginTop: 8 }}>{file.path}</div>
+                    <div style={{ color: '#b8b8c2', fontSize: 11, marginTop: 4 }}>{formatBytes(file.size)} · {formatDate(file.mtime)}</div>
+                    {file.symlinkTarget && <div style={{ color: '#b8b8c2', fontSize: 11, marginTop: 4, wordBreak: 'break-word' }}>→ {file.symlinkTarget}</div>}
+                    {file.warnings.length > 0 && (
+                      <ul style={{ margin: '8px 0 0', paddingLeft: 16, color: 'var(--warning, #f6c66b)', fontSize: 11 }}>
+                        {file.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                      </ul>
+                    )}
+                  </Surface>
+                ))}
               </div>
-            </section>
+            </Surface>
 
             {data.strategy.warnings.length > 0 && (
-              <section style={{ border: '1px solid var(--border)', background: 'var(--bg2)', padding: 14 }}>
-                <strong style={{ fontSize: 12, letterSpacing: '0.08em', color: 'var(--copper)' }}>Warnings</strong>
-                <ul style={{ margin: '10px 0 0', paddingLeft: 18, color: '#f6c66b', fontSize: 12, lineHeight: 1.5 }}>
+              <Surface variant="panel" tone="warning">
+                <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+                  <strong style={{ fontSize: 12, letterSpacing: '0.08em', color: 'var(--copper)' }}>Warnings</strong>
+                </div>
+                <ul style={{ margin: 0, padding: '12px 14px 12px 32px', color: 'var(--warning, #f6c66b)', fontSize: 12, lineHeight: 1.5 }}>
                   {data.strategy.warnings.map((warning) => <li key={warning}>{warning}</li>)}
                 </ul>
-              </section>
+              </Surface>
             )}
           </>
         )}
-      </div>
-    </div>
+    </Page>
   );
 }

@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { TOOL_CATALOG, TOTAL_TOOL_COUNT, type ToolStatus } from './tools-catalog';
+import { Pill } from '../components/ui';
+import type { Tone } from '../components/ui';
 
 const API_FETCH_OPTIONS: RequestInit = {
   cache: 'no-store',
@@ -23,10 +25,10 @@ export interface AudioConfig {
 
 const CONFIGURABLE_TOOL_COUNT = 1;
 
-const statusStyles: Record<ToolStatus, { background: string; color: string; border: string }> = {
-  Configured: { background: 'rgba(34, 197, 94, 0.12)', color: '#22c55e', border: 'rgba(34, 197, 94, 0.28)' },
-  Available: { background: 'rgba(99, 102, 241, 0.12)', color: '#818cf8', border: 'rgba(99, 102, 241, 0.28)' },
-  'Coming soon': { background: 'rgba(148, 163, 184, 0.12)', color: '#94a3b8', border: 'rgba(148, 163, 184, 0.24)' },
+const statusTone: Record<ToolStatus, Tone> = {
+  Configured: 'success',
+  Available: 'info',
+  'Coming soon': 'neutral',
 };
 
 function sanitizeAudioConfig(value: unknown): AudioConfig {
@@ -57,8 +59,7 @@ function hasAudioConfig(audio: AudioConfig | null): boolean {
 }
 
 function StatusBadge({ status }: { status: ToolStatus }) {
-  const style = statusStyles[status];
-  return <span style={{ display: 'inline-flex', alignItems: 'center', border: `1px solid ${style.border}`, borderRadius: '999px', padding: '3px 8px', background: style.background, color: style.color, fontSize: '11px', fontWeight: 600, lineHeight: 1, whiteSpace: 'nowrap' }}>{status}</span>;
+  return <Pill tone={statusTone[status]}>{status}</Pill>;
 }
 
 const TIMEZONE_OPTIONS = [

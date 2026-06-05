@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Pill } from '../components/ui';
+import type { Tone } from '../components/ui';
 
 
 interface CronJob {
@@ -24,7 +26,14 @@ interface CronSession {
   label?: string;
 }
 
-function statusColor(status: string): string {
+function statusTone(status: string): Tone {
+  if (status === 'working' || status === 'active') return 'success';
+  if (status === 'completed') return 'info';
+  if (status === 'error') return 'danger';
+  return 'neutral';
+}
+
+function statusDot(status: string): string {
   if (status === 'working' || status === 'active') return '#22c55e';
   if (status === 'completed') return '#60a5fa';
   if (status === 'error') return '#ef4444';
@@ -118,14 +127,9 @@ export default function CronsPage() {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ color: 'var(--copper)', fontSize: 12 }}>{job.name ?? job.id ?? `job-${i}`}</span>
-                  <span style={{
-                    fontSize: 9, padding: '2px 5px',
-                    background: job.enabled !== false ? '#22c55e22' : '#55555522',
-                    color: job.enabled !== false ? '#22c55e' : '#555',
-                    border: `1px solid ${job.enabled !== false ? '#22c55e44' : '#55555544'}`,
-                  }}>
+                  <Pill tone={job.enabled !== false ? 'success' : 'neutral'}>
                     {job.enabled !== false ? 'ENABLED' : 'DISABLED'}
-                  </span>
+                  </Pill>
                 </div>
                 {job.schedule && (
                   <div style={{ fontSize: 11, color: '#60a5fa', fontFamily: 'monospace', marginBottom: 4 }}>
@@ -183,7 +187,7 @@ export default function CronsPage() {
                   }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor(s.status), display: 'inline-block', flexShrink: 0 }} />
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusDot(s.status), display: 'inline-block', flexShrink: 0 }} />
                         <span style={{ fontSize: 11, color: 'var(--copper)' }}>{agentId}</span>
                         <span style={{ fontSize: 10, color: '#555' }}>#{runId}</span>
                       </div>
@@ -192,7 +196,7 @@ export default function CronsPage() {
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 9, color: statusColor(s.status) }}>{s.status.toUpperCase()}</div>
+                      <Pill tone={statusTone(s.status)}>{s.status.toUpperCase()}</Pill>
                       {s.cost_usd != null && s.cost_usd > 0 && (
                         <div style={{ fontSize: 10, color: '#555', marginTop: 2 }}>${s.cost_usd.toFixed(4)}</div>
                       )}

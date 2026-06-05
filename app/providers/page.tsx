@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Pill, Surface, toneVars } from '../components/ui';
+import type { Tone } from '../components/ui';
 
 
 interface OAuthProvider {
@@ -39,12 +41,12 @@ interface ModelsData {
   };
 }
 
-function statusColor(status: string): string {
-  if (status === 'ok') return '#22c55e';
-  if (status === 'expiring') return '#f59e0b';
-  if (status === 'expired') return '#ef4444';
-  if (status === 'static') return '#60a5fa';
-  return '#888';
+function statusTone(status: string): Tone {
+  if (status === 'ok') return 'success';
+  if (status === 'expiring') return 'warning';
+  if (status === 'expired') return 'danger';
+  if (status === 'static') return 'info';
+  return 'neutral';
 }
 
 function statusLabel(status: string): string {
@@ -167,15 +169,11 @@ export default function ProvidersPage() {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ color: statusColor(status), fontSize: 14 }}>{providerIcon(p.provider)}</span>
+                    <span style={{ color: toneVars[statusTone(status)].text, fontSize: 14 }}>{providerIcon(p.provider)}</span>
                     <span style={{ color: isActive ? 'var(--copper)' : 'var(--text)', fontSize: 12 }}>{p.provider}</span>
                   </div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
-                    <span style={{
-                      fontSize: 9, padding: '2px 5px', borderRadius: 2,
-                      background: statusColor(status) + '22', color: statusColor(status),
-                      border: `1px solid ${statusColor(status)}44`,
-                    }}>{statusLabel(status)}</span>
+                    <Pill tone={statusTone(status)}>{statusLabel(status)}</Pill>
                     <span style={{ fontSize: 9, color: '#555' }}>{p.effective.kind}</span>
                   </div>
                 </button>
@@ -188,7 +186,7 @@ export default function ProvidersPage() {
             {selected && (
               <>
                 {/* Auth detail */}
-                <div style={{ border: '1px solid var(--border)', background: 'var(--bg2)' }}>
+                <Surface variant="panel">
                   <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 10, color: 'var(--copper)', letterSpacing: '0.08em' }}>
                     AUTH
                   </div>
@@ -202,15 +200,15 @@ export default function ProvidersPage() {
                       <Row
                         label="expires"
                         value={formatRemaining(selectedOAuth.remainingMs)}
-                        color={statusColor(selectedOAuth.status)}
+                        tone={statusTone(selectedOAuth.status)}
                       />
                     )}
                   </div>
-                </div>
+                </Surface>
 
                 {/* Aliases */}
                 {providerAliases.length > 0 && (
-                  <div style={{ border: '1px solid var(--border)', background: 'var(--bg2)' }}>
+                  <Surface variant="panel">
                     <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 10, color: 'var(--copper)', letterSpacing: '0.08em' }}>
                       ALIASES
                     </div>
@@ -222,12 +220,12 @@ export default function ProvidersPage() {
                         </>
                       ))}
                     </div>
-                  </div>
+                  </Surface>
                 )}
 
                 {/* Allowed models */}
                 {providerModels.length > 0 && (
-                  <div style={{ border: '1px solid var(--border)', background: 'var(--bg2)' }}>
+                  <Surface variant="panel">
                     <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 10, color: 'var(--copper)', letterSpacing: '0.08em' }}>
                       ALLOWED MODELS ({providerModels.length})
                     </div>
@@ -238,13 +236,13 @@ export default function ProvidersPage() {
                         return (
                           <div key={m} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
                             <span style={{ color: isDefault ? 'var(--copper)' : '#888' }}>{m}</span>
-                            {isDefault && <span style={{ fontSize: 9, color: 'var(--copper)', border: '1px solid var(--copper)', padding: '1px 4px' }}>DEFAULT</span>}
-                            {isFallback && <span style={{ fontSize: 9, color: '#60a5fa', border: '1px solid #60a5fa33', padding: '1px 4px' }}>FALLBACK</span>}
+                            {isDefault && <Pill tone="accent">DEFAULT</Pill>}
+                            {isFallback && <Pill tone="info">FALLBACK</Pill>}
                           </div>
                         );
                       })}
                     </div>
-                  </div>
+                  </Surface>
                 )}
               </>
             )}
@@ -255,11 +253,12 @@ export default function ProvidersPage() {
   );
 }
 
-function Row({ label, value, dim, color }: { label: string; value: string; dim?: boolean; color?: string }) {
+function Row({ label, value, dim, tone }: { label: string; value: string; dim?: boolean; tone?: Tone }) {
+  const color = tone ? toneVars[tone].text : dim ? '#555' : '#d6e2e8';
   return (
     <div style={{ display: 'flex', gap: 12, fontSize: 11 }}>
       <span style={{ color: '#555', minWidth: 60, flexShrink: 0 }}>{label}</span>
-      <span style={{ color: color ?? (dim ? '#555' : '#d6e2e8'), wordBreak: 'break-all' }}>{value}</span>
+      <span style={{ color, wordBreak: 'break-all' }}>{value}</span>
     </div>
   );
 }

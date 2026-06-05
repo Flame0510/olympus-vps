@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { SkeletonLines } from '../components/Skeleton';
+import { Pill } from '../components/ui';
 
 const API_FETCH_OPTIONS: RequestInit = {
   cache: 'no-store',
@@ -142,20 +143,6 @@ function normalizeDefaultTo(value: string | string[] | undefined): string | stri
   const items = parseCsv(value);
   if (items && items.length > 1) return items;
   return cleanString(value);
-}
-
-function badgeStyle(color: string): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 4,
-    padding: '2px 6px',
-    border: `1px solid ${color}`,
-    color,
-    borderRadius: 999,
-    fontSize: 10,
-    lineHeight: 1.2,
-  };
 }
 
 function metaLineStyle(): CSSProperties {
@@ -541,9 +528,9 @@ export default function AgentsPage() {
                 <div style={{ fontSize: 10, color: '#888', marginTop: 6 }}>{model}</div>
                 <div style={{ ...metaLineStyle(), marginTop: 6 }}>{agent.workspace_path}</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                  <span style={badgeStyle('#B87333')}>cfg {channelSummary?.config.name ?? channelSummary?.config.label ?? channelSummary?.config.id ?? agent.agent_id}</span>
-                  <span style={badgeStyle(primaryAccount ? '#60a5fa' : '#555')}>tg {primaryAccount ? primaryAccount.accountId : 'none'}</span>
-                  <span style={badgeStyle(telegramBindings.length ? '#22c55e' : '#555')}>route {telegramBindings.length ? telegramBindings.length : 'none'}</span>
+                  <Pill tone="accent">cfg {channelSummary?.config.name ?? channelSummary?.config.label ?? channelSummary?.config.id ?? agent.agent_id}</Pill>
+                  <Pill tone={primaryAccount ? 'info' : 'neutral'}>tg {primaryAccount ? primaryAccount.accountId : 'none'}</Pill>
+                  <Pill tone={telegramBindings.length ? 'success' : 'neutral'}>route {telegramBindings.length ? telegramBindings.length : 'none'}</Pill>
                 </div>
               </button>
             );
@@ -586,7 +573,7 @@ export default function AgentsPage() {
                     return (
                       <div key={binding._localId} style={{ marginTop: index ? 10 : 0, display: 'grid', gap: 6, borderTop: index ? '1px solid var(--border)' : 'none', paddingTop: index ? 10 : 0 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-                          <span style={badgeStyle(binding.enabled === false ? '#ef4444' : incomplete ? '#f59e0b' : '#22c55e')}>{binding.enabled === false ? 'disabled' : incomplete ? 'incomplete' : 'active'}</span>
+                          <Pill tone={binding.enabled === false ? 'danger' : incomplete ? 'warning' : 'success'}>{binding.enabled === false ? 'disabled' : incomplete ? 'incomplete' : 'active'}</Pill>
                           <button onClick={() => setEditableBindings((prev) => prev.filter((_, itemIndex) => itemIndex !== index))} style={{ border: '1px solid #5b2323', background: 'transparent', color: '#ef4444', fontSize: 10, padding: '4px 8px' }}>DELETE</button>
                         </div>
                         <div style={{ fontSize: 10, color: incomplete ? '#f59e0b' : binding.enabled === false ? '#ef4444' : '#9ca3af' }}>{routeSummary(binding)}</div>

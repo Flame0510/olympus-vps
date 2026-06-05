@@ -1,4 +1,4 @@
-export type Tone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger';
+export type Tone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger' | 'info';
 export type SurfaceVariant = 'panel' | 'card' | 'subtle';
 
 export const toneVars: Record<Tone, { text: string; border: string; bg: string }> = {
@@ -7,6 +7,7 @@ export const toneVars: Record<Tone, { text: string; border: string; bg: string }
   success: { text: 'var(--green)', border: '#255b3f', bg: 'rgba(34, 197, 94, 0.08)' },
   warning: { text: '#f59e0b', border: '#7c5a1a', bg: 'rgba(245, 158, 11, 0.08)' },
   danger: { text: 'var(--red)', border: '#7f1d1d', bg: 'rgba(239, 68, 68, 0.08)' },
+  info: { text: '#818cf8', border: 'rgba(99, 102, 241, 0.28)', bg: 'rgba(99, 102, 241, 0.12)' },
 };
 
 export function toneFromHealth(health?: 'ok' | 'warning' | 'error' | 'info'): Tone {
