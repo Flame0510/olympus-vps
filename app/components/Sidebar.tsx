@@ -141,9 +141,9 @@ export default function Sidebar() {
   );
 
   const EyeLogo = () => (
-    <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
-      <ellipse cx="12" cy="12" rx="10" ry="6" stroke="#B87333" strokeWidth="1.5" />
-      <circle cx="12" cy="12" r="3" fill="#B87333" />
+    <svg viewBox="0 0 24 24" fill="none" width="20" height="20" style={{ color: 'var(--copper)' }}>
+      <ellipse cx="12" cy="12" rx="10" ry="6" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="12" cy="12" r="3" fill="currentColor" />
     </svg>
   );
 

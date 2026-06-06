@@ -16,6 +16,9 @@
   --color-accent-700: #7a4d22;
   --color-success-500: #22c55e;
   --color-danger-500: #ef4444;
+  --color-warning-500: #f59e0b;
+  --color-info-500: #818cf8;
+  --color-blue-400: #60a5fa;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -38,6 +41,9 @@
   --text-dim: var(--color-text-400);
   --green: var(--color-success-500);
   --red: var(--color-danger-500);
+  --yellow: var(--color-warning-500);
+  --info: var(--color-info-500);
+  --blue: var(--color-blue-400);
   --gray: var(--color-text-500);
   --border: var(--color-border-700);
 }
