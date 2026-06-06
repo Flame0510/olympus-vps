@@ -80,6 +80,17 @@ export default function ProvidersPage() {
   const [selectedProvider, setSelectedProvider] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   const [tab, setTab] = useState<'providers' | 'details'>('providers');
+  const [usageData, setUsageData] = useState<{
+    providers: { key: string; label: string; totalCost: number; totalTokens: number; sessionCount: number }[];
+    openrouterLive: { usage: number; limit: number; limitRemaining: number } | null;
+  } | null>(null);
+
+  async function loadUsage() {
+    try {
+      const res = await fetch('/api/provider-usage', { cache: 'no-store' });
+      if (res.ok) setUsageData(await res.json());
+    } catch { /* ignore */ }
+  }
 
   async function load() {
     try {
@@ -98,6 +109,11 @@ export default function ProvidersPage() {
   }
 
   useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void loadUsage();
+    const t = setInterval(() => void loadUsage(), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= 900);
@@ -247,6 +263,57 @@ export default function ProvidersPage() {
               </>
             )}
           </section>
+        </div>
+      )}
+
+      {usageData && usageData.providers.length > 0 && (
+        <div style={{ padding: '0 16px 24px' }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid #1a2a32', borderRadius: 6, overflow: 'hidden' }}>
+            <div style={{ padding: '8px 12px', borderBottom: '1px solid #1a2a32', fontSize: 10, color: '#4a7a94', letterSpacing: 1 }}>
+              USAGE &amp; COST
+            </div>
+            <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {(() => {
+                const total = usageData.providers.reduce((s, p) => s + p.totalCost, 0);
+                return usageData.providers.map(p => {
+                  const pct = total > 0 ? (p.totalCost / total) * 100 : 0;
+                  const tokens = p.totalTokens >= 1_000_000
+                    ? `${(p.totalTokens / 1_000_000).toFixed(1)}M`
+                    : p.totalTokens >= 1000 ? `${(p.totalTokens / 1000).toFixed(0)}K` : String(p.totalTokens);
+                  return (
+                    <div key={p.key} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                        <span style={{ color: '#c8d8e0' }}>{p.label}</span>
+                        <span style={{ color: '#888', fontSize: 10 }}>${p.totalCost.toFixed(3)} · {tokens} tok · {p.sessionCount} sess</span>
+                      </div>
+                      <div style={{ height: 4, background: '#0f1e26', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: 'var(--copper)', borderRadius: 2, transition: 'width 0.3s' }} />
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+              {usageData.openrouterLive && (
+                <div style={{ marginTop: 4, paddingTop: 8, borderTop: '1px solid #1a2a32', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                    <span style={{ color: '#c8d8e0' }}>OpenRouter Budget</span>
+                    <span style={{ color: '#888', fontSize: 10 }}>
+                      ${usageData.openrouterLive.usage.toFixed(2)} / ${usageData.openrouterLive.limit.toFixed(2)}
+                    </span>
+                  </div>
+                  <div style={{ height: 4, background: '#0f1e26', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${usageData.openrouterLive.limit > 0 ? (usageData.openrouterLive.usage / usageData.openrouterLive.limit) * 100 : 0}%`,
+                      background: usageData.openrouterLive.limitRemaining < usageData.openrouterLive.limit * 0.1 ? 'var(--danger)' : '#2a7a94',
+                      borderRadius: 2, transition: 'width 0.3s'
+                    }} />
+                  </div>
+                  <span style={{ fontSize: 10, color: '#4a7a94' }}>${usageData.openrouterLive.limitRemaining.toFixed(2)} remaining</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
