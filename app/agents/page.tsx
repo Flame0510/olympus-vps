@@ -98,6 +98,48 @@ interface AgentChannelSummary {
 
 type FileTree = Record<string, AgentFile[]>;
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+type WizardStep = 'template' | 'configure';
+
+interface AgentTemplate {
+  id: string;
+  label: string;
+  description: string;
+  defaults: {
+    id: string;
+    name: string;
+    label: string;
+    model: string;
+    workspace: string;
+    identity: { name: string; emoji: string };
+  };
+}
+
+const AGENT_TEMPLATES: AgentTemplate[] = [
+  {
+    id: 'blank',
+    label: 'Blank',
+    description: 'Agente vuoto, configurazione manuale.',
+    defaults: { id: '', name: '', label: '', model: 'openai-codex/gpt-5.4-mini', workspace: '/data/.openclaw/workspace-', identity: { name: '', emoji: '' } },
+  },
+  {
+    id: 'argus',
+    label: 'Argus',
+    description: 'Agente ops: monitoring, hygiene, task orchestration.',
+    defaults: { id: 'ops', name: 'Argus', label: 'Argus Ops', model: 'openai-codex/gpt-5.4', workspace: '/data/.openclaw/workspace-ops', identity: { name: 'Argus', emoji: '🔱' } },
+  },
+  {
+    id: 'prometheus',
+    label: 'Prometheus',
+    description: 'Agente strategico: planning, obiettivi, decisioni.',
+    defaults: { id: 'prometheus', name: 'Prometheus', label: 'Prometheus', model: 'openai-codex/gpt-5.4', workspace: '/data/.openclaw/workspace-prometheus', identity: { name: 'Prometheus', emoji: '🔥' } },
+  },
+  {
+    id: 'forge',
+    label: 'Forge',
+    description: 'Agente developer: build, PR, refactoring, code review.',
+    defaults: { id: 'forge', name: 'Forge', label: 'Forge Dev', model: 'openai-codex/gpt-5.4-mini', workspace: '/data/.openclaw/workspace-forge', identity: { name: 'Forge', emoji: '⚒️' } },
+  },
+];
 
 function fileKind(filePath: string): string {
   const p = (filePath ?? '').toLowerCase();
@@ -287,6 +329,12 @@ export default function AgentsPage() {
   const [editableConfig, setEditableConfig] = useState<EditableAgentConfig | null>(null);
   const [editableAccounts, setEditableAccounts] = useState<EditableTelegramAccount[]>([]);
   const [editableBindings, setEditableBindings] = useState<EditableTelegramBinding[]>([]);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardStep, setWizardStep] = useState<WizardStep>('template');
+  const [wizardTemplate, setWizardTemplate] = useState<AgentTemplate>(AGENT_TEMPLATES[0]);
+  const [wizardForm, setWizardForm] = useState(AGENT_TEMPLATES[0].defaults);
+  const [wizardSaving, setWizardSaving] = useState(false);
+  const [wizardError, setWizardError] = useState('');
 
   const toggleDir = (dirName: string) => setOpenDirs((prev) => ({ ...prev, [dirName]: !prev[dirName] }));
 
@@ -456,6 +504,53 @@ export default function AgentsPage() {
     }
   }
 
+  function openWizard() {
+    setWizardTemplate(AGENT_TEMPLATES[0]);
+    setWizardForm(AGENT_TEMPLATES[0].defaults);
+    setWizardStep('template');
+    setWizardError('');
+    setWizardOpen(true);
+  }
+
+  function selectTemplate(tpl: AgentTemplate) {
+    setWizardTemplate(tpl);
+    setWizardForm({ ...tpl.defaults });
+    setWizardStep('configure');
+    setWizardError('');
+  }
+
+  async function createAgent() {
+    setWizardSaving(true);
+    setWizardError('');
+    try {
+      const res = await fetch('/api/agents-config', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: wizardForm.id.trim(),
+          name: wizardForm.name.trim() || wizardForm.id.trim(),
+          label: wizardForm.label.trim() || undefined,
+          model: wizardForm.model.trim() || undefined,
+          workspace: wizardForm.workspace.trim() || undefined,
+          identity: (wizardForm.identity.name || wizardForm.identity.emoji) ? wizardForm.identity : undefined,
+        }),
+      });
+      const data = (await res.json()) as { error?: string; data?: AgentChannelSummary[] };
+      if (!res.ok) throw new Error(data.error ?? 'create failed');
+      const nextChannels = Array.isArray(data.data) ? Object.fromEntries(data.data.map((item) => [item.agentId, item])) : agentChannels;
+      setAgentChannels(nextChannels);
+      setWizardOpen(false);
+      setSelectedAgentId(wizardForm.id.trim());
+      selectedAgentIdRef.current = wizardForm.id.trim();
+      void fetchAgents();
+    } catch (e) {
+      setWizardError(e instanceof Error ? e.message : 'create failed');
+    } finally {
+      setWizardSaving(false);
+    }
+  }
+
   useEffect(() => {
     void fetchAgents();
     const id = setInterval(() => void fetchAgents(), 15000);
@@ -497,7 +592,10 @@ export default function AgentsPage() {
 
   return (
     <div style={{ height: '100vh', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'var(--font-mono-stack)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', color: 'var(--copper)', fontSize: 12, letterSpacing: '0.08em' }}>AGENTS ACTIVE</div>
+      <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ color: 'var(--copper)', fontSize: 12, letterSpacing: '0.08em' }}>AGENTS ACTIVE</span>
+        <button onClick={openWizard} style={{ border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg3)', color: 'var(--copper)', fontSize: 11, padding: '5px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>+ NEW AGENT</button>
+      </div>
       {isMobile && (
         <div style={{ display: 'flex', gap: 8, padding: '8px 10px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
           {['AGENTS', 'FILES + CONFIG', 'EDITOR'].map((label, idx) => (
@@ -621,6 +719,66 @@ export default function AgentsPage() {
           <textarea value={editorContent} onChange={(e) => setEditorContent(e.target.value)} placeholder={loadingFile ? 'Caricamento file…' : 'No file selected'} style={{ flex: 1, width: '100%', border: 'none', outline: 'none', resize: 'none', background: '#0A0A0B', color: '#E8E8E8', padding: isMobile ? 10 : 12, fontSize: isMobile ? 14 : 12, fontFamily: 'JetBrains Mono, monospace', lineHeight: 1.45 }} />
         </section>
       </div>
+
+      {wizardOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, width: isMobile ? '95vw' : 480, maxHeight: '90vh', overflow: 'auto', fontFamily: 'var(--font-mono-stack)' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--copper)', fontSize: 12, letterSpacing: '0.08em' }}>
+                {wizardStep === 'template' ? 'NEW AGENT — SCEGLI TEMPLATE' : `NEW AGENT — CONFIGURA (${wizardTemplate.label})`}
+              </span>
+              <button onClick={() => setWizardOpen(false)} style={{ background: 'transparent', border: 'none', color: '#888', fontSize: 14, cursor: 'pointer' }}>✕</button>
+            </div>
+
+            {wizardStep === 'template' && (
+              <div style={{ padding: 16, display: 'grid', gap: 10 }}>
+                {AGENT_TEMPLATES.map((tpl) => (
+                  <button key={tpl.id} onClick={() => selectTemplate(tpl)} style={{ textAlign: 'left', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, padding: '12px 14px', cursor: 'pointer', color: 'var(--text)', fontFamily: 'inherit' }}>
+                    <div style={{ color: 'var(--copper)', fontSize: 12, marginBottom: 4 }}>{tpl.label}</div>
+                    <div style={{ fontSize: 11, color: '#888' }}>{tpl.description}</div>
+                    {tpl.id !== 'blank' && (
+                      <div style={{ fontSize: 10, color: '#555', marginTop: 6 }}>model: {tpl.defaults.model} · workspace: {tpl.defaults.workspace}</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {wizardStep === 'configure' && (
+              <div style={{ padding: 16, display: 'grid', gap: 10 }}>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  {(['id', 'name', 'label', 'model', 'workspace'] as const).map((key) => (
+                    <div key={key}>
+                      <div style={{ fontSize: 10, color: '#888', marginBottom: 3 }}>{key}{key === 'id' ? ' *' : ''}</div>
+                      <input
+                        value={wizardForm[key]}
+                        onChange={(e) => setWizardForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                        placeholder={key === 'id' ? 'es. my-agent (lowercase, hyphens)' : key}
+                        style={fieldStyle()}
+                      />
+                    </div>
+                  ))}
+                  <div>
+                    <div style={{ fontSize: 10, color: '#888', marginBottom: 3 }}>identity.name</div>
+                    <input value={wizardForm.identity.name} onChange={(e) => setWizardForm((prev) => ({ ...prev, identity: { ...prev.identity, name: e.target.value } }))} placeholder="nome display" style={fieldStyle()} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: '#888', marginBottom: 3 }}>identity.emoji</div>
+                    <input value={wizardForm.identity.emoji} onChange={(e) => setWizardForm((prev) => ({ ...prev, identity: { ...prev.identity, emoji: e.target.value } }))} placeholder="🤖" style={fieldStyle()} />
+                  </div>
+                </div>
+                {wizardError && <div style={{ color: '#ef4444', fontSize: 11 }}>{wizardError}</div>}
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+                  <button onClick={() => setWizardStep('template')} style={{ border: '1px solid var(--border)', borderRadius: 4, background: 'transparent', color: '#888', fontSize: 11, padding: '7px 12px', cursor: 'pointer', fontFamily: 'inherit' }}>← INDIETRO</button>
+                  <button onClick={() => void createAgent()} disabled={wizardSaving || !wizardForm.id.trim()} style={{ border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg3)', color: wizardSaving ? '#888' : 'var(--copper)', fontSize: 11, padding: '7px 14px', cursor: wizardSaving ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+                    {wizardSaving ? 'Creazione…' : 'CREA AGENTE'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
