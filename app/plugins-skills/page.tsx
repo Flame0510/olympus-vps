@@ -2,18 +2,17 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
+type BadgeColor = 'green' | 'red' | 'gray' | 'copper' | 'blue';
 
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-function Badge({ children, color }) {
-  const colors = {
+function Badge({ children, color }: { children: React.ReactNode; color: BadgeColor }) {
+  const colors: Record<BadgeColor, React.CSSProperties> = {
     green: { background: '#14532d', color: '#22c55e', border: '1px solid #166534' },
     red: { background: '#450a0a', color: '#ef4444', border: '1px solid #7f1d1d' },
     gray: { background: '#18181c', color: '#888', border: '1px solid #222228' },
     copper: { background: '#1a1208', color: '#B87333', border: '1px solid #7a4d22' },
     blue: { background: '#0c1a2e', color: '#60a5fa', border: '1px solid #1e3a5f' },
   };
-  const s = colors[color] || colors.gray;
+  const s = colors[color] ?? colors.gray;
   return (
     <span style={{
       ...s,
@@ -30,7 +29,7 @@ function Badge({ children, color }) {
   );
 }
 
-function PanelTitle({ children }) {
+function PanelTitle({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
       padding: '8px 16px',
@@ -48,7 +47,7 @@ function PanelTitle({ children }) {
   );
 }
 
-function EmptyState({ message }) {
+function EmptyState({ message }: { message: string }) {
   return (
     <div style={{ color: '#444', padding: '32px 16px', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, textAlign: 'center' }}>
       {message}
@@ -56,7 +55,7 @@ function EmptyState({ message }) {
   );
 }
 
-function ErrorState({ message }) {
+function ErrorState({ message }: { message: string }) {
   return (
     <div style={{ color: '#ef4444', padding: '32px 16px', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, textAlign: 'center' }}>
       ⚠ {message}
@@ -74,14 +73,32 @@ function LoadingState() {
 
 // ─── Plugins Tab ─────────────────────────────────────────────────────────────
 
+interface Plugin {
+  id: string;
+  name?: string;
+  enabled: boolean;
+  status?: string;
+  version?: string;
+  origin?: string;
+  format?: string;
+  source?: string;
+  toolNames?: string[];
+  channelIds?: string[];
+  providerIds?: string[];
+  cliBackendIds?: string[];
+  hookNames?: string[];
+  services?: string[];
+  compat?: string[];
+}
+
 export function PluginsTab() {
-  const [plugins, setPlugins] = useState([]);
+  const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [selected, setSelected] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Plugin | null>(null);
   const [filter, setFilter] = useState('all');
-  const [toggling, setToggling] = useState(null);
-  const [toastMsg, setToastMsg] = useState(null);
+  const [toggling, setToggling] = useState<string | null>(null);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -100,7 +117,7 @@ export function PluginsTab() {
       const data = await res.json();
       setPlugins(data.plugins || []);
     } catch (e) {
-      setError(e.message);
+      setError((e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -114,12 +131,12 @@ export function PluginsTab() {
     return true;
   });
 
-  const showToast = (msg) => {
+  const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3000);
   };
 
-  const handleToggle = async (plugin) => {
+  const handleToggle = async (plugin: Plugin) => {
     const action = plugin.enabled ? 'disable' : 'enable';
     setToggling(plugin.id);
     try {
@@ -132,12 +149,12 @@ export function PluginsTab() {
       if (data.ok) {
         showToast(`Plugin ${plugin.id} ${action}d`);
         await load();
-        if (selected?.id === plugin.id) setSelected(p => ({ ...p, enabled: !p.enabled }));
+        if (selected?.id === plugin.id) setSelected(p => p ? { ...p, enabled: !p.enabled } : p);
       } else {
         showToast(`Error: ${data.error}`);
       }
     } catch (e) {
-      showToast(`Error: ${e.message}`);
+      showToast(`Error: ${(e as Error).message}`);
     } finally {
       setToggling(null);
     }
@@ -155,7 +172,7 @@ export function PluginsTab() {
       <div style={{ width: isMobile ? '100%' : 340, maxHeight: isMobile ? '45%' : '100%', borderRight: isMobile ? 'none' : '1px solid #222228', borderBottom: isMobile ? '1px solid #222228' : 'none', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Filter bar */}
         <div style={{ padding: '8px 12px', borderBottom: '1px solid #222228', background: '#111114', display: 'flex', gap: 6 }}>
-          {['all', 'enabled', 'disabled'].map(f => (
+          {(['all', 'enabled', 'disabled'] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)} style={{
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10,
@@ -223,22 +240,19 @@ export function PluginsTab() {
                 <Badge color={selected.origin === 'bundled' ? 'blue' : 'copper'}>{selected.origin || 'unknown'}</Badge>
               </div>
 
-              {selected.version && (
-                <Row label="Version" value={selected.version} />
-              )}
+              {selected.version && <Row label="Version" value={selected.version} />}
               <Row label="ID" value={selected.id} />
               <Row label="Format" value={selected.format || '—'} />
               {selected.source && <Row label="Source" value={selected.source} mono small />}
 
-              {/* Capabilities */}
-              {[
+              {([
                 ['Tools', selected.toolNames],
                 ['Channels', selected.channelIds],
                 ['Providers', selected.providerIds],
                 ['CLI Backends', selected.cliBackendIds],
                 ['Hooks', selected.hookNames],
                 ['Services', selected.services],
-              ].map(([label, arr]) => arr && arr.length > 0 && (
+              ] as [string, string[] | undefined][]).map(([label, arr]) => arr && arr.length > 0 && (
                 <div key={label} style={{ marginBottom: 12 }}>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 4 }}>{label.toUpperCase()}</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -247,7 +261,6 @@ export function PluginsTab() {
                 </div>
               ))}
 
-              {/* Compat tags */}
               {selected.compat && selected.compat.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 4 }}>COMPAT</div>
@@ -257,7 +270,6 @@ export function PluginsTab() {
                 </div>
               )}
 
-              {/* Toggle button — only for non-bundled or if allowed */}
               <div style={{ marginTop: 24 }}>
                 <button
                   onClick={() => handleToggle(selected)}
@@ -283,7 +295,6 @@ export function PluginsTab() {
         )}
       </div>
 
-      {/* Toast */}
       {toastMsg && (
         <div style={{
           position: 'fixed', bottom: 24, right: 24,
@@ -299,7 +310,8 @@ export function PluginsTab() {
   );
 }
 
-function Row({ label, value, mono, small }) {
+interface RowProps { label: string; value: string; mono?: boolean; small?: boolean; }
+function Row({ label, value, mono, small }: RowProps) {
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#555', letterSpacing: '0.1em', marginBottom: 2 }}>{label.toUpperCase()}</div>
@@ -318,19 +330,29 @@ function Row({ label, value, mono, small }) {
 
 // ─── Skills Tab ──────────────────────────────────────────────────────────────
 
+interface Skill {
+  name: string;
+  type: 'shared' | 'workspace' | 'bundled';
+  description?: string;
+  version?: string;
+  path?: string;
+  skillMdPath?: string;
+}
+
 export function SkillsTab() {
-  const [skills, setSkills] = useState([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [selected, setSelected] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Skill | null>(null);
   const [filter, setFilter] = useState('all');
-  const [skillContent, setSkillContent] = useState(null);
+  const [skillContent, setSkillContent] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [editText, setEditText] = useState('');
   const [saving, setSaving] = useState(false);
-  const [toastMsg, setToastMsg] = useState(null);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileStep, setMobileStep] = useState(1);
+  const [loadingContent, setLoadingContent] = useState(false);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 900);
@@ -338,7 +360,6 @@ export function SkillsTab() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-  const [loadingContent, setLoadingContent] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -349,7 +370,7 @@ export function SkillsTab() {
       const data = await res.json();
       setSkills(data.skills || []);
     } catch (e) {
-      setError(e.message);
+      setError((e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -371,12 +392,12 @@ export function SkillsTab() {
     bundled: skills.filter(s => s.type === 'bundled').length,
   };
 
-  const showToast = (msg) => {
+  const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3500);
   };
 
-  const handleSelect = async (skill) => {
+  const handleSelect = async (skill: Skill) => {
     setSelected(skill);
     setEditMode(false);
     setSkillContent(null);
@@ -395,14 +416,8 @@ export function SkillsTab() {
     }
   };
 
-  const handleEdit = () => {
-    setEditText(skillContent || '');
-    setEditMode(true);
-  };
-
   const handleSave = async () => {
     if (!selected?.skillMdPath) return;
-    // Guard: only shared/workspace
     if (!['shared', 'workspace'].includes(selected.type)) {
       showToast('Read-only: bundled skills cannot be edited');
       return;
@@ -423,13 +438,13 @@ export function SkillsTab() {
         showToast(`Error: ${data.error}`);
       }
     } catch (e) {
-      showToast(`Error: ${e.message}`);
+      showToast(`Error: ${(e as Error).message}`);
     } finally {
       setSaving(false);
     }
   };
 
-  const typeColor = { shared: 'copper', workspace: 'green', bundled: 'blue' };
+  const typeColor: Record<string, BadgeColor> = { shared: 'copper', workspace: 'green', bundled: 'blue' };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -441,164 +456,156 @@ export function SkillsTab() {
       )}
 
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100%', overflow: 'hidden' }}>
-      {/* List */}
-      <div style={{ width: isMobile ? '100%' : 300, borderRight: isMobile ? 'none' : '1px solid #222228', borderBottom: isMobile ? '1px solid #222228' : 'none', display: isMobile && mobileStep !== 1 ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Filter bar */}
-        <div style={{ padding: '8px 12px', borderBottom: '1px solid #222228', background: '#111114', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {['all', 'shared', 'workspace', 'bundled'].map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 10,
-              padding: '3px 8px',
-              border: '1px solid',
-              borderColor: filter === f ? '#B87333' : '#222228',
-              background: filter === f ? '#1a1208' : '#18181c',
-              color: filter === f ? '#B87333' : '#888',
-              borderRadius: 3,
-              cursor: 'pointer',
-            }}>
-              {f.toUpperCase()} <span style={{ color: '#555' }}>{counts[f]}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* List body */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {loading && <LoadingState />}
-          {!loading && error && <ErrorState message={error} />}
-          {!loading && !error && filtered.length === 0 && <EmptyState message="no skills found" />}
-          {!loading && !error && filtered.map(s => (
-            <div
-              key={`${s.type}:${s.name}`}
-              onClick={() => handleSelect(s)}
-              style={{
-                padding: '10px 14px',
-                borderBottom: '1px solid #18181c',
+        {/* List */}
+        <div style={{ width: isMobile ? '100%' : 300, borderRight: isMobile ? 'none' : '1px solid #222228', borderBottom: isMobile ? '1px solid #222228' : 'none', display: isMobile && mobileStep !== 1 ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '8px 12px', borderBottom: '1px solid #222228', background: '#111114', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {(['all', 'shared', 'workspace', 'bundled'] as const).map(f => (
+              <button key={f} onClick={() => setFilter(f)} style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 10,
+                padding: '3px 8px',
+                border: '1px solid',
+                borderColor: filter === f ? '#B87333' : '#222228',
+                background: filter === f ? '#1a1208' : '#18181c',
+                color: filter === f ? '#B87333' : '#888',
+                borderRadius: 3,
                 cursor: 'pointer',
-                background: selected?.name === s.name && selected?.type === s.type ? '#18181c' : 'transparent',
-                borderLeft: selected?.name === s.name && selected?.type === s.type ? '2px solid #B87333' : '2px solid transparent',
-                transition: 'all 0.1s',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#E8E8E8', flex: 1 }}>
-                  {s.name}
-                </span>
-                <Badge color={typeColor[s.type] || 'gray'}>{s.type}</Badge>
-              </div>
-              {s.description && (
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {s.description}
+              }}>
+                {f.toUpperCase()} <span style={{ color: '#555' }}>{counts[f]}</span>
+              </button>
+            ))}
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {loading && <LoadingState />}
+            {!loading && error && <ErrorState message={error} />}
+            {!loading && !error && filtered.length === 0 && <EmptyState message="no skills found" />}
+            {!loading && !error && filtered.map(s => (
+              <div
+                key={`${s.type}:${s.name}`}
+                onClick={() => handleSelect(s)}
+                style={{
+                  padding: '10px 14px',
+                  borderBottom: '1px solid #18181c',
+                  cursor: 'pointer',
+                  background: selected?.name === s.name && selected?.type === s.type ? '#18181c' : 'transparent',
+                  borderLeft: selected?.name === s.name && selected?.type === s.type ? '2px solid #B87333' : '2px solid transparent',
+                  transition: 'all 0.1s',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#E8E8E8', flex: 1 }}>
+                    {s.name}
+                  </span>
+                  <Badge color={typeColor[s.type] ?? 'gray'}>{s.type}</Badge>
                 </div>
-              )}
+                {s.description && (
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {s.description}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Detail / Editor */}
+        <div style={{ flex: 1, display: isMobile && mobileStep !== 2 ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {!selected ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333', fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
+              ← select a skill
             </div>
-          ))}
+          ) : (
+            <>
+              <PanelTitle>SKILL — {selected.name}</PanelTitle>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #222228', background: '#0f0f12' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#E8E8E8' }}>{selected.name}</span>
+                  <Badge color={typeColor[selected.type] ?? 'gray'}>{selected.type}</Badge>
+                  {selected.version && <Badge color="gray">v{selected.version}</Badge>}
+                </div>
+                {selected.description && (
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#888', marginBottom: 8 }}>
+                    {selected.description}
+                  </div>
+                )}
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#444' }}>
+                  {selected.path}
+                </div>
+
+                <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+                  {!editMode && selected.skillMdPath && ['shared', 'workspace'].includes(selected.type) && (
+                    <button onClick={() => { setEditText(skillContent || ''); setEditMode(true); }} style={btnStyle('#1a1208', '#B87333', '#7a4d22')}>
+                      EDIT SKILL.MD
+                    </button>
+                  )}
+                  {editMode && (
+                    <>
+                      <button onClick={handleSave} disabled={saving} style={btnStyle('#14532d', '#22c55e', '#166534')}>
+                        {saving ? 'SAVING…' : 'SAVE'}
+                      </button>
+                      <button onClick={() => setEditMode(false)} style={btnStyle('#18181c', '#888', '#222228')}>
+                        CANCEL
+                      </button>
+                    </>
+                  )}
+                  {selected.type === 'bundled' && selected.skillMdPath && (
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#444', alignSelf: 'center' }}>
+                      read-only (bundled)
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                {loadingContent && <LoadingState />}
+                {!loadingContent && editMode && (
+                  <textarea
+                    value={editText}
+                    onChange={e => setEditText(e.target.value)}
+                    spellCheck={false}
+                    style={{
+                      flex: 1,
+                      background: '#0a0a0b',
+                      color: '#E8E8E8',
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: 12,
+                      border: 'none',
+                      outline: 'none',
+                      padding: 16,
+                      resize: 'none',
+                      lineHeight: 1.6,
+                    }}
+                  />
+                )}
+                {!loadingContent && !editMode && skillContent && (
+                  <pre style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    margin: 0,
+                    padding: 16,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 11,
+                    color: '#aaa',
+                    lineHeight: 1.6,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                  }}>
+                    {skillContent}
+                  </pre>
+                )}
+                {!loadingContent && !editMode && !skillContent && selected.skillMdPath && (
+                  <EmptyState message="could not load SKILL.md" />
+                )}
+                {!loadingContent && !editMode && !selected.skillMdPath && (
+                  <EmptyState message="no SKILL.md found for this skill" />
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Detail / Editor */}
-      <div style={{ flex: 1, display: isMobile && mobileStep !== 2 ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {!selected ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333', fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
-            ← select a skill
-          </div>
-        ) : (
-          <>
-            <PanelTitle>SKILL — {selected.name}</PanelTitle>
-
-            {/* Detail header */}
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid #222228', background: '#0f0f12' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#E8E8E8' }}>{selected.name}</span>
-                <Badge color={typeColor[selected.type] || 'gray'}>{selected.type}</Badge>
-                {selected.version && <Badge color="gray">v{selected.version}</Badge>}
-              </div>
-              {selected.description && (
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#888', marginBottom: 8 }}>
-                  {selected.description}
-                </div>
-              )}
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#444' }}>
-                {selected.path}
-              </div>
-
-              {/* Actions */}
-              <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
-                {!editMode && selected.skillMdPath && ['shared', 'workspace'].includes(selected.type) && (
-                  <button onClick={handleEdit} style={btnStyle('#1a1208', '#B87333', '#7a4d22')}>
-                    EDIT SKILL.MD
-                  </button>
-                )}
-                {editMode && (
-                  <>
-                    <button onClick={handleSave} disabled={saving} style={btnStyle('#14532d', '#22c55e', '#166534')}>
-                      {saving ? 'SAVING…' : 'SAVE'}
-                    </button>
-                    <button onClick={() => setEditMode(false)} style={btnStyle('#18181c', '#888', '#222228')}>
-                      CANCEL
-                    </button>
-                  </>
-                )}
-                {selected.type === 'bundled' && selected.skillMdPath && (
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#444', alignSelf: 'center' }}>
-                    read-only (bundled)
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Content area */}
-            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              {loadingContent && <LoadingState />}
-              {!loadingContent && editMode && (
-                <textarea
-                  value={editText}
-                  onChange={e => setEditText(e.target.value)}
-                  spellCheck={false}
-                  style={{
-                    flex: 1,
-                    background: '#0a0a0b',
-                    color: '#E8E8E8',
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 12,
-                    border: 'none',
-                    outline: 'none',
-                    padding: 16,
-                    resize: 'none',
-                    lineHeight: 1.6,
-                  }}
-                />
-              )}
-              {!loadingContent && !editMode && skillContent && (
-                <pre style={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  margin: 0,
-                  padding: 16,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: 11,
-                  color: '#aaa',
-                  lineHeight: 1.6,
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                }}>
-                  {skillContent}
-                </pre>
-              )}
-              {!loadingContent && !editMode && !skillContent && selected.skillMdPath && (
-                <EmptyState message="could not load SKILL.md" />
-              )}
-              {!loadingContent && !editMode && !selected.skillMdPath && (
-                <EmptyState message="no SKILL.md found for this skill" />
-              )}
-            </div>
-          </>
-        )}
-      </div>
-
-      </div>
-
-      {/* Toast */}
       {toastMsg && (
         <div style={{
           position: 'fixed', bottom: 24, right: 24,
@@ -614,7 +621,7 @@ export function SkillsTab() {
   );
 }
 
-function btnStyle(bg, color, border) {
+function btnStyle(bg: string, color: string, border: string): React.CSSProperties {
   return {
     fontFamily: "'JetBrains Mono', monospace",
     fontSize: 10,
