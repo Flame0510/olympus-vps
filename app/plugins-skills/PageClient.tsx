@@ -653,7 +653,7 @@ export default function PluginsSkillsPage() {
       fontFamily: "'JetBrains Mono', monospace",
       gap: 12,
     }}>
-      <div style={{ color: 'var(--copper)', letterSpacing: '0.12em', fontSize: 12 }}>PLUGINS & SKILLS</div>
+      <div style={{ fontFamily: 'var(--font-serif-stack)', fontSize: '20px', letterSpacing: '4px', color: 'var(--copper)' }}>PLUGINS & SKILLS</div>
       <div style={{ display: 'flex', gap: 10 }}>
         <a href="/plugins" style={{ color: '#E8E8E8', border: '1px solid #222228', padding: '8px 14px', textDecoration: 'none' }}>Plugins</a>
         <a href="/skills" style={{ color: '#E8E8E8', border: '1px solid #222228', padding: '8px 14px', textDecoration: 'none' }}>Skills</a>

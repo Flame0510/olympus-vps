@@ -22,7 +22,7 @@ export default function SkillsPage() {
         flexShrink: 0,
         boxSizing: 'border-box',
       }}>
-        <span style={{ color: 'var(--copper)', fontSize: 12, letterSpacing: '0.08em' }}>SKILLS</span>
+        <span style={{ fontFamily: 'var(--font-serif-stack)', fontSize: '20px', letterSpacing: '4px', color: 'var(--copper)' }}>SKILLS</span>
       </div>
       <div style={{ flex: 1, overflow: 'hidden' }}>
         <SkillsTab />

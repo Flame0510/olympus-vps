@@ -138,7 +138,7 @@ export default function ToolsPageClient({ initialAudio = {}, initialTimezone = '
   return (
     <div style={{ height: '100vh', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'var(--font-mono-stack)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <header style={{ height: '48px', padding: '0 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, boxSizing: 'border-box' }}>
-        <span style={{ color: 'var(--copper)', fontSize: 12, letterSpacing: '0.08em' }}>TOOLS</span>
+        <span style={{ fontFamily: 'var(--font-serif-stack)', fontSize: '20px', letterSpacing: '4px', color: 'var(--copper)' }}>TOOLS</span>
         <div style={heroPillStyle}>{configuredCount}/{CONFIGURABLE_TOOL_COUNT} configurable ready</div>
       </header>
 

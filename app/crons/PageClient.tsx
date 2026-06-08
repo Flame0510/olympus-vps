@@ -188,7 +188,7 @@ export default function CronsPage() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexShrink: 0, boxSizing: 'border-box'
       }}>
-        <span style={{ color: 'var(--copper)', fontSize: 12, letterSpacing: '0.08em' }}>CRONS</span>
+        <span style={{ fontFamily: 'var(--font-serif-stack)', fontSize: '20px', letterSpacing: '4px', color: 'var(--copper)' }}>CRONS</span>
         <span style={{ fontSize: 10, color: '#555' }}>{sessions.length} runs in history</span>
       </div>
 

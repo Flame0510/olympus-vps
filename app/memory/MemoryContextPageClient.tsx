@@ -50,12 +50,16 @@ export default function MemoryContextPageClient() {
 
   return (
     <Page>
-      <PageHeader
-        eyebrow="OBSERVATORY"
-        title="Memory / Context"
-        description="USER condiviso quando serve identità comune, MEMORY locale per ogni agente, SOUL e AGENTS locali come bootstrap operativo."
-        action={data?.strategy ? <Pill tone={toneFromHealth(data.strategy.health)}>health: {data.strategy.health}</Pill> : undefined}
-      />
+      <div style={{ height: '48px', padding: '0 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, boxSizing: 'border-box' }}>
+        <span style={{ fontFamily: 'var(--font-serif-stack)', fontSize: '20px', letterSpacing: '4px', color: 'var(--copper)' }}>MEMORY</span>
+        {data?.strategy ? <Pill tone={toneFromHealth(data.strategy.health)}>health: {data.strategy.health}</Pill> : undefined}
+      </div>
+
+      <div className="ui-page" style={{ padding: '24px 20px 40px', overflow: 'auto' }}>
+        <div className="ui-page__inner" style={{ maxWidth: 1280, display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div style={{ marginBottom: 8 }}>
+            <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: '13px', lineHeight: 1.5 }}>USER condiviso quando serve identità comune, MEMORY locale per ogni agente, SOUL e AGENTS locali come bootstrap operativo.</p>
+          </div>
 
         {loading && (
           <>
@@ -173,6 +177,8 @@ export default function MemoryContextPageClient() {
             )}
           </>
         )}
+        </div>
+      </div>
     </Page>
   );
 }

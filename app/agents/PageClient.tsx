@@ -593,7 +593,7 @@ export default function AgentsPage() {
   return (
     <div style={{ height: '100vh', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'var(--font-mono-stack)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: '48px', padding: '0 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, boxSizing: 'border-box' }}>
-        <span style={{ color: 'var(--copper)', fontSize: 12, letterSpacing: '0.08em' }}>AGENTS</span>
+        <span style={{ fontFamily: 'var(--font-serif-stack)', fontSize: '20px', letterSpacing: '4px', color: 'var(--copper)' }}>AGENTS</span>
         <button onClick={openWizard} style={{ border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg3)', color: 'var(--copper)', fontSize: 11, padding: '5px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>+ NEW AGENT</button>
       </div>
       {isMobile && (
