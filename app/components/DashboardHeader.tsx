@@ -37,13 +37,10 @@ export default function DashboardHeader({ costs, loading: dataLoading = false, h
 
   return (
     <header className="header">
-      {!hideLogo && (
-        <div className="logo">
-          <img src="/favicon.svg" alt="Olympus" />
-          <span>OLYMPUS</span>
-        </div>
-      )}
-      {hideLogo && <div className="logo"><span>{title ?? ''}</span></div>}
+      <div className="logo">
+        {!hideLogo && <img src="/favicon.svg" alt="Olympus" />}
+        <span>{title ?? 'OLYMPUS'}</span>
+      </div>
       <div className="meta">
         <div suppressHydrationWarning>
           <span className="meta-value" suppressHydrationWarning>{clock}</span>

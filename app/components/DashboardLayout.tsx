@@ -35,7 +35,7 @@ export default function DashboardLayout({ initialCosts }: DashboardLayoutProps) 
 
   return (
     <main className="shell">
-      <DashboardHeader costs={costs} loading={!hasCostLoaded} />
+      <DashboardHeader costs={costs} loading={!hasCostLoaded} hideLogo title="DASHBOARD" />
       {isMobile && (
         <div style={{ display: 'flex', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)', justifyContent: 'flex-end' }}>
           <button
