@@ -48,7 +48,7 @@ export default function LineageGraphPage({ initialCosts }: LineageGraphPageProps
 
   return (
     <main className="shell">
-      <DashboardHeader costs={costs} loading={!hasCostLoaded} hideLogo />
+      <DashboardHeader costs={costs} loading={!hasCostLoaded} hideLogo title="LINEAGE" />
       <DashboardToolbar filter={filter} onChange={setFilter} agents={availableAgents} />
 
       {isMobile && (

@@ -10,6 +10,7 @@ interface DashboardHeaderProps {
   costs: Costs;
   loading?: boolean;
   hideLogo?: boolean;
+  title?: string;
 }
 
 const CameraIcon = () => (
@@ -19,7 +20,7 @@ const CameraIcon = () => (
   </svg>
 );
 
-export default function DashboardHeader({ costs, loading: dataLoading = false, hideLogo = false }: DashboardHeaderProps) {
+export default function DashboardHeader({ costs, loading: dataLoading = false, hideLogo = false, title }: DashboardHeaderProps) {
   const [clock, setClock] = useState('');
   const { loading, takeScreenshot } = useScreenshot();
 
@@ -42,7 +43,7 @@ export default function DashboardHeader({ costs, loading: dataLoading = false, h
           <span>OLYMPUS</span>
         </div>
       )}
-      {hideLogo && <div />}
+      {hideLogo && <div className="logo"><span>{title ?? ''}</span></div>}
       <div className="meta">
         <div suppressHydrationWarning>
           <span className="meta-value" suppressHydrationWarning>{clock}</span>

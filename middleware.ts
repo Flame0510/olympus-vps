@@ -10,9 +10,19 @@ const TOKEN = process.env.OLYMPUS_TOKEN ?? 'olympus2026';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Only protect /api/* routes (skip /api/auth/login and /api/version)
-  if (!pathname.startsWith('/api/')) return NextResponse.next();
-  if (pathname === '/api/auth/login' || pathname === '/api/auth/check' || pathname === '/api/version') return NextResponse.next();
+  // Public paths — no auth required
+  if (
+    pathname === '/login' ||
+    pathname === '/api/auth/login' ||
+    pathname === '/api/auth/check' ||
+    pathname === '/api/version' ||
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/favicon') ||
+    pathname.startsWith('/icon-') ||
+    pathname === '/manifest.json'
+  ) {
+    return NextResponse.next();
+  }
 
   // 1. Check query param token
   const qpToken = request.nextUrl.searchParams.get('token');
@@ -29,13 +39,21 @@ export async function middleware(request: NextRequest) {
       await jwtVerify(cookieToken, JWT_SECRET);
       return NextResponse.next();
     } catch {
-      // Invalid JWT — fall through to 401
+      // Invalid JWT — fall through to redirect
     }
   }
 
-  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // For API routes: return 401 JSON
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // For pages: redirect to /login
+  const loginUrl = request.nextUrl.clone();
+  loginUrl.pathname = '/login';
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = {
-  matcher: '/api/:path*',
+  matcher: ['/((?!_next/static|_next/image|favicon.svg|icon-192.png|icon-512.png|manifest.json).*)'],
 };
