@@ -375,6 +375,8 @@ export default function AgentsPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [lastRefreshAt, setLastRefreshAt] = useState<number | null>(null);
+  const [liveMode, setLiveMode] = useState<'connecting' | 'sse' | 'polling'>('connecting');
+  const [remoteUpdateAvailable, setRemoteUpdateAvailable] = useState(false);
   const [mobileStep, setMobileStep] = useState(1);
   const [openDirs, setOpenDirs] = useState<Record<string, boolean>>({});
   const [savingState, setSavingState] = useState<SaveState>('idle');
@@ -392,6 +394,11 @@ export default function AgentsPage() {
   const [wizardForm, setWizardForm] = useState(AGENT_TEMPLATES[0].defaults);
   const [wizardSaving, setWizardSaving] = useState(false);
   const [wizardError, setWizardError] = useState('');
+  const selectedFilePathRef = useRef('');
+  const selectedAgentIdForStreamRef = useRef('');
+  const isDirtyRef = useRef(false);
+  const savingStateRef = useRef<SaveState>('idle');
+  const loadingFileRef = useRef(false);
 
   const toggleDir = (dirName: string) => setOpenDirs((prev) => ({ ...prev, [dirName]: !prev[dirName] }));
 
@@ -442,6 +449,12 @@ export default function AgentsPage() {
     [agentChannels],
   );
   const bindingErrors = useMemo(() => validateBindings(editableBindings, knownAgentIds, knownAccountIds), [editableBindings, knownAgentIds, knownAccountIds]);
+
+  useEffect(() => { selectedFilePathRef.current = selectedFilePath; }, [selectedFilePath]);
+  useEffect(() => { selectedAgentIdForStreamRef.current = selectedAgentId; }, [selectedAgentId]);
+  useEffect(() => { isDirtyRef.current = isDirty; }, [isDirty]);
+  useEffect(() => { savingStateRef.current = savingState; }, [savingState]);
+  useEffect(() => { loadingFileRef.current = loadingFile; }, [loadingFile]);
 
   async function fetchAgents() {
     try {
@@ -496,6 +509,7 @@ export default function AgentsPage() {
       setLastRefreshAt(Date.now());
       setMobileStep(3);
       if (!preserveSelection) setIsDirty(false);
+      setRemoteUpdateAvailable(false);
     } catch {
       if (!preserveSelection) setEditorContent('');
       setBinaryUrl('');
@@ -517,6 +531,7 @@ export default function AgentsPage() {
       if (!res.ok) throw new Error('save failed');
       setSavingState('saved');
       setIsDirty(false);
+      setRemoteUpdateAvailable(false);
       setLastRefreshAt(Date.now());
       setTimeout(() => setSavingState('idle'), 1500);
     } catch {
@@ -668,17 +683,70 @@ export default function AgentsPage() {
 
   useEffect(() => {
     void fetchAgents();
-    const id = setInterval(() => void fetchAgents(), 8000);
+    const id = setInterval(() => void fetchAgents(), 30000);
     return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
+    const source = new EventSource('/api/workspace/stream');
+    let connected = false;
+
+    source.addEventListener('workspace_ready', () => {
+      connected = true;
+      setLiveMode('sse');
+      setLastRefreshAt(Date.now());
+    });
+
+    source.addEventListener('heartbeat', () => {
+      connected = true;
+      setLiveMode('sse');
+    });
+
+    source.addEventListener('workspace_changed', (event) => {
+      connected = true;
+      setLiveMode('sse');
+      setLastRefreshAt(Date.now());
+      void fetchAgents();
+
+      try {
+        const payload = JSON.parse((event as MessageEvent).data) as { changed?: Array<{ agent_id?: string; path?: string }> };
+        const selectedPath = selectedFilePathRef.current;
+        const selectedAgent = selectedAgentIdForStreamRef.current;
+        const touchesSelectedAgent = payload.changed?.some((item) => item.agent_id === selectedAgent) ?? true;
+        const touchesSelectedFile = selectedPath ? (payload.changed?.some((item) => item.path === selectedPath) ?? true) : false;
+
+        if (touchesSelectedAgent && touchesSelectedFile) {
+          if (!isDirtyRef.current && savingStateRef.current !== 'saving' && !loadingFileRef.current) {
+            void loadFile(selectedPath, { preserveSelection: true, silent: true });
+            setRemoteUpdateAvailable(false);
+          } else {
+            setRemoteUpdateAvailable(true);
+          }
+        }
+      } catch {
+        // If payload parsing fails, still keep the tree refreshed.
+      }
+    });
+
+    source.addEventListener('workspace_error', () => {
+      if (!connected) setLiveMode('polling');
+    });
+
+    source.onerror = () => {
+      setLiveMode('polling');
+    };
+
+    return () => source.close();
+  }, []);
+
+  useEffect(() => {
+    if (liveMode === 'sse') return;
     if (!selectedFilePath || isDirty || savingState === 'saving' || loadingFile) return;
     const id = setInterval(() => {
       void loadFile(selectedFilePath, { preserveSelection: true, silent: true });
     }, 8000);
     return () => clearInterval(id);
-  }, [selectedFilePath, isDirty, savingState, loadingFile]);
+  }, [selectedFilePath, isDirty, savingState, loadingFile, liveMode]);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= 900);
@@ -836,9 +904,10 @@ export default function AgentsPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
               <div style={{ fontSize: 10, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedFilePath ? selectedFilePath.split('/').pop() : 'Select a file to edit'}</div>
-              <div style={{ fontSize: 9, color: isDirty ? '#f59e0b' : '#666' }}>{isDirty ? 'editing locally • auto-refresh paused' : `live • ${lastRefreshAt ? `updated ${new Date(lastRefreshAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : 'waiting…'}`}</div>
+              <div style={{ fontSize: 9, color: remoteUpdateAvailable ? '#f59e0b' : isDirty ? '#f59e0b' : '#666' }}>{remoteUpdateAvailable ? 'remote update available • save or reload' : isDirty ? 'editing locally • auto-refresh paused' : `${liveMode === 'sse' ? 'sse live' : liveMode === 'connecting' ? 'connecting live' : 'polling fallback'} • ${lastRefreshAt ? `updated ${new Date(lastRefreshAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : 'waiting…'}`}</div>
             </div>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {selectedFilePath && remoteUpdateAvailable && <button onClick={() => { setIsDirty(false); void loadFile(selectedFilePath, { preserveSelection: true, silent: false }); }} style={{ border: '1px solid #5c3b12', background: '#1a1208', color: '#f59e0b', padding: '5px 10px', fontFamily: 'inherit', fontSize: 11, cursor: 'pointer' }}>Reload remote</button>}
               {selectedFilePath && (() => {
                 const ext = selectedFilePath.split('.').pop()?.toLowerCase() ?? '';
                 const isMarkdown = ext === 'md';
