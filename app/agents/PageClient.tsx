@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { marked } from 'marked';
 import { SkeletonLines } from '../components/Skeleton';
 import { Pill, Surface } from '../components/ui';
 import { apiFetch } from '@/lib/apiFetch';
@@ -96,7 +97,16 @@ interface AgentChannelSummary {
   };
 }
 
-type FileTree = Record<string, AgentFile[]>;
+interface FileTreeNode {
+  name: string;
+  path: string;
+  rel_path: string;
+  type: 'file' | 'directory';
+  file?: AgentFile;
+  children: FileTreeNode[];
+}
+
+type FileTree = FileTreeNode[];
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 type WizardStep = 'template' | 'configure';
 
@@ -149,15 +159,57 @@ function fileKind(filePath: string): string {
 }
 
 function buildTree(files: AgentFile[]): FileTree {
-  const tree: FileTree = {};
+  const root: FileTree = [];
+
   for (const f of files) {
     const relPath = f.rel_path ?? f.name ?? '';
     const parts = relPath.split('/');
-    const dir = parts.length > 1 ? parts[0] : '';
-    tree[dir] ??= [];
-    tree[dir].push({ ...f, displayName: parts[parts.length - 1] });
+    if (parts.length <= 1) {
+      if (f.type === 'folder') {
+        const existing = root.find((node) => node.name === parts[0] && node.type === 'directory');
+        if (!existing) {
+          root.push({ name: parts[0], path: f.path, rel_path: relPath, type: 'directory', children: [] });
+        }
+      } else {
+        root.push({ name: parts[0], path: f.path, rel_path: relPath, type: 'file', file: f, children: [] });
+      }
+    } else {
+      const dirParts = parts.slice(0, -1);
+      const fileName = parts[parts.length - 1];
+      const isDir = f.type === 'folder';
+      let current = root;
+      for (let i = 0; i < dirParts.length; i++) {
+        const subPath = dirParts.slice(0, i + 1).join('/');
+        let dir = current.find((n) => n.name === dirParts[i] && n.type === 'directory');
+        if (!dir) {
+          dir = { name: dirParts[i], path: '', rel_path: subPath, type: 'directory', children: [] };
+          current.push(dir);
+        }
+        current = dir.children;
+      }
+      if (isDir) {
+        let existing = current.find((n) => n.name === fileName && n.type === 'directory');
+        if (!existing) {
+          existing = { name: fileName, path: f.path, rel_path: relPath, type: 'directory', children: [] };
+          current.push(existing);
+        }
+      } else {
+        current.push({ name: fileName, path: f.path, rel_path: relPath, type: 'file', file: f, children: [] });
+      }
+    }
   }
-  return tree;
+
+  function sortNodes(nodes: FileTree) {
+    nodes.sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    for (const n of nodes) {
+      if (n.type === 'directory') sortNodes(n.children);
+    }
+  }
+  sortNodes(root);
+  return root;
 }
 
 function formatValue(value: string | string[] | undefined): string {
@@ -318,6 +370,11 @@ export default function AgentsPage() {
   const selectedAgentIdRef = useRef('');
   const [selectedFilePath, setSelectedFilePath] = useState('');
   const [editorContent, setEditorContent] = useState('');
+  const [fileType, setFileType] = useState<'text' | 'binary'>('text');
+  const [binaryUrl, setBinaryUrl] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [lastRefreshAt, setLastRefreshAt] = useState<number | null>(null);
   const [mobileStep, setMobileStep] = useState(1);
   const [openDirs, setOpenDirs] = useState<Record<string, boolean>>({});
   const [savingState, setSavingState] = useState<SaveState>('idle');
@@ -338,12 +395,47 @@ export default function AgentsPage() {
 
   const toggleDir = (dirName: string) => setOpenDirs((prev) => ({ ...prev, [dirName]: !prev[dirName] }));
 
+  function renderTreeNode(node: FileTreeNode, depth: number = 0): React.ReactNode {
+    if (node.type === 'file' && node.file) {
+      return <FileButton key={node.path} file={node.file} indent={depth} />;
+    }
+    if (node.type === 'directory') {
+      const dirKey = node.rel_path || node.name;
+      const isOpen = openDirs[dirKey] ?? false;
+      const childCount = node.children.length;
+      return (
+        <div key={dirKey}>
+          <button onClick={() => toggleDir(dirKey)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: '#888', padding: '8px 10px 8px ' + (8 + depth * 18) + 'px', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 10, color: '#555' }}>{isOpen ? '▾' : '▸'}</span>
+            <span style={{ fontSize: 12 }}>{isOpen ? '📂' : '📁'}</span>
+            <span style={{ color: '#d1a15c', fontSize: 11 }}>{node.name}</span>
+            <span style={{ color: '#555', fontSize: 9, border: '1px solid #3a2a18', padding: '1px 4px', borderRadius: 999 }}>DIR</span>
+            <span style={{ color: '#666', fontSize: 9 }}>{childCount} {childCount === 1 ? 'item' : 'items'}</span>
+          </button>
+          {isOpen && node.children.map((child) => renderTreeNode(child, depth + 1))}
+        </div>
+      );
+    }
+    return null;
+  }
+
   const selectedAgent = useMemo(() => agents.find((a) => a.agent_id === selectedAgentId) ?? null, [agents, selectedAgentId]);
   const selectedAgentChannel = selectedAgentId ? agentChannels[selectedAgentId] : undefined;
   const files = selectedAgent?.files ?? [];
   const fileTree = useMemo(() => buildTree(files), [files]);
-  const rootFiles = fileTree[''] ?? [];
-  const directoryNames = useMemo(() => Object.keys(fileTree).filter(Boolean).sort((a, b) => a.localeCompare(b)), [fileTree]);
+  const [rootFiles, setRootFiles] = useState<AgentFile[]>([]);
+  const [directoryNames, setDirectoryNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    const root: AgentFile[] = [];
+    const dirs: string[] = [];
+    for (const node of fileTree) {
+      if (node.type === 'file' && node.file) root.push(node.file);
+      else if (node.type === 'directory') dirs.push(node.rel_path || node.name);
+    }
+    setRootFiles(root);
+    setDirectoryNames(dirs);
+  }, [fileTree]);
   const knownAgentIds = useMemo(() => Object.values(agentChannels).map((item) => item.agentId), [agentChannels]);
   const knownAccountIds = useMemo(
     () => Array.from(new Set(Object.values(agentChannels).flatMap((item) => item.telegram.accounts.map((account) => account.accountId)))),
@@ -368,28 +460,48 @@ export default function AgentsPage() {
         setSelectedAgentId(nextAgents[0].agent_id);
         selectedAgentIdRef.current = nextAgents[0].agent_id;
       }
+      setLastRefreshAt(Date.now());
       setAgentsLoaded(true);
     } catch {
       setAgentsLoaded(true);
     }
   }
 
-  async function loadFile(path: string) {
+  async function loadFile(path: string, options?: { preserveSelection?: boolean; silent?: boolean }) {
     if (!path) return;
-    setLoadingFile(true);
-    setSelectedFilePath(path);
-    setSavingState('idle');
+    const preserveSelection = options?.preserveSelection ?? false;
+    const silent = options?.silent ?? false;
+    if (!silent) setLoadingFile(true);
+    if (!preserveSelection) {
+      setSelectedFilePath(path);
+      setSavingState('idle');
+    }
+    setBinaryUrl('');
+    const isBinary = /\.(png|jpg|jpeg|gif|webp|pdf|ico)$/i.test(path);
+    setFileType(isBinary ? 'binary' : 'text');
     try {
-      const res = await apiFetch(`/api/workspace?path=${encodeURIComponent(path)}`, API_FETCH_OPTIONS);
-      if (!res.ok) throw new Error('load failed');
-      const data = (await res.json()) as { content?: string };
-      setEditorContent(data.content ?? '');
+      if (isBinary) {
+        const res = await fetch(`/api/workspace?path=${encodeURIComponent(path)}`, { credentials: 'include' });
+        if (!res.ok) throw new Error('load failed');
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        setBinaryUrl(url);
+        setEditorContent('');
+      } else {
+        const res = await apiFetch(`/api/workspace?path=${encodeURIComponent(path)}`, API_FETCH_OPTIONS);
+        if (!res.ok) throw new Error('load failed');
+        const data = (await res.json()) as { content?: string };
+        setEditorContent(data.content ?? '');
+      }
+      setLastRefreshAt(Date.now());
       setMobileStep(3);
+      if (!preserveSelection) setIsDirty(false);
     } catch {
-      setEditorContent('');
+      if (!preserveSelection) setEditorContent('');
+      setBinaryUrl('');
       setSavingState('error');
     } finally {
-      setLoadingFile(false);
+      if (!silent) setLoadingFile(false);
     }
   }
 
@@ -404,6 +516,8 @@ export default function AgentsPage() {
       });
       if (!res.ok) throw new Error('save failed');
       setSavingState('saved');
+      setIsDirty(false);
+      setLastRefreshAt(Date.now());
       setTimeout(() => setSavingState('idle'), 1500);
     } catch {
       setSavingState('error');
@@ -554,9 +668,17 @@ export default function AgentsPage() {
 
   useEffect(() => {
     void fetchAgents();
-    const id = setInterval(() => void fetchAgents(), 15000);
+    const id = setInterval(() => void fetchAgents(), 8000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (!selectedFilePath || isDirty || savingState === 'saving' || loadingFile) return;
+    const id = setInterval(() => {
+      void loadFile(selectedFilePath, { preserveSelection: true, silent: true });
+    }, 8000);
+    return () => clearInterval(id);
+  }, [selectedFilePath, isDirty, savingState, loadingFile]);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= 900);
@@ -576,17 +698,21 @@ export default function AgentsPage() {
   const saveLabel = savingState === 'saving' ? 'Saving...' : savingState === 'saved' ? 'Saved ✓' : savingState === 'error' ? 'Error ✗' : 'SAVE';
   const configSaveLabel = configSavingState === 'saving' ? 'Saving...' : configSavingState === 'saved' ? 'Saved ✓' : configSavingState === 'error' ? 'Error ✗' : 'SAVE CONFIG';
   const typeColor = (type: string) => (type === 'markdown' ? '#B87333' : type === 'json' ? '#60a5fa' : '#888');
+  const fileIcon = (type: string) => (type === 'markdown' ? '📝' : type === 'json' ? '🧩' : '📄');
 
-  const FileButton = ({ file, indent = false }: { file: AgentFile; indent?: boolean }) => {
+  const FileButton = ({ file, indent = 0 }: { file: AgentFile; indent?: number }) => {
     const isActive = selectedFilePath === file.path;
     const type = file.type ?? fileKind(file.path ?? '');
     return (
       <button
         onClick={() => void loadFile(file.path ?? '')}
-        style={{ width: '100%', textAlign: 'left', background: isActive ? '#1a1208' : 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: '#E8E8E8', padding: indent ? '8px 10px 8px 26px' : '8px 10px', cursor: 'pointer' }}
+        style={{ width: '100%', textAlign: 'left', background: isActive ? '#1a1208' : 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: '#E8E8E8', padding: indent ? `8px 10px 8px ${24 + indent * 18}px` : '8px 10px', cursor: 'pointer' }}
       >
-        <div style={{ fontSize: 11 }}>📄 {file.displayName ?? file.name}</div>
-        <div style={{ fontSize: 10, color: typeColor(type) }}>{type}</div>
+        <div style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 12 }}>{fileIcon(type)}</span>
+          <span>{file.displayName ?? file.name}</span>
+        </div>
+        <div style={{ fontSize: 10, color: typeColor(type), marginTop: 2 }}>{type.toUpperCase()}</div>
       </button>
     );
   };
@@ -625,7 +751,7 @@ export default function AgentsPage() {
             const telegramBindings = channelSummary?.telegram.bindings ?? [];
             const primaryAccount = telegramAccounts[0];
             return (
-              <button key={agent.agent_id} onClick={() => { setSelectedAgentId(agent.agent_id); selectedAgentIdRef.current = agent.agent_id; setSelectedFilePath(''); setEditorContent(''); setMobileStep(2); }} style={{ width: '100%', textAlign: 'left', background: isActive ? '#1a1208' : 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text)', padding: '10px 12px', cursor: 'pointer' }}>
+              <button key={agent.agent_id} onClick={() => { setSelectedAgentId(agent.agent_id); selectedAgentIdRef.current = agent.agent_id; setSelectedFilePath(''); setEditorContent(''); setIsDirty(false); setMobileStep(2); }} style={{ width: '100%', textAlign: 'left', background: isActive ? '#1a1208' : 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text)', padding: '10px 12px', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: hasWorking ? '#22c55e' : '#888', display: 'inline-block' }} /><span style={{ color: isActive ? 'var(--copper)' : 'var(--text)', fontSize: 12 }}>{agent.agent_id}</span></div>
                   <span style={{ fontSize: 10, color: '#555' }}>{agent.sessions.length} sess</span>
@@ -703,21 +829,47 @@ export default function AgentsPage() {
               </div>
             )}
           </div>
-          {rootFiles.map((file) => <FileButton key={file.path} file={file} />)}
-          {directoryNames.map((dirName) => (
-            <div key={dirName}>
-              <button onClick={() => toggleDir(dirName)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: '#888', padding: '8px 10px', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ fontSize: 10, color: '#555' }}>{openDirs[dirName] ? '▾' : '▸'}</span><span style={{ color: '#555', fontSize: 10 }}>📁 {dirName}/</span></button>
-              {openDirs[dirName] && (fileTree[dirName] ?? []).map((file) => <FileButton key={file.path} file={file} indent />)}
-            </div>
-          ))}
+          {fileTree.map((node) => renderTreeNode(node))}
         </section>
 
         <section style={{ flex: 1, minWidth: isMobile ? 0 : 320, display: isMobile && mobileStep !== 3 ? 'none' : 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
-            <div style={{ fontSize: 10, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedFilePath ? selectedFilePath.split('/').pop() : 'Select a file to edit'}</div>
-            <button onClick={() => void saveFile()} disabled={!selectedFilePath || savingState === 'saving'} style={{ border: '1px solid var(--border)', background: savingState === 'saved' ? '#143018' : 'var(--bg3)', color: savingState === 'error' ? '#ef4444' : savingState === 'saved' ? '#22c55e' : 'var(--copper)', padding: '5px 10px', fontFamily: 'inherit', fontSize: 11, cursor: 'pointer' }}>{saveLabel}</button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+              <div style={{ fontSize: 10, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedFilePath ? selectedFilePath.split('/').pop() : 'Select a file to edit'}</div>
+              <div style={{ fontSize: 9, color: isDirty ? '#f59e0b' : '#666' }}>{isDirty ? 'editing locally • auto-refresh paused' : `live • ${lastRefreshAt ? `updated ${new Date(lastRefreshAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : 'waiting…'}`}</div>
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {selectedFilePath && (() => {
+                const ext = selectedFilePath.split('.').pop()?.toLowerCase() ?? '';
+                const isMarkdown = ext === 'md';
+                const isHtml = ext === 'html';
+                if (isMarkdown || isHtml) {
+                  return <button onClick={() => setShowPreview((p) => !p)} style={{ border: '1px solid var(--border)', background: showPreview ? '#1a1208' : 'var(--bg3)', color: showPreview ? 'var(--copper)' : '#888', padding: '5px 10px', fontFamily: 'inherit', fontSize: 11, cursor: 'pointer' }}>{showPreview ? '✏️ Edit' : isMarkdown ? '📖 Preview' : '🌐 Preview'}</button>;
+                }
+                return null;
+              })()}
+              <button onClick={() => void saveFile()} disabled={!selectedFilePath || savingState === 'saving'} style={{ border: '1px solid var(--border)', background: savingState === 'saved' ? '#143018' : 'var(--bg3)', color: savingState === 'error' ? '#ef4444' : savingState === 'saved' ? '#22c55e' : 'var(--copper)', padding: '5px 10px', fontFamily: 'inherit', fontSize: 11, cursor: 'pointer' }}>{saveLabel}</button>
+            </div>
           </div>
-          <textarea value={editorContent} onChange={(e) => setEditorContent(e.target.value)} placeholder={loadingFile ? 'Caricamento file…' : 'No file selected'} style={{ flex: 1, width: '100%', border: 'none', outline: 'none', resize: 'none', background: '#0A0A0B', color: '#E8E8E8', padding: isMobile ? 10 : 12, fontSize: isMobile ? 14 : 12, fontFamily: 'JetBrains Mono, monospace', lineHeight: 1.45 }} />
+                    {(function() {
+            if (!selectedFilePath) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', fontSize: 12 }}>Select a file to view or edit</div>;
+            if (loadingFile) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', fontSize: 12 }}>Caricamento file…</div>;
+            const ext = selectedFilePath.split('.').pop()?.toLowerCase() ?? '';
+            const isPdf = ext === 'pdf';
+            const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext);
+            const isMarkdown = ext === 'md';
+            const isHtml = ext === 'html';
+            const canEdit = isMarkdown || isHtml || ['py', 'js', 'ts', 'tsx', 'css', 'json', 'yaml', 'yml', 'sh', 'txt', 'env'].includes(ext);
+            if (isPdf && binaryUrl) return <iframe src={binaryUrl} style={{ flex: 1, width: '100%', border: 'none', background: '#525659' }} title="PDF viewer" />;
+            if (isImage && binaryUrl) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12, overflow: 'auto', background: '#1a1a1a' }}><img src={binaryUrl} alt={selectedFilePath.split('/').pop() ?? ''} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} /></div>;
+            if (isMarkdown && showPreview && editorContent) {
+              return <div className="markdown-preview" dangerouslySetInnerHTML={{ __html: (() => { try { return marked.parse(editorContent, { breaks: true, gfm: true }); } catch { return editorContent; } })() }} style={{ flex: 1, width: '100%', overflow: 'auto', padding: 12, color: '#E8E8E8', fontSize: 14, lineHeight: 1.6 }} />;
+            }
+            if (isHtml && showPreview && editorContent) {
+              return <iframe srcDoc={editorContent} style={{ flex: 1, width: '100%', border: 'none', background: '#fff' }} title="HTML preview" sandbox="allow-scripts" />;
+            }
+            return <textarea value={editorContent} onChange={(e) => { setEditorContent(e.target.value); if (canEdit) setIsDirty(true); }} placeholder={loadingFile ? 'Caricamento file…' : 'No file selected'} readOnly={!canEdit} style={{ flex: 1, width: '100%', border: 'none', outline: 'none', resize: 'none', background: '#0A0A0B', color: '#E8E8E8', padding: isMobile ? 10 : 12, fontSize: isMobile ? 14 : 12, fontFamily: 'JetBrains Mono, monospace', lineHeight: 1.45 }} />;
+          })()}
         </section>
       </div>
 
@@ -780,6 +932,42 @@ export default function AgentsPage() {
           </div>
         </div>
       )}
+      <style>{`
+.markdown-preview h1, .markdown-preview h2, .markdown-preview h3 {
+  margin: 0.5em 0 0.3em;
+  font-weight: 600;
+}
+.markdown-preview h1 { font-size: 1.5em; color: var(--copper, #cd7f32); }
+.markdown-preview h2 { font-size: 1.2em; color: #e0b87a; }
+.markdown-preview h3 { font-size: 1.05em; }
+.markdown-preview p { margin: 0.4em 0; }
+.markdown-preview ul, .markdown-preview ol { padding-left: 1.5em; margin: 0.3em 0; }
+.markdown-preview li { margin: 0.15em 0; }
+.markdown-preview code {
+  background: #1e1e1e; padding: 2px 5px; border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.9em; color: #d4d4d4;
+}
+.markdown-preview pre {
+  background: #0d0d0d !important; padding: 10px; border-radius: 4px;
+  overflow-x: auto; margin: 0.5em 0;
+}
+.markdown-preview pre code { background: transparent; padding: 0; }
+.markdown-preview a { color: #58a6ff; text-decoration: underline; }
+.markdown-preview blockquote {
+  border-left: 3px solid var(--copper, #cd7f32);
+  margin: 0.5em 0; padding: 0.3em 1em;
+  color: #aaa; background: #111;
+}
+.markdown-preview hr { border: none; border-top: 1px solid #333; margin: 0.8em 0; }
+.markdown-preview img { max-width: 100%; border-radius: 4px; }
+.markdown-preview table {
+  border-collapse: collapse; width: 100%; margin: 0.5em 0;
+}
+.markdown-preview th, .markdown-preview td {
+  border: 1px solid #333; padding: 4px 8px; text-align: left;
+}
+.markdown-preview th { background: #1a1a1a; font-weight: 600; }
+`}</style>
     </div>
   );
 }

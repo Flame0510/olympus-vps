@@ -5,6 +5,8 @@ import type { MemoryContextPayload } from '@/lib/memory-context';
 import { Pill, Metric, Surface, Page, PageHeader, toneFromHealth } from '../components/ui';
 import { apiFetch } from '@/lib/apiFetch';
 import { SkeletonLines } from '../components/Skeleton';
+import { useOlympusTimezone } from '@/lib/hooks/useOlympusTimezone';
+import { formatDateTimeInTimezone } from '@/lib/timezone';
 
 function formatBytes(value: number | null): string {
   if (value === null) return '—';
@@ -13,15 +15,16 @@ function formatBytes(value: number | null): string {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatDate(value: string | null): string {
+function formatDate(value: string | null, timezone: string): string {
   if (!value) return '—';
-  return new Date(value).toLocaleString('it-IT');
+  return formatDateTimeInTimezone(value, {}, timezone);
 }
 
 export default function MemoryContextPageClient() {
   const [data, setData] = useState<MemoryContextPayload | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const timezone = useOlympusTimezone();
 
   useEffect(() => {
     async function load() {
@@ -107,12 +110,17 @@ export default function MemoryContextPageClient() {
                           <div style={{ fontSize: 13 }}>{agent.name}</div>
                           <div style={{ color: '#8a8a92', fontSize: 11, marginTop: 4 }}>{agent.agentId} · {agent.source.join(', ')}</div>
                         </td>
-                        <td style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', fontSize: 12, color: '#c7c7d0', maxWidth: 220, wordBreak: 'break-word' }}>{agent.workspace}</td>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', fontSize: 12, color: '#c7c7d0', maxWidth: 220, wordBreak: 'break-word' }}>
+                          <div>{agent.workspace}</div>
+                          <div style={{ color: agent.bootstrapBytes > agent.bootstrapBudgetBytes ? 'var(--warning, #f6c66b)' : '#8a8a92', fontSize: 11, marginTop: 6 }}>
+                            bootstrap {formatBytes(agent.bootstrapBytes)} / {formatBytes(agent.bootstrapBudgetBytes)}
+                          </div>
+                        </td>
                         {Object.values(agent.files).map((file) => (
                           <td key={`${agent.agentId}-${file.key}`} style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', fontSize: 11, minWidth: 150 }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                               <Pill tone={toneFromHealth(file.exists ? 'ok' : 'warning')}>{file.exists ? (file.isSymlink ? 'linked' : 'local') : 'missing'}</Pill>
-                              <div style={{ color: '#8a8a92' }}>{formatBytes(file.size)} · {formatDate(file.mtime)}</div>
+                              <div style={{ color: '#8a8a92' }}>{formatBytes(file.size)} · {formatDate(file.mtime, timezone)}</div>
                               <div style={{ color: '#73737c', wordBreak: 'break-word' }}>{file.path}</div>
                               {file.symlinkTarget && <div style={{ color: '#b8b8c2', wordBreak: 'break-word' }}>→ {file.symlinkTarget}</div>}
                             </div>
@@ -153,7 +161,7 @@ export default function MemoryContextPageClient() {
                       <Pill tone={toneFromHealth(file.exists ? 'ok' : 'warning')}>{file.exists ? 'present' : 'missing'}</Pill>
                     </div>
                     <div style={{ color: '#8a8a92', fontSize: 11, wordBreak: 'break-word', marginTop: 8 }}>{file.path}</div>
-                    <div style={{ color: '#b8b8c2', fontSize: 11, marginTop: 4 }}>{formatBytes(file.size)} · {formatDate(file.mtime)}</div>
+                    <div style={{ color: '#b8b8c2', fontSize: 11, marginTop: 4 }}>{formatBytes(file.size)} · {formatDate(file.mtime, timezone)}</div>
                     {file.symlinkTarget && <div style={{ color: '#b8b8c2', fontSize: 11, marginTop: 4, wordBreak: 'break-word' }}>→ {file.symlinkTarget}</div>}
                     {file.warnings.length > 0 && (
                       <ul style={{ margin: '8px 0 0', paddingLeft: 16, color: 'var(--warning, #f6c66b)', fontSize: 11 }}>

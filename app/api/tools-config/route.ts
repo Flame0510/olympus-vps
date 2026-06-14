@@ -5,6 +5,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 const CONFIG_PATH = '/data/.openclaw/openclaw.json';
+const OLYMPUS_SETTINGS_PATH = '/data/olympus/settings.json';
 
 type JsonObject = Record<string, unknown>;
 
@@ -60,9 +61,25 @@ function getAudio(config: JsonObject): JsonObject {
   return (media.audio ?? {}) as JsonObject;
 }
 
-function getTimezone(config: JsonObject): string {
-  const tools = (config.tools ?? {}) as JsonObject;
-  const tz = tools.timezone;
+function readOlympusSettings(): JsonObject {
+  try {
+    return JSON.parse(fs.readFileSync(OLYMPUS_SETTINGS_PATH, 'utf8')) as JsonObject;
+  } catch {
+    return {};
+  }
+}
+
+function writeOlympusSettings(settings: JsonObject): void {
+  const dir = path.dirname(OLYMPUS_SETTINGS_PATH);
+  const tmp = path.join(dir, `.settings.json.tmp-${process.pid}-${Date.now()}`);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(tmp, `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
+  fs.renameSync(tmp, OLYMPUS_SETTINGS_PATH);
+}
+
+function getTimezone(): string {
+  const settings = readOlympusSettings();
+  const tz = settings.timezone;
   return typeof tz === 'string' && tz ? tz : 'Europe/Rome';
 }
 
@@ -70,7 +87,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const config = readConfig();
     const audio = getAudio(config);
-    const timezone = getTimezone(config);
+    const timezone = getTimezone();
     return NextResponse.json({ audio, timezone });
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
@@ -98,13 +115,15 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     const config = readConfig();
     if (!config.tools) config.tools = {};
     const tools = config.tools as JsonObject;
+    let timezone = getTimezone();
 
     if (body.timezone !== undefined) {
       if (typeof body.timezone !== 'string' || !body.timezone)
         throw new Error('timezone must be a non-empty string');
       if (!VALID_TIMEZONES.includes(body.timezone))
         throw new Error('timezone is not supported');
-      tools.timezone = body.timezone;
+      timezone = body.timezone;
+      writeOlympusSettings({ ...readOlympusSettings(), timezone });
     }
 
     const input = body?.audio;
@@ -134,7 +153,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
 
     writeConfig(config);
 
-    return NextResponse.json({ ok: true, timezone: tools.timezone, audio: config.tools && (config.tools as JsonObject).media ? ((config.tools as JsonObject).media as JsonObject).audio : {} });
+    return NextResponse.json({ ok: true, timezone, audio: config.tools && (config.tools as JsonObject).media ? ((config.tools as JsonObject).media as JsonObject).audio : {} });
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });
   }

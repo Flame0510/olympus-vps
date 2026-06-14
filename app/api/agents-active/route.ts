@@ -10,7 +10,7 @@ interface WorkspaceFile {
   name: string;
   path: string;
   rel_path: string;
-  type: 'markdown' | 'json' | 'text';
+  type: 'markdown' | 'json' | 'text' | 'folder';
 }
 
 interface ConfiguredAgent {
@@ -30,7 +30,7 @@ interface SessionRow {
   updated_at: number;
 }
 
-const ALLOWED_EXT = new Set(['.md', '.json', '.txt']);
+const ALLOWED_EXT = new Set(['.md', '.json', '.txt', '.html', '.py', '.css', '.js', '.ts', '.tsx', '.yaml', '.yml', '.env', '.sh', '.pdf']);
 const READONLY_DB_FALLBACKS = [
   DB_PATH,
   process.env.OLYMPUS_DB,
@@ -50,7 +50,7 @@ function listWorkspaceFiles(workspacePath: string): WorkspaceFile[] {
   const out: WorkspaceFile[] = [];
 
   function walk(dir: string, depth: number, prefix = '') {
-    if (depth > 1) return;
+    if (depth > 5) return;
     let entries: fs.Dirent[] = [];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -61,7 +61,11 @@ function listWorkspaceFiles(workspacePath: string): WorkspaceFile[] {
       if (entry.name.startsWith('.')) continue;
       const absPath = path.join(dir, entry.name);
       const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) { walk(absPath, depth + 1, relPath); continue; }
+      if (entry.isDirectory()) {
+        if (entry.name === 'node_modules' || entry.name === '.trash') continue;
+        out.push({ name: entry.name, path: absPath, rel_path: relPath, type: 'folder' });
+        walk(absPath, depth + 1, relPath); continue;
+      }
       const ext = path.extname(entry.name).toLowerCase();
       if (!ALLOWED_EXT.has(ext)) continue;
       out.push({
@@ -174,7 +178,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const files = listWorkspaceFiles(workspace_path);
       const config_model = formatModel(cfg.model ?? cfg.defaultModel ?? cfg.default_model);
     // limit files to 20 max; skip trash dirs
-    const filtered_files = files.filter(f => !f.rel_path.includes('.trash') && !f.rel_path.includes('node_modules/')).slice(0, 20);
+    const filtered_files = files.slice(0, 100);
       const latestStatus = sessions[0]?.status;
       const status = latestStatus === 'working' ? 'working' : latestStatus ? 'idle' : 'inactive';
       return { agent_id, label: cfg.label ?? agent_id, config_model, workspace_path, files: filtered_files, sessions, status, config: cfg };

@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { Pill, Surface, toneVars } from '../components/ui';
 import type { Tone } from '../components/ui';
+import { useOlympusTimezone } from '@/lib/hooks/useOlympusTimezone';
+import { formatDateTimeInTimezone } from '@/lib/timezone';
 
 interface OAuthProvider {
   provider: string;
@@ -239,6 +241,7 @@ export default function ProvidersPage() {
   const [usageData, setUsageData] = useState<ProviderUsageData | null>(null);
   const [usageLoaded, setUsageLoaded] = useState(false);
   const [usageError, setUsageError] = useState('');
+  const timezone = useOlympusTimezone();
 
   async function loadUsage() {
     try {
@@ -427,7 +430,7 @@ export default function ProvidersPage() {
                         <div style={{ height: 5, background: '#12232c', borderRadius: 999, overflow: 'hidden' }}>
                           <div style={{ height: '100%', width: `${metric.pct}%`, background: metric.pct >= 90 ? 'var(--danger)' : '#2a7a94', borderRadius: 999 }} />
                         </div>
-                        {metric.resetAt && <span style={{ fontSize: 9, color: '#666' }}>resets {new Date(metric.resetAt).toLocaleString()}</span>}
+                        {metric.resetAt && <span style={{ fontSize: 9, color: '#666' }}>resets {formatDateTimeInTimezone(metric.resetAt, {}, timezone)}</span>}
                         {(metric.source && metric.source !== 'api') && <span style={{ fontSize: 9, color: '#B87333' }}>source: {metric.source}</span>}
                       </div>
                     )) : (

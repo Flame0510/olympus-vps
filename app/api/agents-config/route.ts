@@ -444,6 +444,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
+    // Create USER.md symlink if workspace exists
+    if (workspace && fs.existsSync(workspace)) {
+      const userMdPath = path.join(workspace, 'USER.md');
+      // Check if USER.md already exists (as file, symlink, or broken symlink)
+      try {
+        fs.accessSync(userMdPath, fs.constants.F_OK);
+      } catch {
+        // USER.md doesn't exist — create symlink
+        const sharedUserMd = '/data/.openclaw/shared-context/USER.md';
+        try {
+          fs.symlinkSync(sharedUserMd, userMdPath);
+          templateFiles.push('USER.md (symlink)');
+          console.log(`USER.md symlink created for ${id}`);
+        } catch (e) {
+          console.error(`USER.md symlink failed for ${id}:`, (e as Error).message);
+        }
+      }
+    }
+
     return NextResponse.json({ success: true, data: buildConfigPayload(nextConfig), templateFiles });
   } catch (error: unknown) {
     return NextResponse.json({ error: (error as Error).message }, { status: 400 });

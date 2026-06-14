@@ -6,6 +6,14 @@ export const SHARED_CONTEXT_DIR = '/data/.openclaw/shared-context';
 export const DEFAULT_WORKSPACE_ROOT = '/data/.openclaw';
 export const BOOTSTRAP_FILES = ['USER.md', 'MEMORY.md', 'AGENTS.md', 'SOUL.md', 'HEARTBEAT.md'] as const;
 export const GLOBAL_CONTEXT_FILES = ['USER.md', 'MEMORY.md', 'AGENTS.md', 'SOUL.md', 'HEARTBEAT.md'] as const;
+export const WORKSPACE_TOTAL_WARN_BYTES = 25 * 1024;
+export const BOOTSTRAP_FILE_WARN_BYTES: Partial<Record<BootstrapFileName, number>> = {
+  'MEMORY.md': 10 * 1024,
+  'SOUL.md': 4 * 1024,
+  'USER.md': 8 * 1024,
+  'AGENTS.md': 10 * 1024,
+  'HEARTBEAT.md': 4 * 1024,
+};
 
 export type BootstrapFileName = (typeof BOOTSTRAP_FILES)[number];
 export type StrategyHealth = 'ok' | 'warning' | 'error';
@@ -27,6 +35,8 @@ export interface AgentMemorySummary {
   workspace: string;
   source: string[];
   files: Record<BootstrapFileName, FileSummary>;
+  bootstrapBytes: number;
+  bootstrapBudgetBytes: number;
   strategy: {
     userProfile: 'shared' | 'local' | 'missing';
     memory: 'local' | 'missing' | 'shared-warning';
@@ -104,6 +114,17 @@ function uniqueStrings(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))];
 }
 
+function formatBytesForWarning(value: number): string {
+  if (value < 1024) return `${value} B`;
+  return `${(value / 1024).toFixed(1)} KB`;
+}
+
+function applyBootstrapSizeWarnings(file: FileSummary): void {
+  const limit = BOOTSTRAP_FILE_WARN_BYTES[file.key as BootstrapFileName];
+  if (!limit || file.size === null || file.size <= limit) return;
+  file.warnings.push(`${file.key} sopra soglia: ${formatBytesForWarning(file.size)} / ${formatBytesForWarning(limit)}`);
+}
+
 export function inspectFile(filePath: string, key: string): FileSummary {
   const warnings: string[] = [];
   let exists = false;
@@ -138,7 +159,7 @@ export function inspectFile(filePath: string, key: string): FileSummary {
     if (code !== 'ENOENT') warnings.push(`Unable to inspect file: ${(error as Error).message}`);
   }
 
-  return {
+  const summary = {
     key,
     path: filePath,
     exists,
@@ -148,6 +169,8 @@ export function inspectFile(filePath: string, key: string): FileSummary {
     mtime,
     warnings,
   };
+  applyBootstrapSizeWarnings(summary);
+  return summary;
 }
 
 function inspectGlobalContext(warnings: string[]): FileSummary[] {
@@ -241,11 +264,15 @@ function classifyAgent(summary: AgentMemorySummary): AgentMemorySummary['strateg
     if (!summary.files[fileName].exists) summary.warnings.push(`${fileName} missing`);
   }
 
-  const health: StrategyHealth = summary.warnings.some((warning) => /should stay local|missing/.test(warning))
-    ? summary.warnings.length >= 3 || userProfile === 'missing'
+  const allWarnings = uniqueStrings(summary.warnings.concat(...Object.values(summary.files).map((file) => file.warnings)));
+  const hasStructuralWarning = allWarnings.some((warning) => /should stay local|missing/.test(warning));
+  const health: StrategyHealth = hasStructuralWarning
+    ? allWarnings.length >= 3 || userProfile === 'missing'
       ? 'error'
       : 'warning'
-    : 'ok';
+    : allWarnings.length > 0
+      ? 'warning'
+      : 'ok';
 
   return { userProfile, memory: memoryStatus, health };
 }
@@ -255,12 +282,16 @@ function inspectAgent(seed: AgentSeed): AgentMemorySummary {
     BOOTSTRAP_FILES.map((fileName) => [fileName, inspectFile(path.join(seed.workspace, fileName), fileName)]),
   ) as Record<BootstrapFileName, FileSummary>;
 
+  const bootstrapBytes = Object.values(files).reduce((total, file) => total + (file.size ?? 0), 0);
+
   const summary: AgentMemorySummary = {
     agentId: seed.agentId,
     name: seed.name,
     workspace: seed.workspace,
     source: [...seed.source].sort(),
     files,
+    bootstrapBytes,
+    bootstrapBudgetBytes: WORKSPACE_TOTAL_WARN_BYTES,
     strategy: {
       userProfile: 'missing',
       memory: 'missing',
@@ -270,6 +301,9 @@ function inspectAgent(seed: AgentSeed): AgentMemorySummary {
   };
 
   summary.strategy = classifyAgent(summary);
+  if (bootstrapBytes > WORKSPACE_TOTAL_WARN_BYTES) {
+    summary.warnings.push(`Bootstrap totale sopra budget: ${formatBytesForWarning(bootstrapBytes)} / ${formatBytesForWarning(WORKSPACE_TOTAL_WARN_BYTES)}`);
+  }
   summary.warnings = uniqueStrings(summary.warnings.concat(...Object.values(files).map((file) => file.warnings)));
   return summary;
 }

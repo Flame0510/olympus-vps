@@ -5,6 +5,7 @@ import ToolsPageClient, { type AudioConfig } from './ToolsPageClient';
 export const dynamic = 'force-dynamic';
 
 const CONFIG_PATH = '/data/.openclaw/openclaw.json';
+const OLYMPUS_SETTINGS_PATH = '/data/olympus/settings.json';
 
 type JsonObject = Record<string, unknown>;
 
@@ -30,12 +31,21 @@ function sanitizeAudioConfig(value: unknown): AudioConfig {
   return audio;
 }
 
+function readInitialTimezone(): string {
+  try {
+    const settings = JSON.parse(fs.readFileSync(OLYMPUS_SETTINGS_PATH, 'utf8')) as JsonObject;
+    return typeof settings.timezone === 'string' && settings.timezone ? settings.timezone : 'Europe/Rome';
+  } catch {
+    return 'Europe/Rome';
+  }
+}
+
 function getInitialData(): { audio: AudioConfig; timezone: string; error: string | null } {
   try {
     const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')) as JsonObject;
     const tools = asJsonObject(config.tools);
     const media = asJsonObject(tools.media);
-    const timezone = typeof tools.timezone === 'string' && tools.timezone ? tools.timezone : 'Europe/Rome';
+    const timezone = readInitialTimezone();
     return { audio: sanitizeAudioConfig(media.audio), timezone, error: null };
   } catch (error: unknown) {
     return {

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { Pill } from '../components/ui';
 import type { Tone } from '../components/ui';
 import { apiFetch } from '@/lib/apiFetch';
+import { useOlympusTimezone } from '@/lib/hooks/useOlympusTimezone';
+import { formatDateTimeInTimezone } from '@/lib/timezone';
 
 
 interface CronSchedule { kind?: string; expr?: string; tz?: string; [k: string]: unknown }
@@ -35,6 +37,7 @@ interface CronSession {
   session_id: string;
   status: string;
   started_at: number;
+  updated_at?: number;
   ended_at?: number;
   cost_usd?: number;
   label?: string;
@@ -47,6 +50,16 @@ function statusTone(status: string): Tone {
   return 'neutral';
 }
 
+function statusLabel(status: string): string {
+  if (status === 'idle') return 'INATTIVO';
+  return status.toUpperCase();
+}
+
+function statusHint(status: string): string {
+  if (status === 'idle') return 'Sessione creata ma senza stato finale: non è un errore';
+  return status;
+}
+
 function statusDot(status: string): string {
   if (status === 'working' || status === 'active') return '#22c55e';
   if (status === 'completed') return '#60a5fa';
@@ -54,10 +67,11 @@ function statusDot(status: string): string {
   return '#555';
 }
 
-function formatTs(ms: number): string {
-  return new Date(ms).toLocaleString('it-IT', {
+function formatTs(ms: number, timezone: string): string {
+  return formatDateTimeInTimezone(ms, {
     day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-  });
+    hour12: false,
+  }, timezone);
 }
 
 function describeCron(expr: string): string {
@@ -120,6 +134,15 @@ function formatDuration(startMs: number, endMs?: number): string {
   return `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
+function latestSessionTs(session: CronSession): number {
+  return Math.max(Number(session.updated_at ?? 0), Number(session.ended_at ?? 0), Number(session.started_at ?? 0));
+}
+
+function displaySessionDuration(session: CronSession): string {
+  const end = session.ended_at && session.ended_at >= session.started_at ? session.ended_at : session.updated_at;
+  return formatDuration(session.started_at, end);
+}
+
 export default function CronsPage() {
   const [jobs, setJobs] = useState<CronJob[]>([]);
   const [sessions, setSessions] = useState<CronSession[]>([]);
@@ -127,6 +150,7 @@ export default function CronsPage() {
   const [toggling, setToggling] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [tab, setTab] = useState<'jobs' | 'runs'>('jobs');
+  const timezone = useOlympusTimezone();
 
   async function toggleJob(job: CronJob) {
     const id = job.id;
@@ -286,19 +310,19 @@ export default function CronsPage() {
                     {nextRun != null && (
                       <div>
                         <div style={{ fontSize: 9, color: '#555', letterSpacing: '0.06em', marginBottom: 1 }}>PROSSIMO AVVIO</div>
-                        <div style={{ fontSize: 11, color: isEnabled ? '#22c55e' : '#666' }}>{formatTs(nextRun)}</div>
+                        <div style={{ fontSize: 11, color: isEnabled ? '#22c55e' : '#666' }}>{formatTs(nextRun, timezone)}</div>
                       </div>
                     )}
                     {lastRun != null && (
                       <div>
                         <div style={{ fontSize: 9, color: '#555', letterSpacing: '0.06em', marginBottom: 1 }}>ULTIMO AVVIO</div>
-                        <div style={{ fontSize: 11, color: '#888' }}>{formatTs(lastRun)}</div>
+                        <div style={{ fontSize: 11, color: '#888' }}>{formatTs(lastRun, timezone)}</div>
                       </div>
                     )}
                     {job.createdAtMs != null && (
                       <div>
                         <div style={{ fontSize: 9, color: '#555', letterSpacing: '0.06em', marginBottom: 1 }}>CREATO</div>
-                        <div style={{ fontSize: 11, color: '#888' }}>{formatTs(job.createdAtMs as number)}</div>
+                        <div style={{ fontSize: 11, color: '#888' }}>{formatTs(job.createdAtMs as number, timezone)}</div>
                       </div>
                     )}
                     {lastStatus && (
@@ -340,7 +364,7 @@ export default function CronsPage() {
             )}
             {sessions
               .slice()
-              .sort((a, b) => b.started_at - a.started_at)
+              .sort((a, b) => latestSessionTs(b) - latestSessionTs(a))
               .map((s) => {
                 const agentParts = s.session_id.split(':');
                 const agentId = agentParts[1] ?? '?';
@@ -357,11 +381,13 @@ export default function CronsPage() {
                         <span style={{ fontSize: 10, color: '#555' }}>#{runId}</span>
                       </div>
                       <div style={{ fontSize: 10, color: '#555' }}>
-                        {formatTs(s.started_at)} · {formatDuration(s.started_at, s.ended_at)}
+                        ultimo agg. {formatTs(latestSessionTs(s), timezone)} · durata {displaySessionDuration(s)}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <Pill tone={statusTone(s.status)}>{s.status.toUpperCase()}</Pill>
+                      <span title={statusHint(s.status)}>
+                        <Pill tone={statusTone(s.status)}>{statusLabel(s.status)}</Pill>
+                      </span>
                       {s.cost_usd != null && s.cost_usd > 0 && (
                         <div style={{ fontSize: 10, color: '#555', marginTop: 2 }}>${s.cost_usd.toFixed(4)}</div>
                       )}

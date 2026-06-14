@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import type { Costs } from '@/lib/types';
 import { formatUsd } from '@/lib/utils/format';
 import { useScreenshot } from '@/lib/hooks/useScreenshot';
+import { useOlympusTimezone } from '@/lib/hooks/useOlympusTimezone';
+import { formatDateTimeInTimezone } from '@/lib/timezone';
 import { Skeleton } from './Skeleton';
 
 interface DashboardHeaderProps {
@@ -23,17 +25,19 @@ const CameraIcon = () => (
 export default function DashboardHeader({ costs, loading: dataLoading = false, hideLogo = false, title }: DashboardHeaderProps) {
   const [clock, setClock] = useState('');
   const { loading, takeScreenshot } = useScreenshot();
+  const timezone = useOlympusTimezone();
 
   useEffect(() => {
     const tick = () =>
-      setClock(new Date().toLocaleString('it-IT', {
+      setClock(formatDateTimeInTimezone(Date.now(), {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit', second: '2-digit',
-      }));
+        hour12: false,
+      }, timezone));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [timezone]);
 
   return (
     <header className="header">
