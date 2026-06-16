@@ -3,6 +3,7 @@ import { execSync } from 'child_process';
 import Database from 'better-sqlite3';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
 const DB_PATH = '/data/olympus/events.db';
 
@@ -15,16 +16,26 @@ function getSourceLabel(key: string): string {
   return 'other';
 }
 
+// Cache: sempre resettare su richieste fresh
+let sessionsCache: { data: any[]; ts: number } | null = null;
+const CACHE_TTL = 10000; // 10 secondi
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const agentId = request.nextUrl.searchParams.get('agentId') || '';
   const limit = Math.min(parseInt(request.nextUrl.searchParams.get('limit') || '30', 10) || 30, 100);
 
-  try {
-    const cmd = agentId
-      ? `/usr/local/bin/openclaw sessions --agent ${agentId} --json --limit 40 2>/dev/null`
-      : `/usr/local/bin/openclaw sessions --json --limit 40 2>/dev/null`;
+  // Cache check
+  const cacheKey = agentId || '__all__';
+  if (sessionsCache && sessionsCache.ts > Date.now() - CACHE_TTL) {
+    const filtered = sessionsCache.data
+      .filter((s: any) => !agentId || s.key?.startsWith(`agent:${agentId}:`))
+      .slice(0, limit);
+    return NextResponse.json(filtered);
+  }
 
-    const raw = execSync(cmd, { encoding: 'utf-8', timeout: 10000 });
+  try {
+    const cmd = `/usr/local/bin/openclaw sessions --json --limit 60${agentId ? ` --agent ${agentId}` : ''} 2>/dev/null`;
+    const raw = execSync(cmd, { encoding: 'utf-8', timeout: 8000, maxBuffer: 1024 * 1024 });
 
     const jsonStart = raw.indexOf('[');
     const jsonEnd = raw.lastIndexOf(']') + 1;
@@ -32,25 +43,23 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json([]);
     }
 
-    // Read DB for real msg counts
     let db: Database.Database | null = null;
-    try {
-      db = new Database(DB_PATH, { readonly: true });
-    } catch {}
+    try { db = new Database(DB_PATH, { readonly: true }); } catch {}
 
     const sessions = JSON.parse(raw.slice(jsonStart, jsonEnd));
     const mapped = (Array.isArray(sessions) ? sessions : [])
-      .filter((s: any) => !!s.key) // only sessions with a key
+      .filter((s: any) => !!s.key)
       .slice(0, limit)
       .map((s: any) => {
         const key: string = s.key;
         const updatedAt = s.updatedAt || s.ts || 0;
         const d = new Date(updatedAt);
         const label = s.label || s.displayName || 
-          key.includes(':subagent:') ? `Sub-agent ${key.split(':').slice(-2, -1)[0]?.slice(0, 8) || ''}` :
-          `${d.toLocaleDateString('it-IT', { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
+          key.includes(':subagent:') ? `Sub ${key.split(':').slice(-2,-1)[0]?.slice(0,8) || ''}` :
+          key.includes(':cron:') ? `Cron ${key.split(':').pop()?.slice(0,8) || ''}` :
+          key.includes(':chat:') ? `Chat ${d.toLocaleDateString('it-IT',{month:'short',day:'numeric'})}` :
+          d.toLocaleDateString('it-IT',{month:'short',day:'numeric'});
 
-        // Real msg count from DB
         let msgCount = 0;
         if (db) {
           try {
@@ -58,10 +67,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             msgCount = row?.cnt || 0;
           } catch {}
         }
-        if (msgCount === 0 && (s.inputTokens || 0) > 0) msgCount = -1; // fallback: has tokens but no DB msgs
+        if (msgCount === 0 && (s.inputTokens || 0) > 0) msgCount = -1;
 
         return {
-          sessionId: s.sessionId || key.split(':').pop() || '',
+          sessionId: s.sessionId || '',
           key,
           label,
           msgCount,
@@ -76,9 +85,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       });
 
     db?.close();
+    
+    // Update cache
+    sessionsCache = { data: mapped, ts: Date.now() };
+    
     return NextResponse.json(mapped);
   } catch (e: any) {
     console.error('sessions.list error:', e.message);
+    // Return cached data even if stale
+    if (sessionsCache) {
+      return NextResponse.json(sessionsCache.data.slice(0, limit));
+    }
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

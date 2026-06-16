@@ -321,7 +321,9 @@ export default function ChatClient() {
       .then((data: any) => {
         let messages: ChatMessage[] = [];
         if (Array.isArray(data)) {
-          messages = data.map((m: any, i: number) => {
+          // Show only the last 40 messages to prevent rendering freeze
+          const recent = data.slice(-40);
+          messages = recent.map((m: any, i: number) => {
             const role = m.role === 'assistant' ? 'agent' : (m.role === 'user' ? 'user' : 'user');
             return {
               id: i,
@@ -333,6 +335,10 @@ export default function ChatClient() {
               openclaw_session_id: selectedSessionKey,
             };
           });
+          // Store full count for display
+          if (Array.isArray(data) && data.length > 40) {
+            (window as any).__hiddenMsgCount = data.length - 40;
+          }
         }
         setConversations(prev => ({
           ...prev,
