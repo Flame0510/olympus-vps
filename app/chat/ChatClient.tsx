@@ -40,6 +40,8 @@ interface ChatSessionInfo {
   source: string;
   model?: string;
   kind?: string;
+  inputTokens?: number;
+  outputTokens?: number;
 }
 
 // Emoji name → actual emoji mapping for OpenClaw identity.emoji
@@ -697,7 +699,7 @@ export default function ChatClient() {
                     </span>
                     <span className="chat-layout__session-preview">{s.preview}</span>
                   </div>
-                  <span className="chat-layout__session-msgs">{s.msgCount}</span>
+                  <span className="chat-layout__session-msgs">{s.msgCount > 0 ? s.msgCount : (s.inputTokens && s.inputTokens > 0 ? '?' : '')}</span>
                   <button
                     className="chat-layout__session-delete"
                     onClick={(e) => { e.stopPropagation(); deleteSession(s.key || s.sessionId, s.label); }}
