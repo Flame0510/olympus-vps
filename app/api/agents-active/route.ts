@@ -10,7 +10,7 @@ interface WorkspaceFile {
   name: string;
   path: string;
   rel_path: string;
-  type: 'markdown' | 'json' | 'text' | 'folder';
+  type: 'markdown' | 'json' | 'html' | 'pdf' | 'script' | 'typescript' | 'stylesheet' | 'yaml' | 'env' | 'text' | 'folder';
 }
 
 interface ConfiguredAgent {
@@ -31,6 +31,19 @@ interface SessionRow {
 }
 
 const ALLOWED_EXT = new Set(['.md', '.json', '.txt', '.html', '.py', '.css', '.js', '.ts', '.tsx', '.yaml', '.yml', '.env', '.sh', '.pdf']);
+
+function fileTypeFromExt(ext: string): WorkspaceFile['type'] {
+  if (ext === '.md') return 'markdown';
+  if (ext === '.json') return 'json';
+  if (ext === '.html') return 'html';
+  if (ext === '.pdf') return 'pdf';
+  if (ext === '.py' || ext === '.sh') return 'script';
+  if (ext === '.js' || ext === '.ts' || ext === '.tsx') return 'typescript';
+  if (ext === '.css') return 'stylesheet';
+  if (ext === '.yaml' || ext === '.yml') return 'yaml';
+  if (ext === '.env') return 'env';
+  return 'text';
+}
 const READONLY_DB_FALLBACKS = [
   DB_PATH,
   process.env.OLYMPUS_DB,
@@ -46,14 +59,21 @@ function mapWorkspace(agentId: string): string {
   return '/data/.openclaw/';
 }
 
+const MAX_WORKSPACE_TREE_DEPTH = 32;
+const MAX_WORKSPACE_TREE_ITEMS = 1000;
+
 function listWorkspaceFiles(workspacePath: string): WorkspaceFile[] {
   const out: WorkspaceFile[] = [];
 
   function walk(dir: string, depth: number, prefix = '') {
-    if (depth > 5) return;
+    if (depth > MAX_WORKSPACE_TREE_DEPTH) return;
     let entries: fs.Dirent[] = [];
     try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
+      entries = fs.readdirSync(dir, { withFileTypes: true })
+        .sort((a, b) => {
+          if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
     } catch {
       return;
     }
@@ -72,13 +92,15 @@ function listWorkspaceFiles(workspacePath: string): WorkspaceFile[] {
         name: entry.name,
         path: absPath,
         rel_path: relPath,
-        type: ext === '.md' ? 'markdown' : ext === '.json' ? 'json' : 'text',
+        type: fileTypeFromExt(ext),
       });
     }
   }
 
   walk(workspacePath, 0);
-  return out.sort((a, b) => a.rel_path.localeCompare(b.rel_path));
+  return out
+    .sort((a, b) => a.rel_path.localeCompare(b.rel_path))
+    .slice(0, MAX_WORKSPACE_TREE_ITEMS);
 }
 
 function extractAgentId(sessionId: string): string {
@@ -177,11 +199,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const workspace_path = mapWorkspace(agent_id);
       const files = listWorkspaceFiles(workspace_path);
       const config_model = formatModel(cfg.model ?? cfg.defaultModel ?? cfg.default_model);
-    // limit files to 20 max; skip trash dirs
-    const filtered_files = files.slice(0, 100);
       const latestStatus = sessions[0]?.status;
       const status = latestStatus === 'working' ? 'working' : latestStatus ? 'idle' : 'inactive';
-      return { agent_id, label: cfg.label ?? agent_id, config_model, workspace_path, files: filtered_files, sessions, status, config: cfg };
+      return { agent_id, label: cfg.label ?? agent_id, config_model, workspace_path, files, sessions, status, config: cfg };
     });
 
     return NextResponse.json(agents);

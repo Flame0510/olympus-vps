@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { marked } from 'marked';
 import { SkeletonLines } from '../components/Skeleton';
 import { Pill, Surface } from '../components/ui';
+import ModelPickerModal from '../components/ModelPickerModal';
 import { apiFetch } from '@/lib/apiFetch';
 
 const API_FETCH_OPTIONS: RequestInit = {
@@ -38,7 +39,7 @@ interface AgentConfigRecord {
   label?: string;
   workspace?: string;
   agentDir?: string;
-  model?: string;
+  model?: string | { primary?: string; fallbacks?: string[] };
   defaultModel?: string;
   default_model?: string;
   identity?: {
@@ -394,6 +395,8 @@ export default function AgentsPage() {
   const [wizardForm, setWizardForm] = useState(AGENT_TEMPLATES[0].defaults);
   const [wizardSaving, setWizardSaving] = useState(false);
   const [wizardError, setWizardError] = useState('');
+  const [modelPickerAgentId, setModelPickerAgentId] = useState<string | null>(null);
+  const [modelSavingAgentId, setModelSavingAgentId] = useState<string | null>(null);
   const selectedFilePathRef = useRef('');
   const selectedAgentIdForStreamRef = useRef('');
   const isDirtyRef = useRef(false);
@@ -565,6 +568,43 @@ export default function AgentsPage() {
         match: { channel: 'telegram', accountId: editableAccounts[0]?.accountId ?? '', from: '', to: '', peer: '' },
       },
     ]);
+  }
+
+  async function saveAgentDefaultModel(agentId: string, model: string) {
+    const summary = agentChannels[agentId];
+    const config = summary?.config;
+    if (!config) return;
+    setModelSavingAgentId(agentId);
+    try {
+      const res = await fetch('/api/agents-config', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agents: [{
+            currentId: agentId,
+            ...config,
+            id: config.id || agentId,
+            name: config.name || config.label || agentId,
+            model: model ? { primary: model, fallbacks: [] } : undefined,
+          }],
+        }),
+      });
+      const data = (await res.json()) as { error?: string; data?: AgentChannelSummary[] };
+      if (!res.ok) throw new Error(data.error ?? 'model save failed');
+      const nextChannels = Array.isArray(data.data) ? Object.fromEntries(data.data.map((item) => [item.agentId, item])) : agentChannels;
+      setAgentChannels(nextChannels);
+      if (selectedAgentIdRef.current === agentId) {
+        setEditableConfig(cloneAgentConfig(nextChannels[agentId]?.config));
+      }
+      setModelPickerAgentId(null);
+      void fetchAgents();
+    } catch (error) {
+      setConfigError(error instanceof Error ? error.message : 'model save failed');
+      setConfigSavingState('error');
+    } finally {
+      setModelSavingAgentId(null);
+    }
   }
 
   async function saveConfig() {
@@ -763,10 +803,38 @@ export default function AgentsPage() {
     setConfigError('');
   }, [selectedAgentChannel, selectedAgentId]);
 
+  const modelValueToString = (value: AgentConfigRecord['model'] | undefined): string => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    return value.primary ?? '';
+  };
+
   const saveLabel = savingState === 'saving' ? 'Saving...' : savingState === 'saved' ? 'Saved ✓' : savingState === 'error' ? 'Error ✗' : 'SAVE';
   const configSaveLabel = configSavingState === 'saving' ? 'Saving...' : configSavingState === 'saved' ? 'Saved ✓' : configSavingState === 'error' ? 'Error ✗' : 'SAVE CONFIG';
-  const typeColor = (type: string) => (type === 'markdown' ? '#B87333' : type === 'json' ? '#60a5fa' : '#888');
-  const fileIcon = (type: string) => (type === 'markdown' ? '📝' : type === 'json' ? '🧩' : '📄');
+  const typeColor = (type: string) => ({
+    markdown: '#B87333',
+    json: '#60a5fa',
+    html: '#f97316',
+    pdf: '#ef4444',
+    script: '#22c55e',
+    typescript: '#38bdf8',
+    stylesheet: '#a78bfa',
+    yaml: '#f59e0b',
+    env: '#84cc16',
+    text: '#888',
+  }[type] ?? '#888');
+  const fileIcon = (type: string) => ({
+    markdown: '📝',
+    json: '🧩',
+    html: '🌐',
+    pdf: '📕',
+    script: '⚙️',
+    typescript: '🔷',
+    stylesheet: '🎨',
+    yaml: '🧾',
+    env: '🔐',
+    text: '📄',
+  }[type] ?? '📄');
 
   const FileButton = ({ file, indent = 0 }: { file: AgentFile; indent?: number }) => {
     const isActive = selectedFilePath === file.path;
@@ -824,7 +892,25 @@ export default function AgentsPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: hasWorking ? '#22c55e' : '#888', display: 'inline-block' }} /><span style={{ color: isActive ? 'var(--copper)' : 'var(--text)', fontSize: 12 }}>{agent.agent_id}</span></div>
                   <span style={{ fontSize: 10, color: '#555' }}>{agent.sessions.length} sess</span>
                 </div>
-                <div style={{ fontSize: 10, color: '#888', marginTop: 6 }}>{model}</div>
+                <div
+                  style={{
+                    display: 'inline-block',
+                    marginTop: 6,
+                    padding: '3px 6px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 999,
+                    background: 'transparent',
+                    color: '#888',
+                    fontSize: 10,
+                    maxWidth: '100%',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                  title={model}
+                >
+                  {model}
+                </div>
                 <div style={{ ...metaLineStyle(), marginTop: 6 }}>{agent.workspace_path}</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
                   <Pill tone="accent">cfg {channelSummary?.config.name ?? channelSummary?.config.label ?? channelSummary?.config.id ?? agent.agent_id}</Pill>
@@ -844,9 +930,25 @@ export default function AgentsPage() {
                 <Surface as="div" variant="panel">
                   <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', color: 'var(--copper)', fontSize: 10 }}>AGENT CONFIG</div>
                   <div style={{ padding: 10, display: 'grid', gap: 6 }}>
-                    {(['id', 'name', 'label', 'workspace', 'agentDir', 'model'] as const).map((key) => (
+                    {(['id', 'name', 'label', 'workspace', 'agentDir'] as const).map((key) => (
                       <input key={key} value={String(editableConfig[key] ?? '')} onChange={(e) => setEditableConfig((prev) => (prev ? { ...prev, [key]: e.target.value } : prev))} placeholder={key} style={fieldStyle()} />
                     ))}
+                    <div style={{ display: 'grid', gap: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 10, color: '#888', marginBottom: 3 }}>model</div>
+                          <div style={{ fontSize: 10, color: 'var(--copper)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{modelValueToString(editableConfig.model) || 'Default agente'}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setModelPickerAgentId(editableConfig.id)}
+                          disabled={modelSavingAgentId === editableConfig.id}
+                          style={{ border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg3)', color: modelSavingAgentId === editableConfig.id ? '#888' : 'var(--copper)', fontSize: 10, padding: '6px 8px', cursor: modelSavingAgentId === editableConfig.id ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+                        >
+                          {modelSavingAgentId === editableConfig.id ? 'Salvo…' : 'CAMBIA MODELLO'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </Surface>
                 <Surface as="div" variant="panel">
@@ -1001,6 +1103,13 @@ export default function AgentsPage() {
           </div>
         </div>
       )}
+      <ModelPickerModal
+        open={!!modelPickerAgentId}
+        value={modelPickerAgentId ? modelValueToString(agentChannels[modelPickerAgentId]?.config.model) : ''}
+        title={modelPickerAgentId ? `Modello default · ${modelPickerAgentId}` : 'Modello default'}
+        onClose={() => setModelPickerAgentId(null)}
+        onSelect={(model) => { if (modelPickerAgentId) void saveAgentDefaultModel(modelPickerAgentId, model); }}
+      />
       <style>{`
 .markdown-preview h1, .markdown-preview h2, .markdown-preview h3 {
   margin: 0.5em 0 0.3em;

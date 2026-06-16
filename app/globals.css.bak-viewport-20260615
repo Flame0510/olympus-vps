@@ -48,7 +48,7 @@
   --border: var(--color-border-700);
 }
 
-html, body { height: 100%; height: 100dvh; background: var(--bg); color: var(--text); font-family: var(--font-mono-stack); overflow: hidden; }
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-mono-stack); overflow: hidden; }
 
 .metric-card {
   display: flex;
@@ -719,8 +719,6 @@ html, body { height: 100%; height: 100dvh; background: var(--bg); color: var(--t
 .app-shell {
   display: flex;
   height: 100vh;
-  height: 100dvh;
-  max-height: 100dvh;
   overflow: hidden;
 }
 
@@ -867,8 +865,6 @@ html, body { height: 100%; height: 100dvh; background: var(--bg); color: var(--t
 
 /* ── RESPONSIVE ─────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  html, body { height: 100svh; }
-  .app-shell { height: 100svh; max-height: 100svh; }
   .sidebar--desktop { display: none; }
   .sidebar__hamburger { display: flex; }
   .sidebar__overlay { display: block; }
@@ -1157,7 +1153,7 @@ html, body { height: 100%; height: 100dvh; background: var(--bg); color: var(--t
 @keyframes skeleton-shimmer { 0% { background-position: 220% 0; } 100% { background-position: -220% 0; } }
 
 /* Olympus UI system primitives */
-.ui-page { min-height: 100%; background: var(--bg); color: var(--text); padding: 24px 20px 40px; overflow: auto; }
+.ui-page { min-height: 100vh; background: var(--bg); color: var(--text); padding: 24px 20px 40px; overflow: auto; }
 .ui-page__inner { margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
 .ui-page-header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
 .ui-eyebrow, .ui-kicker { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); }

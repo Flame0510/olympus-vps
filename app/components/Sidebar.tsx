@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import MobileBottomNav from './MobileBottomNav';
 
 interface NavItem {
@@ -104,6 +104,16 @@ const NAV: NavItem[] = [
     ),
   },
   {
+    href: '/chat',
+    label: 'Chat',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M2 2h12a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5l-3 2V3a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.3"/>
+        <path d="M5 6h6M5 9h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+  {
     href: '/memory',
     label: 'Memory / Context',
     icon: (
@@ -118,6 +128,7 @@ const NAV: NavItem[] = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [ocVersion, setOcVersion] = useState<string | null>(null);
 
@@ -133,6 +144,17 @@ export default function Sidebar() {
     return targetPath === '/' ? pathname === '/' : pathname.startsWith(targetPath);
   };
 
+  const handleLogout = async () => {
+    try {
+      const res = await fetch('/api/auth/logout', { method: 'POST' });
+      if (res.ok) {
+        router.push('/login');
+      }
+    } catch (err) {
+      console.error('Logout failed:', err);
+    }
+  };
+
   const navItems = (
     <nav className="sidebar__nav">
       {NAV.map(({ href, label, icon }) => (
@@ -146,6 +168,27 @@ export default function Sidebar() {
           <span className="sidebar__label">{label}</span>
         </Link>
       ))}
+      <button
+        onClick={handleLogout}
+        className="sidebar__item"
+        style={{
+          width: '100%',
+          textAlign: 'left',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: '12px 16px',
+          color: 'var(--text-dim)',
+          marginTop: 'auto',
+        }}
+      >
+        <span className="sidebar__icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M10 3h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2M6 12l-4-4 4-4M2 8h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </span>
+        <span className="sidebar__label">Logout</span>
+      </button>
     </nav>
   );
 
