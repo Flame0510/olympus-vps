@@ -1,22 +1,28 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { openDb } from '@/lib/db';
-import { randomUUID } from 'crypto';
 import { execSync } from 'child_process';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 90;
 
+const AGENT_KEY_PREFIX: Record<string, string> = {
+  ops: 'agent:ops',
+  main: 'agent:main',
+};
+
+function getDefaultSessionKey(agentId: string): string {
+  const prefix = AGENT_KEY_PREFIX[agentId] || `agent:${agentId}`;
+  return `${prefix}:chat:web`;
+}
+
 /**
- * Chiama l'agente e restituisce la risposta testuale direttamente dall'output CLI.
- * L'output di `openclaw agent` è testuale (la risposta dell'AI).
- * Se ci sono righe di progress/providers, vengono filtrate.
+ * Call the OpenClaw agent via CLI and return the response text.
  */
 function callAgent(
   agentId: string,
   sessionKey: string,
   msg: string,
   model?: string,
-): { text: string; model: string } {
+): string {
   const parts = [
     `/usr/local/bin/openclaw agent`,
     `--agent ${agentId}`,
@@ -24,7 +30,9 @@ function callAgent(
     `--message '${msg.replace(/'/g, "'\\''")}'`,
     `--timeout 60`,
   ];
-  if (model) parts.push(`--model '${model.replace(/'/g, "'\\''")}'`);
+  if (model && model.trim()) {
+    parts.push(`--model '${model.replace(/'/g, "'\\''")}'`);
+  }
   const cmd = parts.join(' ');
 
   const raw = execSync(cmd, {
@@ -34,76 +42,56 @@ function callAgent(
     env: { ...process.env, HOME: '/data' },
   }).trim();
 
-  // L'output CLI di questo agente è già testo: la risposta dell'AI.
-  // Rimuove eventuali righe di debug/progress (iniziano con [ o sono numeri).
+  // Filter out progress/debug lines from CLI output
   const lines = raw.split('\n').filter((l) => {
     const t = l.trim();
-    // Scarta righe di progress come: "15%" o "[14:23]" o solo spazi
     if (/^\d+%$/.test(t)) return false;
     if (/^\[\d{2}:\d{2}\]/.test(t)) return false;
     if (t.length === 0) return false;
     return true;
   });
-  const text = lines.join('\n');
 
-  // Il modello viene da quello passato o dal default dell'agente
-  const agentModel = model || '';
-
-  return { text, model: agentModel };
+  return lines.join('\n');
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
-  let body: { message?: string; userId?: string; agentId?: string; sessionId?: string; model?: string; files?: { name: string; dataUrl: string }[] };
+  let body: any;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { message, userId = 'web', agentId = 'ops', sessionId, model, files } = body;
+  const { message, agentId = 'ops', sessionKey, model } = body;
   if (!message?.trim()) {
     return NextResponse.json({ error: 'message required' }, { status: 400 });
   }
 
   const safeMsg = message.trim();
-  const ts = Date.now();
+  const effectiveSessionKey = sessionKey && sessionKey !== 'new'
+    ? sessionKey
+    : `${getDefaultSessionKey(agentId)}:${Date.now()}:${crypto.randomUUID().slice(0, 8)}`;
 
-  const chatSessionId = sessionId && sessionId !== 'new'
-    ? sessionId
-    : `chat:${agentId}:${userId}:${ts}:${randomUUID().slice(0, 8)}`;
-
-  const db = openDb(false);
-  db.prepare(
-    'INSERT INTO chat_messages (ts, user_id, role, content, openclaw_session_id) VALUES (?, ?, ?, ?, ?)'
-  ).run(ts, userId, 'user', safeMsg, chatSessionId);
-  db.close();
-
-  // Chiamata agente
-  let result: { text: string; model: string };
+  // Call agent
+  let responseContent: string;
   try {
-    result = callAgent(agentId, chatSessionId, safeMsg, model);
+    responseContent = callAgent(agentId, effectiveSessionKey, safeMsg, model || undefined);
   } catch (err: unknown) {
     const errMsg = (err as Error)?.message || String(err);
-    result = { text: `⚠️ Errore agente:\n\n\`\`\`\n${errMsg}\n\`\`\``, model: model || '' };
+    responseContent = `⚠️ Errore agente:\n\n\`\`\`\n${errMsg}\n\`\`\``;
   }
 
-  const responseContent = result.text || '[agente] risposta vuota';
-  const agentModel = result.model;
-
-  // Salva risposta agente
-  const db2 = openDb(false);
-  db2.prepare(
-    'INSERT INTO chat_messages (ts, user_id, role, content, openclaw_session_id, model) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(Date.now(), userId, 'agent', responseContent, chatSessionId, agentModel);
-  db2.close();
+  if (!responseContent) responseContent = '[agente] risposta vuota';
 
   // Stream SSE
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     start(controller) {
-      const meta = JSON.stringify({ sessionId: chatSessionId });
+      // First event: session key info
+      const meta = JSON.stringify({ sessionKey: effectiveSessionKey });
       controller.enqueue(encoder.encode(`data: ${meta}\n\n`));
 
+      // Then stream the response word by word
       const words = responseContent.split(/(\s+)/);
       let wordIdx = 0;
 

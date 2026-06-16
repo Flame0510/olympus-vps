@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 const navItems = [
   {
@@ -106,6 +106,18 @@ const navItems = [
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      const res = await fetch('/api/auth/logout', { method: 'POST' });
+      if (res.ok) {
+        router.push('/login');
+      }
+    } catch (err) {
+      console.error('Logout failed:', err);
+    }
+  };
 
   return (
     <nav className="mobile-bottom-nav">
@@ -123,6 +135,21 @@ export default function MobileBottomNav() {
             </Link>
           );
         })}
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="mobile-bottom-nav__item"
+          style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+        >
+          <span className="mobile-bottom-nav__icon">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11.5 3h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-2"/>
+              <path d="M7 13l-4-4 4-4"/>
+              <path d="M3 9h9"/>
+            </svg>
+          </span>
+          <span className="mobile-bottom-nav__label">Logout</span>
+        </button>
       </div>
     </nav>
   );

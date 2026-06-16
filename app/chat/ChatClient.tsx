@@ -32,12 +32,14 @@ interface AgentConversation {
 
 interface ChatSessionInfo {
   sessionId: string;
-  agentId: string;
+  key: string;
   label: string;
   msgCount: number;
   preview: string;
   lastTs: number;
-  source: 'web' | 'telegram';
+  source: string;
+  model?: string;
+  kind?: string;
 }
 
 // Emoji name → actual emoji mapping for OpenClaw identity.emoji
@@ -100,6 +102,31 @@ function resolveEmoji(emojiStr: string | undefined, fallback: string): string {
   // If it's a known emoji name
   if (EMOJI_MAP[emojiStr]) return EMOJI_MAP[emojiStr];
   return fallback;
+}
+
+function extractTextContent(content: any): string {
+  if (!content) return '';
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((c: any) => (typeof c === 'object' && c.type === 'text' ? c.text : ''))
+      .filter(Boolean)
+      .join('');
+  }
+  if (typeof content === 'object' && content.text) return content.text;
+  return '';
+}
+
+function getSourceIcon(source: string): string {
+  switch (source) {
+    case 'web': return '🌐';
+    case 'telegram': return '✈️';
+    case 'subagent': return '🧩';
+    case 'signal': return '🔒';
+    case 'whatsapp': return '💬';
+    case 'discord': return '🎮';
+    default: return '💬';
+  }
 }
 
 // Available model providers with their models — esattamente dalla config reale
@@ -185,8 +212,9 @@ export default function ChatClient() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pastedFiles, setPastedFiles] = useState<{ name: string; dataUrl: string }[]>([]);
   const [sessions, setSessions] = useState<ChatSessionInfo[]>([]);
+  const [selectedSessionKey, setSelectedSessionKey] = useState<string | null>(null);
   const [sessionsExpanded, setSessionsExpanded] = useState(true);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  // selectedSessionId replaced by selectedSessionKey
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -242,60 +270,76 @@ export default function ChatClient() {
   useEffect(() => {
     const timer = setTimeout(() => inputRef.current?.focus(), 100);
     return () => clearTimeout(timer);
-  }, [selectedAgent, selectedSessionId]);
+  }, [selectedAgent, selectedSessionKey]);
 
-  async function deleteSession(sessionId: string, label: string) {
+  async function deleteSession(sessionKey: string, label: string) {
     if (!confirm(`Eliminare la conversazione "${label}"?`)) return;
     try {
       const res = await fetch('/api/chat/delete-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({ sessionKey }),
       });
       if (!res.ok) throw new Error('delete failed');
-      if (selectedSessionId === sessionId) {
-        setSelectedSessionId('');
+      if (selectedSessionKey === sessionKey) {
+        setSelectedSessionKey(null);
         setConversations((prev) => ({ ...prev, [selectedAgent]: { agentId: selectedAgent, messages: [], sessionId: '' } }));
       }
       // Refresh sessions after delete
-      fetch(`/api/chat/sessions?agent=${selectedAgent}&userId=${USER_ID}`)
-        .then(r => r.json())
-        .then(data => { if (Array.isArray(data)) setSessions(data); })
-        .catch(() => {});
+      fetchSessions();
     } catch (e: unknown) {
       console.error('delete session error:', e);
     }
   }
 
-  // Load sessions list
-  useEffect(() => {
+  const fetchSessions = useCallback(() => {
     if (!selectedAgent) return;
-    fetch(`/api/chat/sessions?agent=${selectedAgent}&userId=${USER_ID}`)
+    fetch(`/api/chat/sessions?agentId=${selectedAgent}&limit=50`)
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setSessions(data); })
       .catch(() => {});
   }, [selectedAgent]);
 
-  // Load history
+  // Load sessions list
   useEffect(() => {
-    if (!selectedAgent) return;
-    fetch(`/api/chat/history?userId=${USER_ID}`)
+    fetchSessions();
+  }, [fetchSessions]);
+
+  // Load history for selected session
+  useEffect(() => {
+    if (!selectedSessionKey) {
+      setConversations(prev => ({ ...prev, [selectedAgent]: { agentId: selectedAgent, messages: [], sessionId: '' } }));
+      return;
+    }
+    fetch(`/api/chat/history?sessionKey=${encodeURIComponent(selectedSessionKey)}&limit=100`)
       .then(r => r.json())
-      .then((data: ChatMessage[]) => {
-        const msgs = Array.isArray(data)
-          ? data.filter(m => m.openclaw_session_id?.startsWith(`chat:${selectedAgent}:`) || !m.openclaw_session_id)
-          : [];
+      .then((data: any) => {
+        let messages: ChatMessage[] = [];
+        if (Array.isArray(data)) {
+          messages = data.map((m: any, i: number) => {
+            const role = m.role === 'assistant' ? 'agent' : (m.role === 'user' ? 'user' : 'user');
+            return {
+              id: i,
+              ts: m.timestamp || Date.now(),
+              user_id: role === 'user' ? USER_ID : selectedAgent,
+              role,
+              content: extractTextContent(m.content),
+              model: m.model || '',
+              openclaw_session_id: selectedSessionKey,
+            };
+          });
+        }
         setConversations(prev => ({
           ...prev,
           [selectedAgent]: {
             agentId: selectedAgent,
-            messages: msgs,
-            sessionId: msgs.length > 0 ? msgs[msgs.length - 1].openclaw_session_id || `chat:${selectedAgent}:${USER_ID}` : `chat:${selectedAgent}:${USER_ID}`,
+            messages,
+            sessionId: selectedSessionKey,
           }
         }));
       })
       .catch(() => {});
-  }, [selectedAgent]);
+  }, [selectedAgent, selectedSessionKey]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -303,34 +347,23 @@ export default function ChatClient() {
 
   const newSession = useCallback(() => {
     if (abortRef.current) abortRef.current.abort();
-    // 'new' è uno stato sentinella: al prossimo send l'API genererà un ID reale.
     setConversations(prev => ({
       ...prev,
       [selectedAgent]: { agentId: selectedAgent, messages: [], sessionId: 'new' },
     }));
-    setSelectedSessionId(null);
+    setSelectedSessionKey(null);
+    setSelectedModel('');
     setStreaming(false);
     setPastedFiles([]);
     inputRef.current?.focus();
   }, [selectedAgent]);
 
-  const loadSession = useCallback(async (sessionId: string) => {
+  const loadSession = useCallback(async (sessionKey: string) => {
     if (abortRef.current) abortRef.current.abort();
     setStreaming(false);
-    setSelectedSessionId(sessionId);
-    const agentId = selectedAgent;
-    try {
-      const res = await fetch(`/api/chat/history?userId=${USER_ID}`);
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        const msgs = data.filter((m: ChatMessage) => m.openclaw_session_id === sessionId || !m.openclaw_session_id);
-        setConversations(prev => ({
-          ...prev,
-          [agentId]: { agentId, messages: msgs, sessionId },
-        }));
-      }
-    } catch {}
+    setSelectedSessionKey(sessionKey);
     setSidebarOpen(false);
+    // History loading is handled by the useEffect on selectedSessionKey
   }, [selectedAgent]);
 
   const switchAgent = useCallback((agentId: string) => {
@@ -338,7 +371,7 @@ export default function ChatClient() {
     setStreaming(false);
     setPastedFiles([]);
     setSelectedAgent(agentId);
-    setSelectedSessionId(null);
+    setSelectedSessionKey(null);
     setSidebarOpen(false);
   }, []);
 
@@ -416,14 +449,13 @@ export default function ChatClient() {
     setInput('');
     setStreaming(true);
 
-    // Se sessionId è 'new' (creata da bottone Nuova chat),
-    // passiamo sessionId vuoto all'API per farle generare un ID fresco.
-    const currentSessionId = conversations[selectedAgent]?.sessionId;
-    const sendSessionId = currentSessionId && currentSessionId !== 'new' ? currentSessionId : '';
+    // Se sessionKey è 'new', passiamo vuoto per far generare un sessionKey fresco.
+    const currentSessionKey = conversations[selectedAgent]?.sessionId;
+    const sendSessionKey = currentSessionKey && currentSessionKey !== 'new' ? currentSessionKey : '';
     const conv = conversations[selectedAgent] || {
       agentId: selectedAgent,
       messages: [],
-      sessionId: sendSessionId,
+      sessionId: sendSessionKey,
     };
 
     // Build content string: text + file references
@@ -454,7 +486,7 @@ export default function ChatClient() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content, userId: USER_ID, agentId: selectedAgent, sessionId: sendSessionId, files: filesPayload, model: selectedModel || undefined }),
+        body: JSON.stringify({ message: content, agentId: selectedAgent, sessionKey: sendSessionKey, model: selectedModel || undefined }),
         signal: abortRef.current.signal,
       });
 
@@ -487,11 +519,11 @@ export default function ChatClient() {
           try {
             const json = JSON.parse(data);
             // Primo chunk: potrebbe contenere il sessionKey
-            if (!sessionKeyReceived && json.sessionId) {
+            if (!sessionKeyReceived && json.sessionKey) {
               sessionKeyReceived = true;
               setConversations(prev => ({
                 ...prev,
-                [selectedAgent]: { ...prev[selectedAgent]!, sessionId: json.sessionId },
+                [selectedAgent]: { ...prev[selectedAgent]!, sessionId: json.sessionKey },
               }));
               continue;
             }
@@ -601,7 +633,7 @@ export default function ChatClient() {
   }
 
   const currentConv = conversations[selectedAgent];
-  const currentSessionId = currentConv?.sessionId || `chat:${selectedAgent}:${USER_ID}`;
+  const currentSessionKey = currentConv?.sessionId || '';
   const currentAgent = agents.find(a => a.id === selectedAgent);
 
   // ---- RENDER ----
@@ -625,13 +657,7 @@ export default function ChatClient() {
               className={`chat-layout__agent-item${selectedAgent === agent.id ? ' chat-layout__agent-item--active' : ''}`}
               onClick={() => switchAgent(agent.id)}
             >
-              <span className="chat-layout__agent-icon">
-                {agent.id === 'ops' ? (
-                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="var(--copper)" strokeWidth="1.3"><ellipse cx="9" cy="9" rx="7" ry="5"/><circle cx="9" cy="9" r="3" fill="var(--copper)"/></svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="var(--copper)" strokeWidth="1.3"><rect x="3" y="3" width="12" height="12" rx="3"/><path d="M6 10l2-2 2 2 2-2"/></svg>
-                )}
-              </span>
+              <span className="chat-layout__agent-icon">{agent.emoji}</span>
               <div className="chat-layout__agent-info">
                 <span className="chat-layout__agent-name">{agent.name}</span>
                 <span className="chat-layout__agent-model">{agent.model}</span>
@@ -656,19 +682,22 @@ export default function ChatClient() {
               )}
               {sessions.map(s => (
                 <div
-                  key={s.sessionId}
-                  className={`chat-layout__session-item${selectedSessionId === s.sessionId ? ' chat-layout__session-item--active' : ''}`}
-                  onClick={() => loadSession(s.sessionId)}
+                  key={s.key || s.sessionId}
+                  className={`chat-layout__session-item${selectedSessionKey === s.key ? ' chat-layout__session-item--active' : ''}`}
+                  onClick={() => loadSession(s.key || s.sessionId)}
                 >
-                  <span className="chat-layout__session-source">💬</span>
+                  <span className="chat-layout__session-source">{getSourceIcon(s.source)}</span>
                   <div className="chat-layout__session-info">
-                    <span className="chat-layout__session-name">{s.label}</span>
+                    <span className="chat-layout__session-name">
+                      {s.label}
+                      <span className="chat-layout__session-badge">{s.source !== 'web' ? s.source : ''}</span>
+                    </span>
                     <span className="chat-layout__session-preview">{s.preview}</span>
                   </div>
                   <span className="chat-layout__session-msgs">{s.msgCount}</span>
                   <button
                     className="chat-layout__session-delete"
-                    onClick={(e) => { e.stopPropagation(); deleteSession(s.sessionId, s.label); }}
+                    onClick={(e) => { e.stopPropagation(); deleteSession(s.key || s.sessionId, s.label); }}
                     title="Elimina conversazione"
                     aria-label="Elimina conversazione"
                   >
@@ -689,7 +718,7 @@ export default function ChatClient() {
       <div className="chat-layout__main">
         {/* Header — allineato stile altre sezioni: 48px, serif, copper, border-bottom */}
         <div className="chat-layout__header">
-          <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="var(--copper)" strokeWidth="1.3"><ellipse cx="9" cy="9" rx="7" ry="5"/><circle cx="9" cy="9" r="3" fill="var(--copper)"/></svg>
+          <span className="chat-layout__header-emoji">{currentAgent?.emoji || '🤖'}</span>
           <div className="chat-layout__header-info">
             <span className="chat-layout__header-name">{currentAgent?.name || selectedAgent}</span>
             <span className="chat-layout__header-model">{selectedModel || currentAgent?.model || 'default'}{streaming && <span className="chat-layout__typing"> scrivendo...</span>}</span>
@@ -934,6 +963,7 @@ export default function ChatClient() {
         .chat-layout__session-source { font-size: 12px; flex-shrink: 0; }
         .chat-layout__session-info { flex: 1; min-width: 0; }
         .chat-layout__session-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; font-size: 11px; }
+        .chat-layout__session-badge { font-size: 9px; color: var(--text-dim); margin-left: 4px; opacity: 0.7; }
         .chat-layout__session-preview { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; color: var(--text-dim); margin-top: 1px; }
         .chat-layout__session-msgs { font-size: 10px; color: var(--text-dim); flex-shrink: 0; }
         .chat-layout__session-delete {
@@ -958,6 +988,7 @@ export default function ChatClient() {
           flex: 1; min-width: 0; overflow: hidden;
           display: flex; align-items: center; gap: 10px;
         }
+        .chat-layout__header-emoji { font-size: 18px; flex-shrink: 0; line-height: 1; margin-right: 8px; }
         .chat-layout__header-name {
           font-family: var(--font-mono-stack);
           font-size: 12px;

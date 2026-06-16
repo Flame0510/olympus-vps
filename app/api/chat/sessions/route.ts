@@ -1,49 +1,64 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { openDb } from '@/lib/db';
+import { execSync } from 'child_process';
 
 export const dynamic = 'force-dynamic';
 
+function getSourceLabel(key: string): string {
+  if (!key) return 'unknown';
+  if (key.includes(':telegram:')) return 'telegram';
+  if (key.includes(':chat:') || key.includes(':web:')) return 'web';
+  if (key.includes(':subagent:') || key.startsWith('spawn-child')) return 'subagent';
+  // The main session for each agent is typically the ongoing Telegram conversation
+  if (key.includes(':main') && !key.includes(':chat:')) return 'telegram';
+  return 'other';
+}
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const agentId = request.nextUrl.searchParams.get('agent') || '';
-  const userId = request.nextUrl.searchParams.get('userId') || 'web';
+  const agentId = request.nextUrl.searchParams.get('agentId') || '';
+  const limit = Math.min(parseInt(request.nextUrl.searchParams.get('limit') || '100', 10) || 100, 500);
 
   try {
-    const db = openDb(true);
-    const sessions: { sessionId: string; label: string; msgCount: number; preview: string; lastTs: number }[] = [];
+    // Use openclaw sessions CLI
+    const cmd = agentId
+      ? `/usr/local/bin/openclaw sessions --agent ${agentId} --json --limit ${limit} 2>/dev/null`
+      : `/usr/local/bin/openclaw sessions --json --limit ${limit} 2>/dev/null`;
 
-    const chatRows = db.prepare(`
-      SELECT 
-        COALESCE(c.openclaw_session_id, 'chat:' || ? || ':' || ?) as session_id,
-        COUNT(*) as msg_count,
-        MIN(c.ts) as first_ts,
-        MAX(c.ts) as last_ts
-      FROM chat_messages c
-      WHERE c.user_id = ?
-        AND (c.openclaw_session_id LIKE 'chat:' || ? || ':%' OR c.openclaw_session_id IS NULL)
-      GROUP BY COALESCE(c.openclaw_session_id, 'chat:' || ? || ':' || ?)
-      ORDER BY last_ts DESC
-      LIMIT 50
-    `).all(agentId, userId, userId, agentId, agentId, userId);
+    const raw = execSync(cmd, { encoding: 'utf-8', timeout: 10000 });
 
-    for (const row of chatRows as any[]) {
-      const previewRow = db.prepare(`
-        SELECT content FROM chat_messages 
-        WHERE openclaw_session_id = ? AND user_id = ?
-        ORDER BY ts DESC LIMIT 1
-      `).get(row.session_id, userId) as { content: string } | undefined;
-
-      sessions.push({
-        sessionId: row.session_id,
-        label: `Chat ${new Date(row.first_ts || row.last_ts).toLocaleDateString('it-IT', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`,
-        msgCount: row.msg_count,
-        preview: previewRow?.content?.slice(0, 80) || '',
-        lastTs: row.last_ts,
-      });
+    // Parse JSON from CLI output (may have extra log lines)
+    const jsonStart = raw.indexOf('[');
+    const jsonEnd = raw.lastIndexOf(']') + 1;
+    if (jsonStart === -1 || jsonEnd <= jsonStart) {
+      return NextResponse.json([]);
     }
 
-    db.close();
-    return NextResponse.json(sessions);
-  } catch (e: unknown) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    const sessions = JSON.parse(raw.slice(jsonStart, jsonEnd));
+    const mapped = (Array.isArray(sessions) ? sessions : []).map((s: any) => {
+      const key: string = s.key || s.session_key || '';
+      const updatedAt = s.updatedAt || s.ts || 0;
+      // Get a human-readable label
+      const label = s.label || s.displayName || (() => {
+        // Format: "Chat 16 Jun 11:22"
+        const d = new Date(updatedAt);
+        return `${d.toLocaleDateString('it-IT', { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
+      })();
+
+      return {
+        sessionId: s.sessionId || key.split(':').pop() || '',
+        key,
+        label,
+        msgCount: s.messageCount || s.msgCount || 0,
+        preview: s.preview || '',
+        lastTs: updatedAt,
+        source: getSourceLabel(key),
+        model: s.model || '',
+        kind: s.kind || 'direct',
+      };
+    });
+
+    return NextResponse.json(mapped);
+  } catch (e: any) {
+    console.error('sessions.list error:', e.message);
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

@@ -524,9 +524,10 @@ function pollSessions() {
   for (const s of sessions) {
     const session_id = s.key;
 
-    // Skip Telegram channel sessions — they are communication channels, not agents.
-    // Tracking them adds noise to the graph without operational value.
-    if (session_id.includes(':telegram:')) continue;
+    // Skip Telegram channel/group sessions (multi-user).
+    // Keep Telegram direct sessions (agent:ops:telegram:argus:direct:...) as root nodes
+    // since they are the parent of all sub-agents spawned via Telegram.
+    if (session_id.includes(':telegram:') && !session_id.includes(':direct:')) continue;
     const { label, parent_id: inferredParent } = parseSessionKey(s.key);
     // Use parentSessionKey if present, otherwise declared lineage, otherwise inferred (always null now)
     const parent_id = s.parentSessionKey || declaredLineage[session_id] || inferredParent;

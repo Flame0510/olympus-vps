@@ -2,8 +2,8 @@ module.exports = {
   apps: [
     {
       name: 'olympus-daemon',
-      script: '/data/.openclaw/workspace-ops/olympus-next-ts/daemon.js',
-      cwd: '/data/.openclaw/workspace-ops/olympus-next-ts',
+      script: '/data/.openclaw/workspace-ops/olympus/daemon.js',
+      cwd: '/data/.openclaw/workspace-ops/olympus',
       env: {
         OLYMPUS_DB: '/data/olympus/events.db',
         OLYMPUS_TIMEZONE: 'Europe/Rome',
@@ -16,7 +16,7 @@ module.exports = {
       name: 'olympus-next',
       script: './node_modules/.bin/next',
       args: 'start -p 3720',
-      cwd: '/data/.openclaw/workspace-ops/olympus-next-ts',
+      cwd: '/data/.openclaw/workspace-ops/olympus',
       env: {
         PORT: 3720,
         OLYMPUS_TOKEN: 'olympus2026',
