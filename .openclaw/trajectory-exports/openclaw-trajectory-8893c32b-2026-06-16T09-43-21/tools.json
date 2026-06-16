@@ -1,0 +1,1946 @@
+[
+  {
+    "name": "agents_list",
+    "description": "List agent ids allowed for `sessions_spawn runtime=\"subagent\"`.",
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "browser",
+    "description": "Control the browser via OpenClaw's browser control server (status/start/stop/profiles/tabs/open/snapshot/screenshot/actions). Browser choice: omit profile by default for the isolated OpenClaw-managed browser (`openclaw`). For the logged-in user browser, use profile=\"user\". A supported Chromium-based browser (v144+) must be running on the selected host or browser node. Use only when existing logins/cookies matter and the user is present. For profile=\"user\" or other existing-session profiles, omit timeoutMs on act:type, evaluate, hover, scrollIntoView, drag, select, and fill; that driver rejects per-call timeout overrides for those actions. When a node-hosted browser proxy is available, the tool may auto-route to it. Pin a node with node=<id|name> or target=\"node\". When using refs from snapshot (e.g. e12), keep the same tab: prefer passing targetId from the snapshot response into subsequent actions (act/click/type/etc). For tab operations, targetId also accepts tabId handles (t1) and labels from action=tabs. For multi-step browser work, login checks, stale refs, duplicate tabs, or Google Meet flows, use the bundled browser-automation skill when it is available. For stable, self-resolving refs across calls, use snapshot with refs=\"aria\" (Playwright aria-ref ids). Default refs=\"role\" are role+name-based. Use snapshot+act for UI automation. Avoid act:wait by default; use only in exceptional cases when no reliable UI state exists. target selects browser location (sandbox|host|node). Default: host. Host target allowed.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "action"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "target": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "node": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "targetUrl": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "targetId": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "number"
+        },
+        "maxChars": {
+          "type": "number"
+        },
+        "mode": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "snapshotFormat": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "refs": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "interactive": {
+          "type": "boolean"
+        },
+        "compact": {
+          "type": "boolean"
+        },
+        "depth": {
+          "type": "number"
+        },
+        "selector": {
+          "type": "string"
+        },
+        "frame": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "boolean"
+        },
+        "urls": {
+          "type": "boolean"
+        },
+        "fullPage": {
+          "type": "boolean"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "element": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "level": {
+          "type": "string"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "inputRef": {
+          "type": "string"
+        },
+        "timeoutMs": {
+          "type": "number"
+        },
+        "dialogId": {
+          "type": "string"
+        },
+        "accept": {
+          "type": "boolean"
+        },
+        "promptText": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "doubleClick": {
+          "type": "boolean"
+        },
+        "button": {
+          "type": "string"
+        },
+        "modifiers": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "text": {
+          "type": "string"
+        },
+        "submit": {
+          "type": "boolean"
+        },
+        "slowly": {
+          "type": "boolean"
+        },
+        "key": {
+          "type": "string"
+        },
+        "delayMs": {
+          "type": "number"
+        },
+        "startRef": {
+          "type": "string"
+        },
+        "endRef": {
+          "type": "string"
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "width": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        },
+        "timeMs": {
+          "type": "number"
+        },
+        "textGone": {
+          "type": "string"
+        },
+        "loadState": {
+          "type": "string"
+        },
+        "fn": {
+          "type": "string"
+        },
+        "request": {
+          "type": "object",
+          "required": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "properties": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "cron",
+    "description": "Manage Gateway cron jobs and wake events: reminders, check-back-later, delayed follow-ups, recurring work. Do not emulate scheduling with exec sleep/process polling.\n\nMain cron => system events for heartbeat. Isolated cron => background task in `openclaw tasks`.\n\nACTIONS:\n- status: scheduler status\n- list: jobs; includeDisabled true includes disabled; agentId filter auto-filled from session\n- get: one job; needs jobId\n- add: create job; needs job object\n- update: patch job; needs jobId + patch\n- remove: delete job; needs jobId\n- run: trigger now; needs jobId\n- runs: run history; needs jobId\n- wake: send wake event; needs text, optional mode\n\nJOB SCHEMA (for add action):\n{\n  \"name\": \"string\",\n  \"schedule\": { ... },      // required\n  \"payload\": { ... },       // required\n  \"delivery\": { ... },      // optional announce for isolated/current/session, webhook for any target\n  \"sessionTarget\": \"main\" | \"isolated\" | \"current\" | \"session:<id>\",\n  \"enabled\": true | false   // default true\n}\n\nSESSION TARGET OPTIONS:\n- \"main\": main session; requires payload.kind=\"systemEvent\"\n- \"isolated\": ephemeral isolated session; requires payload.kind=\"agentTurn\"\n- \"current\": bind current session at creation\n- \"session:<id>\": persistent named session\n\nDEFAULTS:\n- payload.kind=\"systemEvent\" → defaults to \"main\"\n- payload.kind=\"agentTurn\" → defaults to \"isolated\"\nCurrent binding needs sessionTarget=\"current\".\n\nSCHEDULE TYPES (schedule.kind):\n- \"at\": one-shot absolute time\n  { \"kind\": \"at\", \"at\": \"<ISO-8601 timestamp>\" }\n- \"every\": recurring interval\n  { \"kind\": \"every\", \"everyMs\": <ms>, \"anchorMs\": <optional-ms> }\n- \"cron\": expr in supplied timezone, or Gateway host local timezone when tz omitted\n  { \"kind\": \"cron\", \"expr\": \"<cron-expression>\", \"tz\": \"<optional-IANA-timezone>\" }\n  Write expr in local wall-clock time; do not convert the requested local time to UTC first.\n  tz omitted => Gateway host local timezone, not UTC.\n  Example 6pm Shanghai daily: { \"kind\": \"cron\", \"expr\": \"0 18 * * *\", \"tz\": \"Asia/Shanghai\" }\n\nFor \"at\", ISO timestamps without timezone are UTC.\n\nPAYLOAD TYPES (payload.kind):\n- \"systemEvent\": inject text as system event\n  { \"kind\": \"systemEvent\", \"text\": \"<message>\" }\n- \"agentTurn\": run agent with prompt; isolated/current/session only\n  { \"kind\": \"agentTurn\", \"message\": \"<prompt>\", \"model\": \"<optional>\", \"thinking\": \"<optional>\", \"timeoutSeconds\": <optional, 0=no timeout> }\n\nDELIVERY (top-level):\n  { \"mode\": \"none|announce|webhook\", \"channel\": \"<optional>\", \"to\": \"<optional>\", \"threadId\": \"<optional>\", \"bestEffort\": <optional-bool> }\n  - isolated agentTurn default when omitted: \"announce\"\n  - announce: send to chat channel; isolated/current/session only; optional channel/to\n  - threadId: chat thread/topic id\n  - webhook: POST finished-run event to delivery.to URL\n  - Specific chat/recipient: set announce delivery.channel/to; do not call messaging tools inside run.\n\nCRITICAL CONSTRAINTS:\n- sessionTarget=\"main\" REQUIRES payload.kind=\"systemEvent\"\n- sessionTarget=\"isolated\" | \"current\" | \"session:xxx\" REQUIRES payload.kind=\"agentTurn\"\n- Webhook: delivery.mode=\"webhook\" and delivery.to URL.\nDefault: prefer isolated agentTurn jobs unless the user explicitly wants current-session binding.\n\nRESTRICTED CRON RUNS:\n- Some isolated cron runs get narrow self-cleanup grant: status/list self-only, get/runs current job only, mutation only remove current job.\n\nWAKE MODES (for wake action):\n- \"next-heartbeat\" default: wake next heartbeat\n- \"now\": wake immediately\n\nUse jobId canonical; id accepted compat. contextMessages (0-10) adds previous messages as job context.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "action"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "gatewayUrl": {
+          "type": "string"
+        },
+        "timeoutMs": {
+          "type": "number"
+        },
+        "includeDisabled": {
+          "type": "boolean"
+        },
+        "job": {
+          "type": "object",
+          "properties": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "additionalProperties": true
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "patch": {
+          "type": "object",
+          "properties": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "additionalProperties": true
+        },
+        "text": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "runMode": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "contextMessages": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "agentId": {
+          "type": "string",
+          "description": "List filter: agent id"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "dir_fetch",
+    "description": "Retrieve a directory tree from a paired node as a gzipped tarball, unpack it on the gateway, and return a manifest of saved paths. Use to pull source trees, asset folders, or log directories in a single round-trip. The unpacked files live on the GATEWAY (not your local machine); pass localPath into other tools or use file_fetch on individual entries to ship them elsewhere. Rejects trees larger than 16 MB compressed. Requires operator opt-in: gateway.nodes.allowCommands must include 'dir.fetch' AND plugins.entries.file-transfer.config.nodes.<node>.allowReadPaths must match the directory path.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "node",
+        "path"
+      ],
+      "properties": {
+        "node": {
+          "type": "string",
+          "description": "Node id, name, or IP. Resolves the same way as the nodes tool."
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute path to the directory on the node to fetch. Canonicalized server-side."
+        },
+        "maxBytes": {
+          "type": "number",
+          "description": "Max gzipped tarball bytes to fetch. Default 8 MB, hard ceiling 16 MB (single round-trip)."
+        },
+        "includeDotfiles": {
+          "type": "boolean",
+          "description": "Reserved for v2; currently always includes dotfiles (v1 quirk in BSD tar)."
+        },
+        "gatewayUrl": {
+          "type": "string"
+        },
+        "timeoutMs": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  {
+    "name": "dir_list",
+    "description": "Retrieve a structured directory listing from a paired node. Returns file and subdirectory metadata (name, path, size, mimeType, isDir, mtime) without transferring file content. Use this to discover what files exist before fetching them with file_fetch. Pagination is offset-based; pass nextPageToken from the previous result. Requires operator opt-in: gateway.nodes.allowCommands must include 'dir.list' AND plugins.entries.file-transfer.config.nodes.<node>.allowReadPaths must match the directory path. Without policy configured, every call is denied.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "node",
+        "path"
+      ],
+      "properties": {
+        "node": {
+          "type": "string",
+          "description": "Node id, name, or IP. Resolves the same way as the nodes tool."
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute path to the directory on the node. Canonicalized server-side."
+        },
+        "maxEntries": {
+          "type": "number",
+          "description": "Max entries per page. Default 200, hard ceiling 5000."
+        },
+        "gatewayUrl": {
+          "type": "string"
+        },
+        "timeoutMs": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  {
+    "name": "edit",
+    "description": "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "path",
+        "edits"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to the file to edit (relative or absolute)"
+        },
+        "edits": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "exec",
+    "description": "Execute shell commands with background continuation for work that starts now. Use yieldMs/background to continue later via process tool. For long-running work started now, rely on automatic completion wake when it is enabled and the command emits output or fails; otherwise use process to confirm completion. Use process whenever you need logs, status, input, or intervention. Do not use exec sleep or delay loops for reminders or deferred follow-ups; use cron instead. Use pty=true for TTY-required commands (terminal UIs, coding agents).",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "command"
+      ],
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Shell command to execute"
+        },
+        "workdir": {
+          "type": "string",
+          "description": "Working directory (defaults to cwd)"
+        },
+        "env": {
+          "type": "object",
+          "patternProperties": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "yieldMs": {
+          "type": "number",
+          "description": "Milliseconds to wait before backgrounding (default 10000)"
+        },
+        "background": {
+          "type": "boolean",
+          "description": "Run in background immediately"
+        },
+        "timeout": {
+          "type": "number",
+          "description": "Timeout in seconds (optional, kills process on expiry)"
+        },
+        "pty": {
+          "type": "boolean",
+          "description": "Run in a pseudo-terminal (PTY) when available (TTY-required CLIs, coding agents)"
+        },
+        "elevated": {
+          "type": "boolean",
+          "description": "Run on the host with elevated permissions (if allowed)"
+        },
+        "host": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Exec host/target (auto|sandbox|gateway|node)."
+        },
+        "security": {
+          "type": "string",
+          "description": "Ignored for normal calls; exec security is set by tools.exec.security and host approvals."
+        },
+        "ask": {
+          "type": "string",
+          "description": "Exec ask mode (off|on-miss|always)."
+        },
+        "node": {
+          "type": "string",
+          "description": "Node id/name for host=node."
+        }
+      }
+    }
+  },
+  {
+    "name": "file_fetch",
+    "description": "Retrieve a file from a paired node by absolute path. Returns image content blocks for image MIME types, inlines small text files (≤8 KB) as text content, and saves everything else under the gateway media store with a path you can pass to file_write or other tools. Use this for screenshots, photos, receipts, logs, source files. Pair with file_write to copy a file from one node to another (no exec/cp shell-out needed). Requires operator opt-in: gateway.nodes.allowCommands must include 'file.fetch' AND plugins.entries.file-transfer.config.nodes.<node>.allowReadPaths must match the path. Without policy configured, every call is denied.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "node",
+        "path"
+      ],
+      "properties": {
+        "node": {
+          "type": "string",
+          "description": "Node id, name, or IP. Resolves the same way as the nodes tool."
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute path to the file on the node. Canonicalized server-side."
+        },
+        "maxBytes": {
+          "type": "number",
+          "description": "Max bytes to fetch. Default 8 MB, hard ceiling 16 MB (single round-trip)."
+        },
+        "gatewayUrl": {
+          "type": "string"
+        },
+        "timeoutMs": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  {
+    "name": "file_write",
+    "description": "Write file bytes to a paired node by absolute path. Atomic write (temp + rename). Refuses to overwrite by default — pass overwrite=true to replace. Refuses to write through symlink targets unless policy explicitly allows following symlinks. Pair with file_fetch by passing its mediaId as sourceMediaId for binary copy. Requires operator opt-in: gateway.nodes.allowCommands must include 'file.write' AND plugins.entries.file-transfer.config.nodes.<node>.allowWritePaths must match the destination path. Without policy configured, every call is denied.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "node",
+        "path"
+      ],
+      "properties": {
+        "node": {
+          "type": "string",
+          "description": "Node id or display name to write the file on."
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute path on the node to write. Canonicalized server-side."
+        },
+        "contentBase64": {
+          "type": "string",
+          "description": "Base64-encoded bytes to write. Maximum 16 MB after decode."
+        },
+        "sourceMediaId": {
+          "type": "string",
+          "description": "Media id returned by file_fetch. Preferred for binary copies because bytes stay in the gateway media store."
+        },
+        "mimeType": {
+          "type": "string",
+          "description": "Content type hint. Not validated against the content."
+        },
+        "overwrite": {
+          "type": "boolean",
+          "description": "Allow overwriting an existing file. Default false.",
+          "default": false
+        },
+        "createParents": {
+          "type": "boolean",
+          "description": "Create missing parent directories (mkdir -p). Default false.",
+          "default": false
+        }
+      }
+    }
+  },
+  {
+    "name": "gateway",
+    "description": "Gateway restart/config/update. Before config edits, use config.schema.lookup with targeted dot path. Prefer config.patch for partial merge; config.apply only full replace. Writes hot-reload or restart as needed. Always pass human `note` for post-restart delivery. If still owe the user a reply, pass one-shot `continuationMessage`; do not write restart sentinel files directly.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "action"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "delayMs": {
+          "type": "number"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "continuationMessage": {
+          "type": "string"
+        },
+        "gatewayUrl": {
+          "type": "string"
+        },
+        "timeoutMs": {
+          "type": "number"
+        },
+        "path": {
+          "type": "string"
+        },
+        "raw": {
+          "type": "string"
+        },
+        "baseHash": {
+          "type": "string"
+        },
+        "sessionKey": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "restartDelayMs": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  {
+    "name": "image",
+    "description": "Analyze images with available vision model. Use image for one path/URL, images for max 20. Prompt says what to inspect.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string",
+          "description": "One image path/URL."
+        },
+        "images": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Image paths/URLs; maxImages default 20."
+        },
+        "model": {
+          "type": "string"
+        },
+        "maxBytesMb": {
+          "type": "number"
+        },
+        "maxImages": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  {
+    "name": "image_generate",
+    "description": "Create/edit images. Session chats: background task; do not call image_generate again for same request; wait completion, then send attachments via message tool. Transparent: outputFormat=\"png\" or \"webp\" + background=\"transparent\"; OpenAI also supports openai.background and routes default model to gpt-image-1.5. Use action=\"list\" for providers/models/readiness/auth, \"status\" for active task.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "description": "\"generate\" default, \"status\" active task, \"list\" providers/models."
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Image prompt."
+        },
+        "image": {
+          "type": "string",
+          "description": "Reference image path/URL for edit."
+        },
+        "images": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Reference images for edit; max 5."
+        },
+        "model": {
+          "type": "string",
+          "description": "Provider/model override, e.g. openai/gpt-image-2; transparent OpenAI: openai/gpt-image-1.5."
+        },
+        "filename": {
+          "type": "string",
+          "description": "Output filename hint; basename preserved in managed media dir."
+        },
+        "size": {
+          "type": "string",
+          "description": "Size hint: 1024x1024, 1536x1024, 1024x1536, 2048x2048, 3840x2160."
+        },
+        "aspectRatio": {
+          "type": "string",
+          "description": "Aspect ratio: 1:1, 2:3, 3:2, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9."
+        },
+        "resolution": {
+          "type": "string",
+          "description": "Resolution: 1K, 2K, 4K; useful for Google."
+        },
+        "quality": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Quality: low, medium, high, auto."
+        },
+        "outputFormat": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Output format: png, jpeg, webp."
+        },
+        "background": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Background: transparent, opaque, auto. Transparent needs png/webp output."
+        },
+        "openai": {
+          "type": "object",
+          "properties": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "count": {
+          "type": "number",
+          "description": "Image count 1-4.",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "timeoutMs": {
+          "type": "number",
+          "description": "Provider timeout ms.",
+          "minimum": 1
+        }
+      }
+    }
+  },
+  {
+    "name": "memory_get",
+    "description": "Safe exact excerpt read from MEMORY.md or memory/*.md. Defaults to a bounded excerpt when lines are omitted, includes truncation/continuation info when more content exists, and `corpus=wiki` reads from registered compiled-wiki supplements.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "from": {
+          "type": "number"
+        },
+        "lines": {
+          "type": "number"
+        },
+        "corpus": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "memory_search",
+    "description": "Mandatory recall step: semantically search MEMORY.md + memory/*.md (and optional session transcripts) before answering questions about prior work, decisions, dates, people, preferences, or todos. Optional `corpus=wiki` or `corpus=all` also searches registered compiled-wiki supplements. `corpus=memory` restricts hits to indexed memory files (excludes session transcript chunks from ranking). `corpus=sessions` restricts hits to indexed session transcripts (same visibility rules as session history tools). If response has disabled=true, memory retrieval is unavailable and should be surfaced to the user.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "maxResults": {
+          "type": "number"
+        },
+        "minScore": {
+          "type": "number"
+        },
+        "corpus": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "message",
+    "description": "Send/delete/manage channel messages. Supports actions: delete, edit, poll, react, send, topic-create, topic-edit.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "action"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "channel": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string",
+          "description": "Recipient/channel: E.164 for WhatsApp/Signal, Telegram chat id/@username, Discord/Slack/Mattermost <channelId|user:ID|channel:ID>, or iMessage handle/chat_id"
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "accountId": {
+          "type": "string"
+        },
+        "dryRun": {
+          "type": "boolean"
+        },
+        "message": {
+          "type": "string"
+        },
+        "effectId": {
+          "type": "string",
+          "description": "Effect id/name for sendWithEffect."
+        },
+        "effect": {
+          "type": "string",
+          "description": "Alias for effectId."
+        },
+        "media": {
+          "type": "string",
+          "description": "Media URL/path. data: use buffer."
+        },
+        "filename": {
+          "type": "string"
+        },
+        "buffer": {
+          "type": "string",
+          "description": "Base64 attachment payload; data URL ok."
+        },
+        "contentType": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "caption": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Structured attachments; each needs media/mediaUrl/path/filePath/fileUrl/url."
+        },
+        "replyTo": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "asVoice": {
+          "type": "boolean"
+        },
+        "silent": {
+          "type": "boolean"
+        },
+        "quoteText": {
+          "type": "string",
+          "description": "Telegram reply quote text."
+        },
+        "bestEffort": {
+          "type": "boolean"
+        },
+        "gifPlayback": {
+          "type": "boolean"
+        },
+        "forceDocument": {
+          "type": "boolean",
+          "description": "Send image/GIF/video as document; avoids compression."
+        },
+        "asDocument": {
+          "type": "boolean",
+          "description": "Alias for forceDocument."
+        },
+        "presentation": {
+          "type": "object",
+          "required": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "properties": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Rich message payload: text/buttons/selects/context. Unsupported blocks degrade to text."
+        },
+        "delivery": {
+          "type": "object",
+          "properties": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Delivery prefs. pin requests pin when channel supports it."
+        },
+        "messageId": {
+          "type": "string",
+          "description": "Target message id for read/react/edit/delete/pin/unpin. Reaction-like defaults current inbound id when available."
+        },
+        "message_id": {
+          "type": "string",
+          "description": "snake_case alias of messageId; same defaults."
+        },
+        "emoji": {
+          "type": "string"
+        },
+        "remove": {
+          "type": "boolean"
+        },
+        "trackToolCalls": {
+          "type": "boolean",
+          "description": "For current-message reaction, make reacted message the tool-progress reaction target."
+        },
+        "track_tool_calls": {
+          "type": "boolean",
+          "description": "snake_case alias of trackToolCalls."
+        },
+        "targetAuthor": {
+          "type": "string"
+        },
+        "targetAuthorUuid": {
+          "type": "string"
+        },
+        "groupId": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "number"
+        },
+        "pageSize": {
+          "type": "number"
+        },
+        "before": {
+          "type": "string"
+        },
+        "after": {
+          "type": "string"
+        },
+        "around": {
+          "type": "string"
+        },
+        "fromMe": {
+          "type": "boolean"
+        },
+        "includeArchived": {
+          "type": "boolean"
+        },
+        "pollId": {
+          "type": "string"
+        },
+        "pollOptionId": {
+          "type": "string",
+          "description": "Poll answer id."
+        },
+        "pollOptionIds": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "pollOptionIndex": {
+          "type": "number",
+          "description": "1-based poll option number."
+        },
+        "pollOptionIndexes": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "pollQuestion": {
+          "type": "string"
+        },
+        "pollOption": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "pollDurationHours": {
+          "type": "number"
+        },
+        "pollMulti": {
+          "type": "boolean"
+        },
+        "channelId": {
+          "type": "string",
+          "description": "Channel id filter."
+        },
+        "chatId": {
+          "type": "string",
+          "description": "Chat id for chat metadata."
+        },
+        "channelIds": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "memberId": {
+          "type": "string"
+        },
+        "memberIdType": {
+          "type": "string"
+        },
+        "guildId": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "openId": {
+          "type": "string"
+        },
+        "unionId": {
+          "type": "string"
+        },
+        "_truncated": {
+          "truncated": true,
+          "reason": "trajectory-object-size-limit",
+          "originalKeys": 114,
+          "limitKeys": 64
+        }
+      }
+    }
+  },
+  {
+    "name": "music_generate",
+    "description": "Create audio/music for song, jingle, beat, loop, soundtrack, anthem, instrumental requests. If user asks make/generate/create song/music, call music_generate; do not just write lyrics unless lyrics/text only. Prompt gets style/genre/mood/tempo/instruments/purpose. lyrics only exact sung words. Session chats: background task; do not call again for same request; wait completion, send attachments via message tool. \"status\" checks active task.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "description": "\"generate\" default, \"status\" active task, \"list\" providers/models."
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Music prompt: style, genre, mood, purpose."
+        },
+        "lyrics": {
+          "type": "string",
+          "description": "Exact sung lyrics only when the user supplies lyrics or asks for vocal words. For song/style requests, use prompt instead."
+        },
+        "instrumental": {
+          "type": "boolean",
+          "description": "Instrumental-only toggle."
+        },
+        "image": {
+          "type": "string",
+          "description": "Reference image path/URL."
+        },
+        "images": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Reference images; max 10."
+        },
+        "model": {
+          "type": "string",
+          "description": "Provider/model override, e.g. google/lyria-3-pro-preview."
+        },
+        "durationSeconds": {
+          "type": "number",
+          "description": "Target seconds; provider may clamp.",
+          "minimum": 1
+        },
+        "format": {
+          "type": "string",
+          "description": "Output format: mp3, wav."
+        },
+        "filename": {
+          "type": "string",
+          "description": "Output filename hint; basename preserved in managed media dir."
+        }
+      }
+    }
+  },
+  {
+    "name": "nodes",
+    "description": "Discover/control paired nodes: status, describe, pairing, notify, camera/photos/screen/location/notifications/invoke. Use file_fetch for files.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "action"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "gatewayUrl": {
+          "type": "string"
+        },
+        "timeoutMs": {
+          "type": "number"
+        },
+        "node": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "sound": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "delivery": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "facing": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "camera_snap: front/back/both; camera_clip: front/back only."
+        },
+        "maxWidth": {
+          "type": "number"
+        },
+        "quality": {
+          "type": "number"
+        },
+        "delayMs": {
+          "type": "number"
+        },
+        "deviceId": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "number"
+        },
+        "duration": {
+          "type": "string"
+        },
+        "durationMs": {
+          "type": "number",
+          "maximum": 300000
+        },
+        "includeAudio": {
+          "type": "boolean"
+        },
+        "fps": {
+          "type": "number"
+        },
+        "screenIndex": {
+          "type": "number"
+        },
+        "outPath": {
+          "type": "string"
+        },
+        "maxAgeMs": {
+          "type": "number"
+        },
+        "locationTimeoutMs": {
+          "type": "number"
+        },
+        "desiredAccuracy": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "notificationAction": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "notificationKey": {
+          "type": "string"
+        },
+        "notificationReplyText": {
+          "type": "string"
+        },
+        "invokeCommand": {
+          "type": "string"
+        },
+        "invokeParamsJson": {
+          "type": "string"
+        },
+        "invokeTimeoutMs": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  {
+    "name": "pdf",
+    "description": "Analyze PDFs with model. Anthropic/Google native PDF when supported; else text/image extraction. Use pdf for one, pdfs for max 10; prompt says what to inspect.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string"
+        },
+        "pdf": {
+          "type": "string",
+          "description": "One PDF path/URL."
+        },
+        "pdfs": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "PDF paths/URLs; max 10."
+        },
+        "pages": {
+          "type": "string",
+          "description": "Pages, e.g. \"1-5\", \"1,3,5-7\"; default all."
+        },
+        "model": {
+          "type": "string"
+        },
+        "maxBytesMb": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  {
+    "name": "process",
+    "description": "Manage running exec sessions for commands already started: list, poll, log, write, send-keys, submit, paste, kill. Use poll/log when you need status, logs, quiet-success confirmation, or completion confirmation when automatic completion wake is unavailable. Use poll/log also for input-wait hints. Use write/send-keys/submit/paste/kill for input or intervention. Do not use process polling to emulate timers or reminders; use cron for scheduled follow-ups.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "action"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "description": "Process action (list|poll|log|write|send-keys|submit|paste|kill|clear|remove)"
+        },
+        "sessionId": {
+          "type": "string",
+          "description": "Session id for actions other than list"
+        },
+        "data": {
+          "type": "string",
+          "description": "Data to write for write"
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Key tokens to send for send-keys"
+        },
+        "hex": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Hex bytes to send for send-keys"
+        },
+        "literal": {
+          "type": "string",
+          "description": "Literal string for send-keys"
+        },
+        "text": {
+          "type": "string",
+          "description": "Text to paste for paste"
+        },
+        "bracketed": {
+          "type": "boolean",
+          "description": "Wrap paste in bracketed mode"
+        },
+        "eof": {
+          "type": "boolean",
+          "description": "Close stdin after write"
+        },
+        "offset": {
+          "type": "number",
+          "description": "Log offset"
+        },
+        "limit": {
+          "type": "number",
+          "description": "Log length"
+        },
+        "timeout": {
+          "type": "number",
+          "description": "For poll: wait up to this many milliseconds before returning; max 30000 ms, higher values are clamped to 30000",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  {
+    "name": "read",
+    "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to the file to read (relative or absolute)"
+        },
+        "offset": {
+          "type": "number",
+          "description": "Line number to start reading from (1-indexed)"
+        },
+        "limit": {
+          "type": "number",
+          "description": "Maximum number of lines to read"
+        }
+      }
+    }
+  },
+  {
+    "name": "session_status",
+    "description": "Show /status-like card for current/visible session: model, usage, time, cost, tasks. Use `sessionKey=\"current\"` for current session; UI labels like `openclaw-tui` are not keys. `model` sets session override; `model=default` resets. Use for active model/session config questions.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "sessionKey": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "name": "sessions_history",
+    "description": "Fetch sanitized history for visible session. Use before replying, debugging, resuming; supports limits/tool messages.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "sessionKey"
+      ],
+      "properties": {
+        "sessionKey": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "number",
+          "minimum": 1
+        },
+        "includeTools": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  {
+    "name": "sessions_list",
+    "description": "List visible sessions; filter by kind, label, agentId, search, activity. Use before sessions_history or sessions_send target selection.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "kinds": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "limit": {
+          "type": "number",
+          "minimum": 1
+        },
+        "activeMinutes": {
+          "type": "number",
+          "minimum": 1
+        },
+        "messageLimit": {
+          "type": "number",
+          "minimum": 0
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "agentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "search": {
+          "type": "string",
+          "minLength": 1
+        },
+        "includeDerivedTitles": {
+          "type": "boolean"
+        },
+        "includeLastMessage": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  {
+    "name": "sessions_send",
+    "description": "Send message to visible session by sessionKey/label, or configured agent by agentId. Thread-scoped chats rejected; target parent channel session. Creates missing configured-agent main session; waits for reply when available.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "message"
+      ],
+      "properties": {
+        "sessionKey": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "agentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "message": {
+          "type": "string"
+        },
+        "timeoutSeconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  {
+    "name": "sessions_spawn",
+    "description": "Spawn clean child session; default `runtime=\"subagent\"`. `mode=\"run\"` one-shot background work. Subagents inherit parent workspace. Native subagents get task in first visible `[Subagent Task]` message. Native only: `context=\"fork\"` only when child needs current transcript; else omit or `isolated`. Use for fresh child-session work.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "task"
+      ],
+      "properties": {
+        "task": {
+          "type": "string"
+        },
+        "taskName": {
+          "type": "string",
+          "description": "Stable alias for later targeting; lowercase letters/digits/underscores, starts letter."
+        },
+        "label": {
+          "type": "string"
+        },
+        "runtime": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "agentId": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "thinking": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "runTimeoutSeconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "timeoutSeconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "mode": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "cleanup": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "sandbox": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "context": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Native context. Omit/\"isolated\" for clean child; \"fork\" only when child needs requester transcript."
+        },
+        "lightContext": {
+          "type": "boolean",
+          "description": "Light bootstrap context; runtime=\"subagent\" only."
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "maxItems": 50
+        },
+        "attachAs": {
+          "type": "object",
+          "properties": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "sessions_yield",
+    "description": "End current turn. Use after spawning subagents; results arrive as next message.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "name": "subagents",
+    "description": "List/kill/steer spawned subagents for requester session. If sessions_yield exists, use it for completion; do not poll wait loops.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          }
+        },
+        "target": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "recentMinutes": {
+          "type": "number",
+          "minimum": 1
+        }
+      }
+    }
+  },
+  {
+    "name": "tts",
+    "description": "Use only for explicit audio intent (voice/speech/TTS) or active TTS config. Never use for ordinary text replies. Audio auto-delivered from tool result; after success follow reply instructions, no duplicate text/audio.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "Text to speak."
+        },
+        "channel": {
+          "type": "string",
+          "description": "Channel id; output-format hint."
+        },
+        "timeoutMs": {
+          "type": "number",
+          "description": "Provider timeout ms.",
+          "minimum": 1
+        }
+      }
+    }
+  },
+  {
+    "name": "update_plan",
+    "description": "Update current run plan. Use for non-trivial multi-step work; keep plan current while executing. Short steps; max one `in_progress`; skip for simple one-step work.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "plan"
+      ],
+      "properties": {
+        "explanation": {
+          "type": "string",
+          "description": "Short note: what changed."
+        },
+        "plan": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "minItems": 1,
+          "description": "Ordered steps; max one in_progress."
+        }
+      }
+    }
+  },
+  {
+    "name": "video_generate",
+    "description": "Create videos. Session chats: background task; do not call video_generate again for same request; wait completion, then send attachments via message tool. \"status\" checks active task. Duration may round to provider-supported value.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "description": "\"generate\" default, \"status\" active task, \"list\" providers/models."
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Video prompt."
+        },
+        "image": {
+          "type": "string",
+          "description": "One reference image path/URL."
+        },
+        "images": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Reference images; max 9."
+        },
+        "imageRoles": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "`image` + `images` roles by index after de-dupe. Values: first_frame, last_frame, reference_image; empty string leaves unset."
+        },
+        "video": {
+          "type": "string",
+          "description": "One reference video path/URL."
+        },
+        "videos": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Reference videos; max 4."
+        },
+        "videoRoles": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "`video` + `videos` roles by index after de-dupe. Value: reference_video; empty string leaves unset."
+        },
+        "model": {
+          "type": "string",
+          "description": "Provider/model override, e.g. qwen/wan2.6-t2v."
+        },
+        "filename": {
+          "type": "string",
+          "description": "Output filename hint; basename preserved in managed media dir."
+        },
+        "size": {
+          "type": "string",
+          "description": "Size hint, e.g. 1280x720, 1920x1080."
+        },
+        "aspectRatio": {
+          "type": "string",
+          "description": "Aspect ratio: 1:1, 16:9, 9:16, \"adaptive\", or provider value; unsupported normalized/ignored."
+        },
+        "resolution": {
+          "type": "string",
+          "description": "Resolution: 480P, 720P, 768P, 1080P, 4K, or provider value; unsupported normalized/ignored."
+        },
+        "durationSeconds": {
+          "type": "number",
+          "description": "Target seconds; may round to nearest supported duration.",
+          "minimum": 1
+        },
+        "audio": {
+          "type": "boolean",
+          "description": "Generated-audio toggle."
+        },
+        "watermark": {
+          "type": "boolean",
+          "description": "Watermark toggle."
+        },
+        "providerOptions": {
+          "type": "object",
+          "patternProperties": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Provider JSON options, e.g. {\"seed\":42}. Keys/types must match provider capabilities; mismatch skips candidate. Use action=list for accepted keys."
+        },
+        "timeoutMs": {
+          "type": "number",
+          "description": "Provider timeout ms.",
+          "minimum": 1
+        }
+      }
+    }
+  },
+  {
+    "name": "web_fetch",
+    "description": "Fetch URL and extract readable markdown/text. Lightweight page access; no browser automation.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "url"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "HTTP(S) URL."
+        },
+        "extractMode": {
+          "type": "string",
+          "enum": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Extract as markdown/text.",
+          "default": "markdown"
+        },
+        "maxChars": {
+          "type": "number",
+          "description": "Max chars returned; truncates.",
+          "minimum": 100
+        }
+      }
+    }
+  },
+  {
+    "name": "web_search",
+    "description": "Search web for current info; returns normalized provider results.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "query"
+      ],
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Search query."
+        },
+        "count": {
+          "type": "number",
+          "description": "Result count.",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "country": {
+          "type": "string",
+          "description": "2-letter country code."
+        },
+        "language": {
+          "type": "string",
+          "description": "ISO 639-1 language."
+        },
+        "freshness": {
+          "type": "string",
+          "description": "Time filter: day/week/month/year."
+        },
+        "date_after": {
+          "type": "string",
+          "description": "Published after YYYY-MM-DD."
+        },
+        "date_before": {
+          "type": "string",
+          "description": "Published before YYYY-MM-DD."
+        },
+        "search_lang": {
+          "type": "string",
+          "description": "Brave result language."
+        },
+        "ui_lang": {
+          "type": "string",
+          "description": "Brave UI locale."
+        },
+        "domain_filter": {
+          "type": "array",
+          "items": {
+            "truncated": true,
+            "reason": "trajectory-depth-limit",
+            "limitDepth": 6
+          },
+          "description": "Perplexity domain filter."
+        },
+        "max_tokens": {
+          "type": "number",
+          "description": "Perplexity total token budget.",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "max_tokens_per_page": {
+          "type": "number",
+          "description": "Perplexity tokens per page.",
+          "minimum": 1
+        }
+      }
+    }
+  },
+  {
+    "name": "write",
+    "description": "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "path",
+        "content"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to the file to write (relative or absolute)"
+        },
+        "content": {
+          "type": "string",
+          "description": "Content to write to the file"
+        }
+      }
+    }
+  }
+]

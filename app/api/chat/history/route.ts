@@ -5,9 +5,9 @@ import * as path from 'path';
 
 export const dynamic = 'force-dynamic';
 
-const TRAJECTORY_DIR = path.join(process.env.HOME || '/data', '.openclaw', 'trajectory-exports');
+const TRAJECTORY_DIR = '/data/.openclaw/workspace-ops/.openclaw/trajectory-exports';
 
-function extractTextContent(content: any): string {
+function extractText(content: any): string {
   if (!content) return '';
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) {
@@ -18,18 +18,9 @@ function extractTextContent(content: any): string {
   }
   if (typeof content === 'object') {
     if (content.text) return content.text;
-    if (content.content) return extractTextContent(content.content);
+    if (content.content) return extractText(content.content);
   }
   return '';
-}
-
-interface TrajectoryEvent {
-  type: string;
-  role?: string;
-  data?: any;
-  ts?: string;
-  content?: any;
-  [key: string]: any;
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -40,72 +31,68 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'sessionKey required' }, { status: 400 });
   }
 
+  const parts = sessionKey.split(':');
+  const agentId = parts.length > 1 ? parts[1] : 'ops';
+
   try {
-    // Export trajectory to a temp bundle
-    const exportCmd = `/usr/local/bin/openclaw sessions export-trajectory --agent ${sessionKey.split(':')[1] || 'ops'} --session-key '${sessionKey.replace(/'/g, "'\\''")}' 2>/dev/null`;
-    execSync(exportCmd, { encoding: 'utf-8', timeout: 15000 });
+    // Export trajectory and capture output
+    const exportCmd = `/usr/local/bin/openclaw sessions export-trajectory --agent ${agentId} --session-key '${sessionKey.replace(/'/g, "'\\''")}' 2>&1`;
+    const output = execSync(exportCmd, { encoding: 'utf-8', timeout: 30000, maxBuffer: 1024 * 1024 });
 
-    // Read the most recently created export bundle
-    if (!fs.existsSync(TRAJECTORY_DIR)) {
+    // Extract bundle path from output: ".openclaw/trajectory-exports/..."
+    const bundleMatch = output.match(/\.openclaw(\/trajectory-exports\/[^\s]+)/);
+    if (!bundleMatch) {
+      console.error('chat.history: no bundle match in output:', output.slice(0, 500));
       return NextResponse.json([]);
     }
 
-    const dirs = fs.readdirSync(TRAJECTORY_DIR)
-      .map(d => path.join(TRAJECTORY_DIR, d))
-      .filter(d => fs.statSync(d).isDirectory())
-      .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
-
-    if (dirs.length === 0) {
-      return NextResponse.json([]);
-    }
-
-    const latestBundle = dirs[0];
-    const eventsFile = path.join(latestBundle, 'events.jsonl');
+    const relBundlePath = bundleMatch[1];
+    const bundleDir = path.join('/data/.openclaw/workspace-ops/olympus', '.openclaw', relBundlePath);
+    const eventsFile = path.join(bundleDir, 'events.jsonl');
 
     if (!fs.existsSync(eventsFile)) {
+      console.error('chat.history: events.jsonl not found at', eventsFile);
       return NextResponse.json([]);
     }
 
-    // Parse events from JSONL
+    // Parse events
     const lines = fs.readFileSync(eventsFile, 'utf-8').split('\n').filter(Boolean);
     const messages: any[] = [];
 
     for (const line of lines) {
-      if (messages.length >= limit) break;
-      let ev: TrajectoryEvent;
+      if (messages.length >= limit * 2) break;
+      let ev: any;
       try {
         ev = JSON.parse(line);
       } catch {
         continue;
       }
 
+      const t = ev.type;
       let role: string | null = null;
       let content = '';
       let ts = 0;
+      let model = '';
 
-      if (ev.type === 'user.message' || ev.type === 'assistant.message') {
-        role = ev.type === 'user.message' ? 'user' : 'assistant';
-        if (ev.data?.message?.content) {
-          content = extractTextContent(ev.data.message.content);
-        }
-        if (ev.ts) ts = new Date(ev.ts).getTime();
-      } else if (ev.type === 'prompt.submitted' && ev.data?.prompt) {
-        // Sometimes user message is in the prompt
+      if (t === 'user.message') {
         role = 'user';
-        content = extractTextContent(ev.data.prompt);
-        if (ev.ts) ts = new Date(ev.ts).getTime();
-      } else if (ev.type === 'model.completed' && ev.data?.response) {
+        const msgContent = ev.data?.message?.content;
+        if (msgContent) content = extractText(msgContent);
+        ts = ev.ts ? new Date(ev.ts).getTime() : Date.now();
+        model = ev.data?.modelId || '';
+      } else if (t === 'assistant.message') {
         role = 'assistant';
-        content = extractTextContent(ev.data.response);
-        if (ev.ts) ts = new Date(ev.ts).getTime();
+        const msgContent = ev.data?.message?.content;
+        if (msgContent) content = extractText(msgContent);
+        ts = ev.ts ? new Date(ev.ts).getTime() : Date.now();
+        model = ev.data?.modelId || ev.modelId || '';
       }
 
       if (role && content && content.trim()) {
-        const model = ev.data?.model || ev.modelId || '';
         messages.push({
           id: messages.length + 1,
           ts,
-          user_id: role === 'user' ? 'web' : sessionKey.split(':')[1] || 'agent',
+          user_id: role === 'user' ? 'user' : agentId,
           role: role === 'assistant' ? 'agent' : 'user',
           content: content.trim().slice(0, 5000),
           model,
@@ -114,10 +101,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    // Clean up the temp export bundle
-    try {
-      fs.rmSync(latestBundle, { recursive: true, force: true });
-    } catch {}
+    // Cleanup
+    try { fs.rmSync(bundleDir, { recursive: true, force: true }); } catch {}
 
     return NextResponse.json(messages);
   } catch (e: any) {

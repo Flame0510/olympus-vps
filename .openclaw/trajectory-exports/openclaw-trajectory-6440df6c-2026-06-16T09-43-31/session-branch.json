@@ -1,0 +1,91 @@
+{
+  "header": {
+    "type": "session",
+    "version": 3,
+    "id": "6440df6c-1441-4e7a-8016-070f3ea5eabb",
+    "timestamp": "2026-06-16T09:41:51.013Z",
+    "cwd": "$OPENCLAW_STATE_DIR/workspace-ops"
+  },
+  "leafId": "df73d4f3",
+  "entries": [
+    {
+      "type": "model_change",
+      "id": "cfa7b0ad",
+      "parentId": null,
+      "timestamp": "2026-06-16T09:41:51.056Z",
+      "provider": "deepseek",
+      "modelId": "deepseek-v4-flash"
+    },
+    {
+      "type": "thinking_level_change",
+      "id": "8d025e24",
+      "parentId": "cfa7b0ad",
+      "timestamp": "2026-06-16T09:41:51.056Z",
+      "thinkingLevel": "off"
+    },
+    {
+      "type": "custom",
+      "customType": "model-snapshot",
+      "data": {
+        "timestamp": 1781602911077,
+        "provider": "deepseek",
+        "modelApi": "openai-completions",
+        "modelId": "deepseek-v4-flash"
+      },
+      "id": "10fa4f82",
+      "parentId": "8d025e24",
+      "timestamp": "2026-06-16T09:41:51.077Z"
+    },
+    {
+      "type": "message",
+      "id": "07a0ac8e",
+      "parentId": "10fa4f82",
+      "timestamp": "2026-06-16T09:41:51.146Z",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "[Tue 2026-06-16 11:41 GMT+2] test finale"
+          }
+        ],
+        "timestamp": 1781602911138
+      }
+    },
+    {
+      "type": "message",
+      "id": "df73d4f3",
+      "parentId": "07a0ac8e",
+      "timestamp": "2026-06-16T09:41:52.587Z",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Ciao Michele, dimmi cosa vuoi testare — ti ascolto."
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "deepseek",
+        "model": "deepseek-v4-flash",
+        "usage": {
+          "input": 32,
+          "output": 18,
+          "cacheRead": 26240,
+          "cacheWrite": 0,
+          "totalTokens": 26290,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        },
+        "stopReason": "stop",
+        "timestamp": 1781602911171,
+        "responseId": "67634bfe-9e28-4529-8f18-5cb3371e2ca0"
+      }
+    }
+  ]
+}
