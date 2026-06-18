@@ -13,6 +13,8 @@ Real-time monitoring dashboard for AI agent systems.
 - **System health** — CPU, RAM, disk, daemon status, cron checks
 - **PYTHIA** — embedded AI assistant for natural-language queries about sessions and costs
 - **Mobile-optimized layout** — dedicated mobile tab interface with bottom navigation
+- **Responsive breakpoint policy** — Bootstrap v5 breakpoint tokens (`sm`, `md`, `lg`, `xl`, `xxl`) reused across the UI
+- **In-browser PDF preview** — PDFs rendered inside the web UI, including Android/mobile browsers
 
 ## Requirements
 
@@ -23,11 +25,12 @@ Real-time monitoring dashboard for AI agent systems.
 ## Quick Start
 
 ```bash
-git clone https://github.com/Flame0510/olympus-dashboard \
-  /data/.openclaw/workspace-ops/olympus-next-ts
-cd /data/.openclaw/workspace-ops/olympus-next-ts
-npm install && npm run build
-bash start-daemon.sh
+git clone https://github.com/Flame0510/olympus \
+  /data/.openclaw/workspace-ops/olympus
+cd /data/.openclaw/workspace-ops/olympus
+npm install
+PORT=3720 npm run build
+PORT=3720 npm start
 ```
 
 Dashboard available at: `http://localhost:3720`
@@ -56,10 +59,30 @@ OpenClaw runtime
        ↓  (INSERT/UPDATE, WAL)
   events.db (SQLite)
        ↓
-  Next.js /api/* routes  +  /api/stream (SSE)
+  Next.js App Router
+  - /api/* routes
+  - /api/stream + /api/workspace/stream (SSE)
        ↓
    React UI (port 3720)
 ```
+
+## Responsive breakpoints
+
+Olympus now standardizes on Bootstrap v5 breakpoint tokens:
+
+| Token | Value |
+|---|---|
+| `--bp-sm` | `576px` |
+| `--bp-md` | `768px` |
+| `--bp-lg` | `992px` |
+| `--bp-xl` | `1200px` |
+| `--bp-xxl` | `1400px` |
+
+Defined in `app/globals.css` and reused in CSS/media queries instead of ad-hoc values.
+
+Current rule highlights:
+- general mobile navigation/layout breakpoint: `md` (`768px`)
+- Agents page stacked/mobile mode: `lg` (`992px`) to support foldables and narrow tablet widths more safely
 
 ## Documentation
 

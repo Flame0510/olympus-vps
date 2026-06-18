@@ -38,6 +38,43 @@ Added UI-side discipline:
 - **Strategy-ish variants**: `Surface` variant/tone classes choose presentation without inline restyling.
 - **Composition**: page-specific components compose primitives instead of duplicating card markup.
 
+## Responsive system
+
+Olympus uses Bootstrap v5 breakpoint categories as project-wide tokens, declared in `app/globals.css`:
+
+- `--bp-sm: 576px`
+- `--bp-md: 768px`
+- `--bp-lg: 992px`
+- `--bp-xl: 1200px`
+- `--bp-xxl: 1400px`
+
+Rules:
+
+1. Prefer breakpoint tokens over raw pixel values.
+2. New responsive behavior should map to Bootstrap categories (`sm`, `md`, `lg`, ...), not ad-hoc thresholds.
+3. When an exception is needed, express it relative to a token and document why.
+
+## Current responsive behaviors
+
+- **Agents page**
+  - below `lg` (`< 992px`) switches to stacked/mobile mode
+  - shows one section at a time (`AGENTS` → `FILES + CONFIG` → `EDITOR`)
+  - avoids split-column clipping on narrow, fold, and small-tablet devices
+- **Mobile bottom nav**
+  - active below `md`
+  - item row centers from `sm` upward within the mobile range
+- **PDF preview in Agents**
+  - rendered in-page for mobile browsers instead of relying on the native iframe PDF viewer
+
+## Request orchestration rule
+
+For interactive pages that can change view/file/tab quickly:
+
+1. Abort obsolete fetches with `AbortController`.
+2. Guard against stale updates after `await` boundaries.
+3. On navigation/context switch, kill in-flight requests before starting new ones.
+4. Mobile layout changes must not wait on network completion.
+
 ## Migration rule
 
 For every new/changed page:
