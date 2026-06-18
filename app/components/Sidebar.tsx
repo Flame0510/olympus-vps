@@ -104,16 +104,6 @@ const NAV: NavItem[] = [
     ),
   },
   {
-    href: '/chat',
-    label: 'Chat',
-    icon: (
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path d="M2 2h12a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5l-3 2V3a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.3"/>
-        <path d="M5 6h6M5 9h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-      </svg>
-    ),
-  },
-  {
     href: '/memory',
     label: 'Memory / Context',
     icon: (

@@ -6,7 +6,7 @@ You are an AI agent. Your task is to install and integrate Olympus Dashboard int
 
 ## What is Olympus
 
-Olympus is a real-time monitoring dashboard for AI agent systems. It tracks live sessions, costs, parent→child agent hierarchy, and event streams. It runs as two Node.js processes (daemon + API server) backed by a SQLite database.
+Olympus is a real-time monitoring dashboard for AI agent systems. It tracks live sessions, costs, parent→child agent hierarchy, workspace files, and event streams. It runs as a daemon plus a Next.js app backed by SQLite.
 
 ## Repository
 
@@ -33,8 +33,8 @@ node --version
 # SQLite3
 sqlite3 --version
 
-# Port 3700 availability
-lsof -i :3700 2>/dev/null || echo "port free"
+# Port 3720 availability
+lsof -i :3720 2>/dev/null || echo "port free"
 
 # OpenClaw
 openclaw --version 2>/dev/null || echo "not found"
@@ -42,7 +42,7 @@ openclaw --version 2>/dev/null || echo "not found"
 
 **If Node.js < 18:** install via nvm (`nvm install 18`) or apt (`apt-get install -y nodejs` after adding NodeSource repo).  
 **If SQLite3 missing:** `apt-get install -y sqlite3`  
-**If port 3700 is busy:** find the conflicting process with `lsof -i :3700` and stop it, or reconfigure.
+**If port 3720 is busy:** find the conflicting process with `lsof -i :3720` and stop it, or reconfigure.
 
 ---
 
@@ -76,31 +76,28 @@ cd /data/olympus && npm rebuild better-sqlite3
 
 ### If running inside an OpenClaw container
 
-- **Port MUST be 3700** — OpenClaw sets `$PORT` to an internal value (e.g. `48138`). Never use the env variable.
+- **Port MUST be 3720** — OpenClaw sets `$PORT` to an internal value in some environments. Always set the Olympus port explicitly.
 - DB path: `/data/olympus/events.db` (auto-created on first run)
 - Sessions are read via: `openclaw sessions --json --all-agents`
 
 Start the full stack:
 
 ```bash
-bash /data/olympus/start-daemon.sh
+PORT=3720 npm run build
+PORT=3720 npm start
 ```
 
-Or start individually:
+Daemon separately:
 
 ```bash
-# API server (PORT=3700 mandatory)
-cd /data/olympus && PORT=3700 nohup node server.js >> server.log 2>&1 &
-
-# Daemon
 nohup node /data/olympus/daemon.js >> /data/olympus/daemon.log 2>&1 &
 ```
 
 ### If running on a bare VPS
 
 ```bash
-# API server
-cd /data/olympus && PORT=3700 nohup node server.js >> server.log 2>&1 &
+# Next.js app
+cd /data/olympus && PORT=3720 nohup npm start >> server.log 2>&1 &
 
 # Daemon
 nohup node /data/olympus/daemon.js >> /data/olympus/daemon.log 2>&1 &

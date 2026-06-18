@@ -1,7 +1,5 @@
-import { requireAuth } from '@/lib/requireAuth';
-import ChatClient from './ChatClient';
+import { redirect } from 'next/navigation';
 
-export default async function ChatPage() {
-  await requireAuth();
-  return <ChatClient />;
+export default function ChatPage() {
+  redirect('/');
 }
