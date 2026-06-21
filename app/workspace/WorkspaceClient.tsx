@@ -1,15 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { marked } from 'marked';
-import OlympusLoader from '../components/OlympusLoader';
-import { useResponsive } from '../design-system';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/apiFetch';
 
-type SaveState = 'idle' | 'saving' | 'saved' | 'error';
-type LiveMode = 'connecting' | 'sse' | 'polling';
-
-interface WorkspaceEntry {
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface TreeEntry {
   path: string;
   relPath: string;
   name: string;
@@ -18,294 +13,304 @@ interface WorkspaceEntry {
   mtimeMs: number;
 }
 
+type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const EXT_LANG: Record<string, string> = {
+  '.md': 'markdown', '.ts': 'typescript', '.tsx': 'typescript',
+  '.js': 'javascript', '.json': 'json', '.sh': 'bash',
+  '.py': 'python', '.css': 'css', '.html': 'html',
+  '.yaml': 'yaml', '.yml': 'yaml', '.txt': 'text', '.env': 'env',
+};
+
+function extOf(name: string) { return name.slice(name.lastIndexOf('.')).toLowerCase(); }
+function isMarkdown(name: string) { return extOf(name) === '.md'; }
+function fmtSize(bytes: number) {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / 1048576).toFixed(1)}MB`;
+}
+function fmtDate(ms: number) {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+// ─── Tree helpers ─────────────────────────────────────────────────────────────
 interface TreeNode {
   name: string;
-  path: string;
   relPath: string;
+  absPath: string;
   type: 'file' | 'directory';
+  size: number;
+  mtimeMs: number;
   children: TreeNode[];
 }
 
-function buildTree(entries: WorkspaceEntry[]): TreeNode[] {
+function buildTree(entries: TreeEntry[]): TreeNode[] {
   const root: TreeNode[] = [];
+  const map = new Map<string, TreeNode>();
 
-  for (const entry of entries) {
-    const parts = entry.relPath.split('/');
-    let current = root;
-
-    for (let i = 0; i < parts.length; i += 1) {
-      const name = parts[i];
-      const relPath = parts.slice(0, i + 1).join('/');
-      const isLeaf = i === parts.length - 1;
-      const expectedType: 'file' | 'directory' = isLeaf ? entry.type : 'directory';
-      let node = current.find((item) => item.name === name && item.type === expectedType);
-      if (!node) {
-        node = { name, path: isLeaf ? entry.path : '', relPath, type: expectedType, children: [] };
-        current.push(node);
-      }
-      current = node.children;
+  for (const e of entries) {
+    const node: TreeNode = { name: e.name, relPath: e.relPath, absPath: e.path, type: e.type, size: e.size, mtimeMs: e.mtimeMs, children: [] };
+    map.set(e.relPath, node);
+    const parentPath = e.relPath.includes('/') ? e.relPath.slice(0, e.relPath.lastIndexOf('/')) : null;
+    if (parentPath && map.has(parentPath)) {
+      map.get(parentPath)!.children.push(node);
+    } else {
+      root.push(node);
     }
   }
-
-  const sortNodes = (nodes: TreeNode[]) => {
-    nodes.sort((a, b) => {
-      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
-    nodes.forEach((node) => sortNodes(node.children));
-  };
-
-  sortNodes(root);
   return root;
 }
 
+// ─── Markdown Renderer ────────────────────────────────────────────────────────
+function renderMarkdown(text: string): string {
+  return text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/^#{6}\s+(.*)$/gm, '<h6>$1</h6>')
+    .replace(/^#{5}\s+(.*)$/gm, '<h5>$1</h5>')
+    .replace(/^#{4}\s+(.*)$/gm, '<h4>$1</h4>')
+    .replace(/^#{3}\s+(.*)$/gm, '<h3>$1</h3>')
+    .replace(/^#{2}\s+(.*)$/gm, '<h2>$1</h2>')
+    .replace(/^#{1}\s+(.*)$/gm, '<h1>$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/^```[\w]*\n?([\s\S]*?)```/gm, '<pre><code>$1</code></pre>')
+    .replace(/^---$/gm, '<hr/>')
+    .replace(/^\s*[-*]\s+(.*)$/gm, '<li>$1</li>')
+    .replace(/^\s*\d+\.\s+(.*)$/gm, '<li>$1</li>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/^(?!<[hHpPlLiIpPhRrC])/gm, '')
+    .split('\n').map(line => line.match(/^<(h[1-6]|li|pre|hr|\/p|p>)/) ? line : line || '').join('\n')
+    ;
+}
+
+// ─── TreeNodeRow ──────────────────────────────────────────────────────────────
+function TreeNodeRow({
+  node, depth, selected, expanded, onToggle, onSelect,
+}: {
+  node: TreeNode; depth: number; selected: string | null;
+  expanded: Set<string>; onToggle: (path: string) => void; onSelect: (node: TreeNode) => void;
+}) {
+  const isDir = node.type === 'directory';
+  const isExp = expanded.has(node.relPath);
+  const isSelected = selected === node.absPath;
+  const indent = depth * 14;
+
+  return (
+    <>
+      <div
+        onClick={() => isDir ? onToggle(node.relPath) : onSelect(node)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: `3px 8px 3px ${8 + indent}px`,
+          cursor: 'pointer', userSelect: 'none',
+          background: isSelected ? '#1a1208' : 'transparent',
+          color: isSelected ? 'var(--copper)' : isDir ? '#aaa' : '#ccc',
+          fontSize: 11, fontFamily: 'var(--font-mono-stack)',
+          borderLeft: isSelected ? '2px solid var(--copper)' : '2px solid transparent',
+        }}
+        onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#111'; }}
+        onMouseLeave={(e) => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+      >
+        {isDir ? (
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{ flexShrink: 0, opacity: 0.6, transition: 'transform 0.15s', transform: isExp ? 'rotate(90deg)' : 'none' }}>
+            <path d="M3 2l4 3-4 3z"/>
+          </svg>
+        ) : (
+          <span style={{ width: 10, flexShrink: 0 }} />
+        )}
+        {isDir ? (
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" style={{ flexShrink: 0, opacity: 0.5 }}>
+            <path d="M1.75 4.5a1.75 1.75 0 0 1 1.75-1.75h2.35l1.2 1.5h5.45a1.75 1.75 0 0 1 1.75 1.75v5.5a1.75 1.75 0 0 1-1.75 1.75H3.5a1.75 1.75 0 0 1-1.75-1.75v-7Z" strokeLinejoin="round"/>
+          </svg>
+        ) : (
+          <svg width="10" height="12" viewBox="0 0 10 12" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ flexShrink: 0, opacity: 0.4 }}>
+            <path d="M1 1h5.5L9 3.5V11H1z" strokeLinejoin="round"/>
+            <path d="M6 1v3h3" strokeLinejoin="round"/>
+          </svg>
+        )}
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
+        {!isDir && node.size > 0 && (
+          <span style={{ marginLeft: 'auto', color: '#555', fontSize: 10, flexShrink: 0 }}>{fmtSize(node.size)}</span>
+        )}
+      </div>
+      {isDir && isExp && node.children.map((child) => (
+        <TreeNodeRow key={child.relPath} node={child} depth={depth + 1} selected={selected} expanded={expanded} onToggle={onToggle} onSelect={onSelect} />
+      ))}
+    </>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function WorkspaceClient() {
-  const isMobile = useResponsive('lg');
-  const [entries, setEntries] = useState<WorkspaceEntry[]>([]);
-  const [selectedPath, setSelectedPath] = useState('');
-  const [content, setContent] = useState('');
+  const [tree, setTree] = useState<TreeNode[]>([]);
+  const [treeLoading, setTreeLoading] = useState(true);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set(['workspace-ops', 'workspace-prometheus', 'workspace-atlas', 'workspace']));
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null);
+  const [fileContent, setFileContent] = useState('');
+  const [fileLoading, setFileLoading] = useState(false);
+  const [editContent, setEditContent] = useState('');
   const [saveState, setSaveState] = useState<SaveState>('idle');
-  const [liveMode, setLiveMode] = useState<LiveMode>('connecting');
-  const [lastRefreshAt, setLastRefreshAt] = useState<number | null>(null);
-  const [isDirty, setIsDirty] = useState(false);
-  const [remoteUpdateAvailable, setRemoteUpdateAvailable] = useState(false);
-  const [loadingTree, setLoadingTree] = useState(true);
-  const [loadingFile, setLoadingFile] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const [openDirs, setOpenDirs] = useState<Record<string, boolean>>({});
-  const [mobileStep, setMobileStep] = useState(1);
+  const [previewMode, setPreviewMode] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(280);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartX = useRef(0);
+  const dragStartWidth = useRef(0);
 
-  const selectedPathRef = useRef('');
-  const isDirtyRef = useRef(false);
-  const saveStateRef = useRef<SaveState>('idle');
-  const loadingFileRef = useRef(false);
-  const tree = useMemo(() => buildTree(entries), [entries]);
+  // Load tree
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await apiFetch('/api/workspace?tree=1');
+        if (!res.ok) return;
+        const data = await res.json() as { entries: TreeEntry[] };
+        setTree(buildTree(data.entries));
+      } catch { /* ignore */ }
+      finally { setTreeLoading(false); }
+    })();
+  }, []);
 
-  useEffect(() => { selectedPathRef.current = selectedPath; }, [selectedPath]);
-  useEffect(() => { isDirtyRef.current = isDirty; }, [isDirty]);
-  useEffect(() => { saveStateRef.current = saveState; }, [saveState]);
-  useEffect(() => { loadingFileRef.current = loadingFile; }, [loadingFile]);
-
-  async function fetchTree() {
+  // Load file
+  const loadFile = useCallback(async (node: TreeNode) => {
+    if (node.type !== 'file') return;
+    setSelectedPath(node.absPath);
+    setSelectedNode(node);
+    setFileLoading(true);
+    setSaveState('idle');
     try {
-      const res = await apiFetch('/api/workspace?tree=1');
-      if (!res.ok) throw new Error('tree fetch failed');
-      const data = await res.json() as { entries?: WorkspaceEntry[] };
-      setEntries(Array.isArray(data.entries) ? data.entries : []);
-      setLastRefreshAt(Date.now());
-    } finally {
-      setLoadingTree(false);
-    }
-  }
+      const ext = extOf(node.name);
+      const isBinary = ['.png','.jpg','.jpeg','.gif','.webp','.svg','.pdf','.ico'].includes(ext);
+      if (isBinary) {
+        setFileContent(`[binary: ${node.name}]`);
+        setEditContent('');
+        setFileLoading(false);
+        return;
+      }
+      const res = await apiFetch(`/api/workspace?path=${encodeURIComponent(node.absPath)}`);
+      if (!res.ok) { setFileContent('[error loading file]'); setEditContent(''); return; }
+      const data = await res.json() as { content: string };
+      setFileContent(data.content);
+      setEditContent(data.content);
+      setPreviewMode(isMarkdown(node.name));
+    } catch { setFileContent('[error loading file]'); setEditContent(''); }
+    finally { setFileLoading(false); }
+  }, []);
 
-  async function loadFile(path: string, preserveSelection = false, silent = false) {
-    if (!path) return;
-    if (!silent) setLoadingFile(true);
-    if (!preserveSelection) {
-      setSelectedPath(path);
-      setSaveState('idle');
-      setRemoteUpdateAvailable(false);
-    }
-    try {
-      const res = await apiFetch(`/api/workspace?path=${encodeURIComponent(path)}`);
-      if (!res.ok) throw new Error('load failed');
-      const data = await res.json() as { content?: string };
-      setContent(data.content ?? '');
-      setLastRefreshAt(Date.now());
-      if (!preserveSelection) setIsDirty(false);
-      setMobileStep(2);
-    } catch {
-      setSaveState('error');
-    } finally {
-      if (!silent) setLoadingFile(false);
-    }
-  }
-
-  async function saveFile() {
+  const saveFile = useCallback(async () => {
     if (!selectedPath) return;
     setSaveState('saving');
     try {
-      const res = await apiFetch('/api/workspace', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: selectedPath, content }),
-      });
-      if (!res.ok) throw new Error('save failed');
+      const res = await apiFetch('/api/workspace', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: selectedPath, content: editContent }) });
+      if (!res.ok) { setSaveState('error'); return; }
+      setFileContent(editContent);
       setSaveState('saved');
-      setIsDirty(false);
-      setRemoteUpdateAvailable(false);
-      setLastRefreshAt(Date.now());
       setTimeout(() => setSaveState('idle'), 1500);
-      void fetchTree();
-    } catch {
-      setSaveState('error');
-    }
-  }
+    } catch { setSaveState('error'); }
+  }, [selectedPath, editContent]);
 
-  useEffect(() => {
-    void fetchTree();
-    const id = setInterval(() => void fetchTree(), 30000);
-    return () => clearInterval(id);
+  const toggleDir = useCallback((relPath: string) => {
+    setExpanded((prev) => { const next = new Set(prev); next.has(relPath) ? next.delete(relPath) : next.add(relPath); return next; });
   }, []);
 
-  useEffect(() => {
-    const source = new EventSource('/api/workspace/stream');
-    let connected = false;
-
-    source.addEventListener('workspace_ready', () => {
-      connected = true;
-      setLiveMode('sse');
-      setLastRefreshAt(Date.now());
-    });
-
-    source.addEventListener('heartbeat', () => {
-      connected = true;
-      setLiveMode('sse');
-    });
-
-    source.addEventListener('workspace_changed', (event) => {
-      connected = true;
-      setLiveMode('sse');
-      setLastRefreshAt(Date.now());
-      void fetchTree();
-      try {
-        const payload = JSON.parse((event as MessageEvent).data) as { changed?: Array<{ path?: string }> };
-        const selected = selectedPathRef.current;
-        if (!selected) return;
-        const touchesSelected = payload.changed?.some((item) => item.path === selected) ?? false;
-        if (!touchesSelected) return;
-        if (!isDirtyRef.current && saveStateRef.current !== 'saving' && !loadingFileRef.current) {
-          void loadFile(selected, true, true);
-          setRemoteUpdateAvailable(false);
-        } else {
-          setRemoteUpdateAvailable(true);
-        }
-      } catch {
-        // noop
-      }
-    });
-
-    source.onerror = () => {
-      if (!connected) setLiveMode('polling');
-      else setLiveMode('polling');
-    };
-
-    return () => source.close();
-  }, []);
+  // Resize drag
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    dragStartX.current = e.clientX; dragStartWidth.current = sidebarWidth;
+    setIsDragging(true);
+  }, [sidebarWidth]);
 
   useEffect(() => {
-    if (liveMode === 'sse' || !selectedPath || isDirty || saveState === 'saving' || loadingFile) return;
-    const id = setInterval(() => {
-      void loadFile(selectedPathRef.current, true, true);
-    }, 8000);
-    return () => clearInterval(id);
-  }, [liveMode, selectedPath, isDirty, saveState, loadingFile]);
+    if (!isDragging) return;
+    const onMove = (e: MouseEvent) => { const w = Math.max(180, Math.min(600, dragStartWidth.current + e.clientX - dragStartX.current)); setSidebarWidth(w); };
+    const onUp = () => setIsDragging(false);
+    window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, [isDragging]);
 
-  useEffect(() => {
-    if (!isMobile) {
-      setMobileStep(1);
-      return;
-    }
-    if (!selectedPath) setMobileStep(1);
-  }, [isMobile, selectedPath]);
-
-  const toggleDir = (relPath: string) => setOpenDirs((prev) => ({ ...prev, [relPath]: !prev[relPath] }));
-  const saveLabel = saveState === 'saving' ? 'Saving...' : saveState === 'saved' ? 'Saved ✓' : saveState === 'error' ? 'Error ✗' : 'SAVE';
-
-  function renderNode(node: TreeNode, depth = 0): React.ReactNode {
-    if (node.type === 'directory') {
-      const isOpen = openDirs[node.relPath] ?? depth < 1;
-      return (
-        <div key={node.relPath}>
-          <button
-            onClick={() => toggleDir(node.relPath)}
-            style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: '#888', padding: `8px 10px 8px ${8 + depth * 18}px`, cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            <span style={{ fontSize: 10 }}>{isOpen ? '▾' : '▸'}</span>
-            <span>{isOpen ? '📂' : '📁'}</span>
-            <span style={{ color: '#d1a15c' }}>{node.name}</span>
-          </button>
-          {isOpen ? node.children.map((child) => renderNode(child, depth + 1)) : null}
-        </div>
-      );
-    }
-
-    const active = selectedPath === node.path;
-    return (
-      <button
-        key={node.path}
-        onClick={() => void loadFile(node.path)}
-        style={{ width: '100%', textAlign: 'left', background: active ? '#1a1208' : 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: '#E8E8E8', padding: `8px 10px 8px ${24 + depth * 18}px`, cursor: 'pointer', fontSize: 11 }}
-      >
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <span>📝</span>
-          <span>{node.name}</span>
-        </div>
-      </button>
-    );
-  }
+  const saveBtnLabel = saveState === 'saving' ? 'Saving...' : saveState === 'saved' ? 'Saved ✓' : saveState === 'error' ? 'Error ✗' : 'SAVE';
+  const dirty = editContent !== fileContent && !fileLoading && selectedPath != null;
+  const lang = selectedNode ? (EXT_LANG[extOf(selectedNode.name)] ?? 'text') : 'text';
 
   return (
-    <div style={{ height: '100vh', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'var(--font-mono-stack)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'var(--font-mono-stack)', overflow: 'hidden' }}>
+      {/* Header */}
       <div style={{ height: 48, padding: '0 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        <span style={{ fontFamily: 'var(--font-serif-stack)', fontSize: 20, letterSpacing: 4, color: 'var(--copper)' }}>WORKSPACE</span>
-        <span style={{ fontSize: 10, color: '#888' }}>/data/.openclaw</span>
+        <span style={{ fontFamily: 'var(--font-serif-stack)', fontSize: 20, letterSpacing: '4px', color: 'var(--copper)' }}>WORKSPACE</span>
+        {selectedPath && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {isMarkdown(selectedNode?.name ?? '') && (
+              <button onClick={() => setPreviewMode(!previewMode)} style={{ border: '1px solid var(--border)', borderRadius: 4, background: previewMode ? '#1a1208' : 'var(--bg3)', color: previewMode ? 'var(--copper)' : '#888', fontSize: 10, padding: '4px 10px', cursor: 'pointer' }}>
+                {previewMode ? 'EDIT' : 'PREVIEW'}
+              </button>
+            )}
+            <button onClick={() => void saveFile()} disabled={!dirty || saveState === 'saving'} style={{ border: '1px solid var(--border)', borderRadius: 4, background: saveState === 'saved' ? '#143018' : 'var(--bg3)', color: !dirty ? '#555' : saveState === 'error' ? '#ef4444' : saveState === 'saved' ? '#22c55e' : 'var(--copper)', fontSize: 10, padding: '4px 10px', cursor: dirty ? 'pointer' : 'default' }}>
+              {saveBtnLabel}
+            </button>
+          </div>
+        )}
       </div>
 
-      {isMobile && (
-        <div style={{ display: 'flex', gap: 8, padding: '8px 10px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
-          {['FILES', 'EDITOR'].map((label, idx) => (
-            <button key={label} onClick={() => setMobileStep(idx + 1)} style={{ fontSize: 10, padding: '6px 8px', border: '1px solid var(--border)', background: mobileStep === idx + 1 ? 'var(--bg3)' : 'transparent', color: mobileStep === idx + 1 ? 'var(--copper)' : '#888' }}>{label}</button>
-          ))}
+      {/* Body */}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        {/* Sidebar tree */}
+        <div style={{ width: sidebarWidth, minWidth: sidebarWidth, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ flex: 1, overflowY: 'auto', paddingTop: 6, paddingBottom: 24 }}>
+            {treeLoading ? (
+              <div style={{ padding: '20px 12px', color: '#555', fontSize: 11 }}>Loading…</div>
+            ) : tree.length === 0 ? (
+              <div style={{ padding: '20px 12px', color: '#555', fontSize: 11 }}>Empty workspace</div>
+            ) : tree.map((node) => (
+              <TreeNodeRow key={node.relPath} node={node} depth={0} selected={selectedPath} expanded={expanded} onToggle={toggleDir} onSelect={loadFile} />
+            ))}
+          </div>
         </div>
-      )}
 
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
-        <section style={{ width: isMobile ? '100%' : '32%', minWidth: isMobile ? 0 : 320, borderRight: isMobile ? 'none' : '1px solid var(--border)', display: isMobile && mobileStep !== 1 ? 'none' : 'block', overflow: 'auto', background: 'var(--bg2)' }}>
-          <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', fontSize: 10, color: '#888' }}>
-            {liveMode === 'sse' ? 'sse live' : liveMode === 'connecting' ? 'connecting live' : 'polling fallback'}
-            {lastRefreshAt ? ` • ${new Date(lastRefreshAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}
-          </div>
-          {loadingTree ? <OlympusLoader label="LOADING WORKSPACE" compact /> : tree.map((node) => renderNode(node))}
-        </section>
+        {/* Resize handle */}
+        <div
+          onMouseDown={onMouseDown}
+          style={{ width: 4, cursor: 'col-resize', background: isDragging ? 'var(--copper)' : 'transparent', transition: isDragging ? 'none' : 'background 0.15s', flexShrink: 0 }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#333'; }}
+          onMouseLeave={(e) => { if (!isDragging) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+        />
 
-        <section style={{ flex: 1, minWidth: 0, display: isMobile && mobileStep !== 2 ? 'none' : 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 10, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedPath || 'Select a markdown file'}</div>
-              <div style={{ fontSize: 9, color: remoteUpdateAvailable ? '#f59e0b' : isDirty ? '#f59e0b' : '#666' }}>
-                {remoteUpdateAvailable ? 'remote update available • save or reload' : isDirty ? 'editing locally • auto-refresh paused' : 'live sync ready'}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              {selectedPath && remoteUpdateAvailable ? <button onClick={() => { setIsDirty(false); void loadFile(selectedPath, true, false); }} style={{ border: '1px solid #5c3b12', background: '#1a1208', color: '#f59e0b', padding: '5px 10px', fontSize: 11 }}>Reload</button> : null}
-              {selectedPath ? <button onClick={() => setShowPreview((prev) => !prev)} style={{ border: '1px solid var(--border)', background: showPreview ? '#1a1208' : 'var(--bg3)', color: showPreview ? 'var(--copper)' : '#888', padding: '5px 10px', fontSize: 11 }}>{showPreview ? '✏️ Edit' : '📖 Preview'}</button> : null}
-              <button onClick={() => void saveFile()} disabled={!selectedPath || saveState === 'saving'} style={{ border: '1px solid var(--border)', background: saveState === 'saved' ? '#143018' : 'var(--bg3)', color: saveState === 'error' ? '#ef4444' : saveState === 'saved' ? '#22c55e' : 'var(--copper)', padding: '5px 10px', fontSize: 11 }}>{saveLabel}</button>
-            </div>
-          </div>
-
+        {/* Editor / Preview */}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {!selectedPath ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', fontSize: 12 }}>Select a markdown file to edit</div>
-          ) : loadingFile ? (
-            <OlympusLoader label="LOADING FILE" compact />
-          ) : showPreview ? (
-            <div className="workspace-markdown-preview" dangerouslySetInnerHTML={{ __html: (() => { try { return marked.parse(content, { breaks: true, gfm: true }); } catch { return content; } })() }} style={{ flex: 1, overflow: 'auto', padding: 12, color: '#E8E8E8', fontSize: 14, lineHeight: 1.6 }} />
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#444', fontSize: 12 }}>
+              Select a file to view or edit
+            </div>
+          ) : fileLoading ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', fontSize: 11 }}>Loading…</div>
           ) : (
-            <textarea value={content} onChange={(event) => { setContent(event.target.value); setIsDirty(true); }} style={{ flex: 1, width: '100%', border: 'none', outline: 'none', resize: 'none', background: '#0A0A0B', color: '#E8E8E8', padding: 12, fontSize: isMobile ? 14 : 12, fontFamily: 'JetBrains Mono, monospace', lineHeight: 1.45 }} />
-          )}
-        </section>
-      </div>
+            <>
+              {/* File meta bar */}
+              <div style={{ padding: '6px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, background: 'var(--bg2)' }}>
+                <span style={{ fontSize: 11, color: 'var(--copper)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{selectedPath?.replace('/data/.openclaw/', '')}</span>
+                <span style={{ fontSize: 10, color: '#555', flexShrink: 0 }}>{lang}</span>
+                {selectedNode && <span style={{ fontSize: 10, color: '#555', flexShrink: 0 }}>{fmtSize(selectedNode.size)}</span>}
+                {selectedNode && <span style={{ fontSize: 10, color: '#555', flexShrink: 0 }}>{fmtDate(selectedNode.mtimeMs)}</span>}
+              </div>
 
-      <style>{`
-        .workspace-markdown-preview h1, .workspace-markdown-preview h2, .workspace-markdown-preview h3 { margin: 0.5em 0 0.3em; font-weight: 600; }
-        .workspace-markdown-preview h1 { font-size: 1.5em; color: var(--copper, #cd7f32); }
-        .workspace-markdown-preview h2 { font-size: 1.2em; color: #e0b87a; }
-        .workspace-markdown-preview p { margin: 0.4em 0; }
-        .workspace-markdown-preview ul, .workspace-markdown-preview ol { padding-left: 1.5em; margin: 0.3em 0; }
-        .workspace-markdown-preview code { background: #1e1e1e; padding: 2px 5px; border-radius: 3px; }
-        .workspace-markdown-preview pre { background: #0d0d0d !important; padding: 10px; border-radius: 4px; overflow-x: auto; }
-        .workspace-markdown-preview a { color: #58a6ff; text-decoration: underline; }
-      `}</style>
+              {/* Content */}
+              {previewMode ? (
+                <div
+                  style={{ flex: 1, overflow: 'auto', padding: '20px 28px', fontSize: 13, lineHeight: 1.7, color: '#d0d0d0' }}
+                  dangerouslySetInnerHTML={{ __html: `<p>${renderMarkdown(editContent)}</p>` }}
+                />
+              ) : (
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  spellCheck={false}
+                  style={{ flex: 1, resize: 'none', background: 'var(--bg)', color: '#e0e0e0', border: 'none', outline: 'none', padding: '16px 20px', fontSize: 12, fontFamily: 'var(--font-mono-stack)', lineHeight: 1.6, tabSize: 2 }}
+                />
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

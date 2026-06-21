@@ -1,7 +1,8 @@
-import { requireAuth } from '@/lib/requireAuth';
+import type { Metadata } from 'next';
 import WorkspaceClient from './WorkspaceClient';
 
-export default async function WorkspacePage() {
-  await requireAuth();
+export const metadata: Metadata = { title: 'Workspace — Olympus' };
+
+export default function WorkspacePage() {
   return <WorkspaceClient />;
 }
