@@ -170,7 +170,7 @@ function TreeNodeRow({
   id, onKeyDown, focused,
 }: {
   node: TreeNode; depth: number; selected: string | null;
-  expanded: Set<string>; onToggle: (path: string) => void; onSelect: (node: TreeNode) => void;
+  expanded: Set<string>; onToggle: (path: string, node?: TreeNode) => void; onSelect: (node: TreeNode) => void;
   id?: string; onKeyDown?: (e: React.KeyboardEvent, node: TreeNode) => void; focused?: boolean;
 }) {
   const isDir = node.type === 'directory';
@@ -182,7 +182,7 @@ function TreeNodeRow({
     <div
       id={id}
       tabIndex={-1}
-      onClick={() => isDir ? onToggle(node.relPath) : onSelect(node)}
+      onClick={() => isDir ? onToggle(node.relPath, node) : onSelect(node)}
       onKeyDown={onKeyDown ? (e) => onKeyDown(e, node) : undefined}
       style={{
         display: 'flex', alignItems: 'center', gap: 6, padding: `3px 8px 3px ${8 + indent}px`,
@@ -235,6 +235,7 @@ export default function WorkspaceClient() {
   const dragStartWidth = useRef(0);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const treeContainerRef = useRef<HTMLDivElement>(null);
+  const flatItemsRef = useRef<FlatItem[]>([]);
 
   // Load tree
   useEffect(() => {
@@ -255,6 +256,7 @@ export default function WorkspaceClient() {
     setSelectedPath(node.absPath);
     setSelectedNode(node);
     setFileLoading(true);
+    syncFocusToNode(node);
     setSaveState('idle');
     setMobileView('editor');
     try {
@@ -291,12 +293,23 @@ export default function WorkspaceClient() {
     } catch { setSaveState('error'); }
   }, [selectedPath, editContent]);
 
-  const toggleDir = useCallback((relPath: string) => {
-    setExpanded((prev) => { const next = new Set(prev); next.has(relPath) ? next.delete(relPath) : next.add(relPath); return next; });
-  }, []);
-
   // Keyboard navigation
   const flatItems = useMemo(() => flattenTree(tree, expanded), [tree, expanded]);
+  flatItemsRef.current = flatItems;
+
+  const syncFocusToNode = useCallback((node: TreeNode) => {
+    const idx = flatItemsRef.current.findIndex((f) => f.node.relPath === node.relPath);
+    if (idx >= 0) {
+      setFocusedIndex(idx);
+      const el = document.getElementById(`tree-item-${node.relPath.replace(/[^a-zA-Z0-9_-]/g, '_')}`);
+      el?.scrollIntoView({ block: 'nearest' });
+    }
+  }, []);
+
+  const toggleDir = useCallback((relPath: string, node?: TreeNode) => {
+    setExpanded((prev) => { const next = new Set(prev); next.has(relPath) ? next.delete(relPath) : next.add(relPath); return next; });
+    if (node) syncFocusToNode(node);
+  }, [syncFocusToNode]);
 
   const handleTreeKeyDown = useCallback((e: React.KeyboardEvent, node: TreeNode) => {
     const idx = flatItems.findIndex((f) => f.node.relPath === node.relPath);
@@ -320,14 +333,14 @@ export default function WorkspaceClient() {
       case 'ArrowRight': {
         if (node.type === 'directory' && !expanded.has(node.relPath)) {
           e.preventDefault();
-          toggleDir(node.relPath);
+          toggleDir(node.relPath, node);
         }
         break;
       }
       case 'ArrowLeft': {
         if (node.type === 'directory' && expanded.has(node.relPath)) {
           e.preventDefault();
-          toggleDir(node.relPath);
+          toggleDir(node.relPath, node);
         }
         break;
       }
@@ -337,8 +350,9 @@ export default function WorkspaceClient() {
         const item = flatItems[idx];
         if (!item) return;
         if (item.node.type === 'directory') {
-          toggleDir(item.node.relPath);
+          toggleDir(item.node.relPath, item.node);
         } else {
+          syncFocusToNode(item.node);
           loadFile(item.node);
         }
         break;
@@ -445,21 +459,22 @@ export default function WorkspaceClient() {
                 e.preventDefault();
                 const item = flatItems[focusedIndex];
                 if (item.node.type === 'directory') {
-                  toggleDir(item.node.relPath);
+                  toggleDir(item.node.relPath, item.node);
                 } else {
+                  syncFocusToNode(item.node);
                   loadFile(item.node);
                 }
               } else if (e.key === 'ArrowRight' && focusedIndex >= 0 && focusedIndex < flatItems.length) {
                 const item = flatItems[focusedIndex];
                 if (item.node.type === 'directory' && !expanded.has(item.node.relPath)) {
                   e.preventDefault();
-                  toggleDir(item.node.relPath);
+                  toggleDir(item.node.relPath, item.node);
                 }
               } else if (e.key === 'ArrowLeft' && focusedIndex >= 0 && focusedIndex < flatItems.length) {
                 const item = flatItems[focusedIndex];
                 if (item.node.type === 'directory' && expanded.has(item.node.relPath)) {
                   e.preventDefault();
-                  toggleDir(item.node.relPath);
+                  toggleDir(item.node.relPath, item.node);
                 }
               }
             }}
@@ -477,8 +492,14 @@ export default function WorkspaceClient() {
                 depth={item.depth}
                 selected={selectedPath}
                 expanded={expanded}
-                onToggle={toggleDir}
-                onSelect={loadFile}
+                onToggle={(relPath: string) => {
+                  const item = flatItems.find(f => f.node.relPath === relPath);
+                  toggleDir(relPath, item?.node);
+                }}
+                onSelect={(node: TreeNode) => {
+                  syncFocusToNode(node);
+                  loadFile(node);
+                }}
                 onKeyDown={handleTreeKeyDown}
                 focused={index === focusedIndex}
               />
