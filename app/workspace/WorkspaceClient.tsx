@@ -167,11 +167,11 @@ function flattenTree(tree: TreeNode[], expanded: Set<string>): FlatItem[] {
 // ─── TreeNodeRow ──────────────────────────────────────────────────────────────
 function TreeNodeRow({
   node, depth, selected, expanded, onToggle, onSelect,
-  id, onKeyDown, focused,
+  id, focused,
 }: {
   node: TreeNode; depth: number; selected: string | null;
   expanded: Set<string>; onToggle: (path: string, node?: TreeNode) => void; onSelect: (node: TreeNode) => void;
-  id?: string; onKeyDown?: (e: React.KeyboardEvent, node: TreeNode) => void; focused?: boolean;
+  id?: string; focused?: boolean;
 }) {
   const isDir = node.type === 'directory';
   const isExp = expanded.has(node.relPath);
@@ -183,7 +183,6 @@ function TreeNodeRow({
       id={id}
       tabIndex={-1}
       onClick={() => isDir ? onToggle(node.relPath, node) : onSelect(node)}
-      onKeyDown={onKeyDown ? (e) => onKeyDown(e, node) : undefined}
       style={{
         display: 'flex', alignItems: 'center', gap: 6, padding: `3px 8px 3px ${8 + indent}px`,
         cursor: 'pointer', userSelect: 'none', outline: 'none',
@@ -313,71 +312,50 @@ export default function WorkspaceClient() {
     if (node) syncFocusToNode(node);
   }, [syncFocusToNode]);
 
-  const handleTreeKeyDown = useCallback((e: React.KeyboardEvent, node: TreeNode) => {
-    const idx = flatItems.findIndex((f) => f.node.relPath === node.relPath);
-    if (idx === -1) return;
-
-    switch (e.key) {
-      case 'ArrowDown': {
-        e.preventDefault();
-        const next = Math.min(idx + 1, flatItems.length - 1);
-        setFocusedIndex(next);
-        scrollToItem(flatItems, next);
-        break;
-      }
-      case 'ArrowUp': {
-        e.preventDefault();
-        const prev = Math.max(idx - 1, 0);
-        setFocusedIndex(prev);
-        scrollToItem(flatItems, prev);
-        break;
-      }
-      case 'ArrowRight': {
-        if (node.type === 'directory' && !expanded.has(node.relPath)) {
-          e.preventDefault();
-          toggleDir(node.relPath, node);
-        }
-        break;
-      }
-      case 'ArrowLeft': {
-        if (node.type === 'directory' && expanded.has(node.relPath)) {
-          e.preventDefault();
-          toggleDir(node.relPath, node);
-        }
-        break;
-      }
-      case 'Enter': {
-        e.preventDefault();
-        // Click the focused item
-        const item = flatItems[idx];
-        if (!item) return;
-        if (item.node.type === 'directory') {
-          toggleDir(item.node.relPath, item.node);
-        } else {
-          syncFocusToNode(item.node);
-          loadFile(item.node);
-        }
-        break;
-      }
-    }
-  }, [flatItems, expanded, toggleDir, loadFile]);
-
-  // Scroll focused item into view
-  const scrollToItem = useCallback((items: FlatItem[], index: number) => {
-    const el = document.getElementById(`tree-item-${items[index]?.node.relPath.replace(/[^a-zA-Z0-9_-]/g, '_')}`);
+  const moveFocus = useCallback((direction: -1 | 1) => {
+    const items = flatItemsRef.current;
+    if (items.length === 0) return;
+    const current = focusedIndex < 0 ? (direction === 1 ? -1 : 0) : focusedIndex;
+    const next = Math.max(0, Math.min(current + direction, items.length - 1));
+    setFocusedIndex(next);
+    const el = document.getElementById(`tree-item-${items[next].node.relPath.replace(/[^a-zA-Z0-9_-]/g, '_')}`);
     el?.scrollIntoView({ block: 'nearest' });
-  }, []);
+  }, [focusedIndex]);
+
+  const activateCurrent = useCallback(() => {
+    const items = flatItemsRef.current;
+    if (focusedIndex < 0 || focusedIndex >= items.length) return;
+    const item = items[focusedIndex];
+    if (item.node.type === 'directory') {
+      toggleDir(item.node.relPath, item.node);
+    } else {
+      syncFocusToNode(item.node);
+      loadFile(item.node);
+    }
+  }, [focusedIndex, toggleDir, loadFile, syncFocusToNode]);
+
+  const expandCurrent = useCallback(() => {
+    const items = flatItemsRef.current;
+    if (focusedIndex < 0 || focusedIndex >= items.length) return;
+    const item = items[focusedIndex];
+    if (item.node.type === 'directory' && !expanded.has(item.node.relPath)) {
+      toggleDir(item.node.relPath, item.node);
+    }
+  }, [focusedIndex, expanded, toggleDir]);
+
+  const collapseCurrent = useCallback(() => {
+    const items = flatItemsRef.current;
+    if (focusedIndex < 0 || focusedIndex >= items.length) return;
+    const item = items[focusedIndex];
+    if (item.node.type === 'directory' && expanded.has(item.node.relPath)) {
+      toggleDir(item.node.relPath, item.node);
+    }
+  }, [focusedIndex, expanded, toggleDir]);
 
   // Click on tree container focuses it for keyboard
-  const handleTreeContainerClick = useCallback((e: React.MouseEvent) => {
-    // Only focus if clicking the container itself, not a child item
-    if (e.target === treeContainerRef.current || (e.target as HTMLElement).closest?.('[data-tree-container]')) {
-      if (flatItems.length > 0) {
-        setFocusedIndex(0);
-        scrollToItem(flatItems, 0);
-      }
-    }
-  }, [flatItems, scrollToItem]);
+  const handleTreeContainerClick = useCallback(() => {
+    treeContainerRef.current?.focus();
+  }, []);
 
   // Resize drag
   const onMouseDown = useCallback((e: React.MouseEvent) => {
@@ -447,37 +425,21 @@ export default function WorkspaceClient() {
             tabIndex={0}
             onClick={handleTreeContainerClick}
             onKeyDown={(e) => {
-              if (e.key === 'ArrowDown' && flatItems.length > 0) {
+              if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                const next = focusedIndex < 0 ? 0 : Math.min(focusedIndex + 1, flatItems.length - 1);
-                setFocusedIndex(next);
-                scrollToItem(flatItems, next);
-              } else if (e.key === 'ArrowUp' && flatItems.length > 0) {
+                moveFocus(1);
+              } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                const prev = focusedIndex < 0 ? flatItems.length - 1 : Math.max(focusedIndex - 1, 0);
-                setFocusedIndex(prev);
-                scrollToItem(flatItems, prev);
-              } else if (e.key === 'Enter' && focusedIndex >= 0 && focusedIndex < flatItems.length) {
+                moveFocus(-1);
+              } else if (e.key === 'Enter') {
                 e.preventDefault();
-                const item = flatItems[focusedIndex];
-                if (item.node.type === 'directory') {
-                  toggleDir(item.node.relPath, item.node);
-                } else {
-                  syncFocusToNode(item.node);
-                  loadFile(item.node);
-                }
-              } else if (e.key === 'ArrowRight' && focusedIndex >= 0 && focusedIndex < flatItems.length) {
-                const item = flatItems[focusedIndex];
-                if (item.node.type === 'directory' && !expanded.has(item.node.relPath)) {
-                  e.preventDefault();
-                  toggleDir(item.node.relPath, item.node);
-                }
-              } else if (e.key === 'ArrowLeft' && focusedIndex >= 0 && focusedIndex < flatItems.length) {
-                const item = flatItems[focusedIndex];
-                if (item.node.type === 'directory' && expanded.has(item.node.relPath)) {
-                  e.preventDefault();
-                  toggleDir(item.node.relPath, item.node);
-                }
+                activateCurrent();
+              } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                expandCurrent();
+              } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                collapseCurrent();
               }
             }}
             style={{ flex: 1, overflowY: 'auto', paddingTop: 6, paddingBottom: 24, outline: 'none' }}
@@ -502,7 +464,6 @@ export default function WorkspaceClient() {
                   syncFocusToNode(node);
                   loadFile(node);
                 }}
-                onKeyDown={handleTreeKeyDown}
                 focused={index === focusedIndex}
               />
             ))}
