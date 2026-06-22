@@ -1,6 +1,6 @@
 {
   "name": "@flame0510/olympus",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "Olympus — OpenClaw Agency Monitor Dashboard. Monitor workspaces, config, agents, lineage, cron, e costi.",
   "keywords": [
     "openclaw",

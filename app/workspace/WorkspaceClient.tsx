@@ -233,6 +233,7 @@ export default function WorkspaceClient() {
   const dragStartX = useRef(0);
   const dragStartWidth = useRef(0);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
+  const [showHidden, setShowHidden] = useState(false);
   const treeContainerRef = useRef<HTMLDivElement>(null);
   const flatItemsRef = useRef<FlatItem[]>([]);
 
@@ -243,11 +244,12 @@ export default function WorkspaceClient() {
         const res = await apiFetch('/api/workspace?tree=1');
         if (!res.ok) return;
         const data = await res.json() as { entries: TreeEntry[] };
-        setTree(buildTree(data.entries));
+        const filtered = showHidden ? data.entries : data.entries.filter(e => !e.name.startsWith('.'));
+        setTree(buildTree(filtered));
       } catch { /* ignore */ }
       finally { setTreeLoading(false); }
     })();
-  }, []);
+  }, [showHidden]);
 
   // Load file
   const loadFile = useCallback(async (node: TreeNode) => {
@@ -399,7 +401,13 @@ export default function WorkspaceClient() {
             BACK
           </button>
         ) : (
-          <span style={{ fontFamily: 'var(--font-serif-stack)', fontSize: 20, letterSpacing: '4px', color: 'var(--copper)' }}>WORKSPACE</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontFamily: 'var(--font-serif-stack)', fontSize: 20, letterSpacing: '4px', color: 'var(--copper)' }}>WORKSPACE</span>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#888', fontSize: 11, cursor: 'pointer', userSelect: 'none' }}>
+              <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} style={{ accentColor: 'var(--copper)' }} />
+              .files
+            </label>
+          </div>
         )}
         {selectedPath && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
