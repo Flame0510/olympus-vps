@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/apiFetch';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -45,6 +45,25 @@ function fmtDate(ms: number) {
 }
 
 // ─── File type icon SVGs ──────────────────────────────────────────────────────
+const COPPER = 'var(--copper)'; // #b8860b-ish
+
+function FolderIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+      {expanded ? (
+        <>
+          <path d="M1.6 4a1.2 1.2 0 0 1 1.2-1.2H6l.8 1h4.4a1.2 1.2 0 0 1 1.2 1.2v5.8a1.2 1.2 0 0 1-1.2 1.2H2.8A1.2 1.2 0 0 1 1.6 10V4Z" fill={COPPER} stroke={COPPER} strokeWidth="0.3" strokeLinejoin="round" opacity="0.85"/>
+          <line x1="1.6" y1="5.5" x2="12.4" y2="5.5" stroke="#0A0A0B" strokeWidth="0.8"/>
+        </>
+      ) : (
+        <>
+          <path d="M1.6 4a1.2 1.2 0 0 1 1.2-1.2H6l.8 1h4.4a1.2 1.2 0 0 1 1.2 1.2v5.8a1.2 1.2 0 0 1-1.2 1.2H2.8A1.2 1.2 0 0 1 1.6 10V4Z" fill={COPPER} stroke={COPPER} strokeWidth="0.3" strokeLinejoin="round" opacity="0.85"/>
+        </>
+      )}
+    </svg>
+  );
+}
+
 function FileIcon({ name, size }: { name: string; size?: number }) {
   const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
   const s = size ?? 12;
@@ -124,12 +143,35 @@ function renderMarkdown(text: string): string {
     ;
 }
 
+// ─── Flatten tree into linear list for keyboard nav ───────────────────────────
+interface FlatItem {
+  node: TreeNode;
+  depth: number;
+  visible: boolean;
+}
+
+function flattenTree(tree: TreeNode[], expanded: Set<string>): FlatItem[] {
+  const result: FlatItem[] = [];
+  function walk(nodes: TreeNode[], depth: number) {
+    for (const n of nodes) {
+      result.push({ node: n, depth, visible: true });
+      if (n.type === 'directory' && expanded.has(n.relPath)) {
+        walk(n.children, depth + 1);
+      }
+    }
+  }
+  walk(tree, 0);
+  return result;
+}
+
 // ─── TreeNodeRow ──────────────────────────────────────────────────────────────
 function TreeNodeRow({
   node, depth, selected, expanded, onToggle, onSelect,
+  id, onKeyDown, focused,
 }: {
   node: TreeNode; depth: number; selected: string | null;
   expanded: Set<string>; onToggle: (path: string) => void; onSelect: (node: TreeNode) => void;
+  id?: string; onKeyDown?: (e: React.KeyboardEvent, node: TreeNode) => void; focused?: boolean;
 }) {
   const isDir = node.type === 'directory';
   const isExp = expanded.has(node.relPath);
@@ -137,43 +179,40 @@ function TreeNodeRow({
   const indent = depth * 14;
 
   return (
-    <>
-      <div
-        onClick={() => isDir ? onToggle(node.relPath) : onSelect(node)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: `3px 8px 3px ${8 + indent}px`,
-          cursor: 'pointer', userSelect: 'none',
-          background: isSelected ? '#1a1208' : 'transparent',
-          color: isSelected ? 'var(--copper)' : isDir ? '#aaa' : '#ccc',
-          fontSize: 11, fontFamily: 'var(--font-mono-stack)',
-          borderLeft: isSelected ? '2px solid var(--copper)' : '2px solid transparent',
-        }}
-        onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#111'; }}
-        onMouseLeave={(e) => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-      >
-        {isDir ? (
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{ flexShrink: 0, opacity: 0.6, transition: 'transform 0.15s', transform: isExp ? 'rotate(90deg)' : 'none' }}>
-            <path d="M3 2l4 3-4 3z"/>
-          </svg>
-        ) : (
-          <span style={{ width: 10, flexShrink: 0 }} />
-        )}
-        {isDir ? (
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" style={{ flexShrink: 0, opacity: 0.5 }}>
-            <path d="M1.75 4.5a1.75 1.75 0 0 1 1.75-1.75h2.35l1.2 1.5h5.45a1.75 1.75 0 0 1 1.75 1.75v5.5a1.75 1.75 0 0 1-1.75 1.75H3.5a1.75 1.75 0 0 1-1.75-1.75v-7Z" strokeLinejoin="round"/>
-          </svg>
-        ) : (
-          <FileIcon name={node.name} />
-        )}
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
-        {!isDir && node.size > 0 && (
-          <span style={{ marginLeft: 'auto', color: '#555', fontSize: 10, flexShrink: 0 }}>{fmtSize(node.size)}</span>
-        )}
-      </div>
-      {isDir && isExp && node.children.map((child) => (
-        <TreeNodeRow key={child.relPath} node={child} depth={depth + 1} selected={selected} expanded={expanded} onToggle={onToggle} onSelect={onSelect} />
-      ))}
-    </>
+    <div
+      id={id}
+      tabIndex={-1}
+      onClick={() => isDir ? onToggle(node.relPath) : onSelect(node)}
+      onKeyDown={onKeyDown ? (e) => onKeyDown(e, node) : undefined}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 6, padding: `3px 8px 3px ${8 + indent}px`,
+        cursor: 'pointer', userSelect: 'none', outline: 'none',
+        background: isSelected ? '#1a1208' : 'transparent',
+        color: isSelected ? 'var(--copper)' : isDir ? '#aaa' : '#ccc',
+        fontSize: 11, fontFamily: 'var(--font-mono-stack)',
+        borderLeft: isSelected ? '2px solid var(--copper)' : focused ? '2px solid #555' : '2px solid transparent',
+        transition: 'background 0.1s',
+      }}
+      onMouseEnter={(e) => { if (!isSelected && !focused) (e.currentTarget as HTMLElement).style.background = '#111'; }}
+      onMouseLeave={(e) => { if (!isSelected && !focused) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+    >
+      {isDir ? (
+        <svg width="10" height="10" viewBox="0 0 10 10" fill={COPPER} style={{ flexShrink: 0, transition: 'transform 0.15s', transform: isExp ? 'rotate(90deg)' : 'none', opacity: 0.7 }}>
+          <path d="M3 2l4 3-4 3z"/>
+        </svg>
+      ) : (
+        <span style={{ width: 10, flexShrink: 0 }} />
+      )}
+      {isDir ? (
+        <FolderIcon expanded={isExp} />
+      ) : (
+        <FileIcon name={node.name} />
+      )}
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
+      {!isDir && node.size > 0 && (
+        <span style={{ marginLeft: 'auto', color: '#555', fontSize: 10, flexShrink: 0 }}>{fmtSize(node.size)}</span>
+      )}
+    </div>
   );
 }
 
@@ -194,6 +233,8 @@ export default function WorkspaceClient() {
   const [mobileView, setMobileView] = useState<'tree' | 'editor'>('tree');
   const dragStartX = useRef(0);
   const dragStartWidth = useRef(0);
+  const [focusedIndex, setFocusedIndex] = useState<number>(-1);
+  const treeContainerRef = useRef<HTMLDivElement>(null);
 
   // Load tree
   useEffect(() => {
@@ -253,6 +294,74 @@ export default function WorkspaceClient() {
   const toggleDir = useCallback((relPath: string) => {
     setExpanded((prev) => { const next = new Set(prev); next.has(relPath) ? next.delete(relPath) : next.add(relPath); return next; });
   }, []);
+
+  // Keyboard navigation
+  const flatItems = useMemo(() => flattenTree(tree, expanded), [tree, expanded]);
+
+  const handleTreeKeyDown = useCallback((e: React.KeyboardEvent, node: TreeNode) => {
+    const idx = flatItems.findIndex((f) => f.node.relPath === node.relPath);
+    if (idx === -1) return;
+
+    switch (e.key) {
+      case 'ArrowDown': {
+        e.preventDefault();
+        const next = Math.min(idx + 1, flatItems.length - 1);
+        setFocusedIndex(next);
+        scrollToItem(flatItems, next);
+        break;
+      }
+      case 'ArrowUp': {
+        e.preventDefault();
+        const prev = Math.max(idx - 1, 0);
+        setFocusedIndex(prev);
+        scrollToItem(flatItems, prev);
+        break;
+      }
+      case 'ArrowRight': {
+        if (node.type === 'directory' && !expanded.has(node.relPath)) {
+          e.preventDefault();
+          toggleDir(node.relPath);
+        }
+        break;
+      }
+      case 'ArrowLeft': {
+        if (node.type === 'directory' && expanded.has(node.relPath)) {
+          e.preventDefault();
+          toggleDir(node.relPath);
+        }
+        break;
+      }
+      case 'Enter': {
+        e.preventDefault();
+        // Click the focused item
+        const item = flatItems[idx];
+        if (!item) return;
+        if (item.node.type === 'directory') {
+          toggleDir(item.node.relPath);
+        } else {
+          loadFile(item.node);
+        }
+        break;
+      }
+    }
+  }, [flatItems, expanded, toggleDir, loadFile]);
+
+  // Scroll focused item into view
+  const scrollToItem = useCallback((items: FlatItem[], index: number) => {
+    const el = document.getElementById(`tree-item-${items[index]?.node.relPath.replace(/[^a-zA-Z0-9_-]/g, '_')}`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, []);
+
+  // Click on tree container focuses it for keyboard
+  const handleTreeContainerClick = useCallback((e: React.MouseEvent) => {
+    // Only focus if clicking the container itself, not a child item
+    if (e.target === treeContainerRef.current || (e.target as HTMLElement).closest?.('[data-tree-container]')) {
+      if (flatItems.length > 0) {
+        setFocusedIndex(0);
+        scrollToItem(flatItems, 0);
+      }
+    }
+  }, [flatItems, scrollToItem]);
 
   // Resize drag
   const onMouseDown = useCallback((e: React.MouseEvent) => {
@@ -316,13 +425,63 @@ export default function WorkspaceClient() {
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {/* Sidebar tree */}
         <div style={{ width: isMobile === 'phone' ? '100%' : isMobile === 'tablet' ? '40%' : sidebarWidth, minWidth: isMobile === 'phone' ? '100%' : isMobile === 'tablet' ? '200px' : sidebarWidth, borderRight: isMobile === 'phone' ? 'none' : '1px solid var(--border)', display: isMobile === 'phone' && mobileView === 'editor' ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ flex: 1, overflowY: 'auto', paddingTop: 6, paddingBottom: 24 }}>
+          <div
+            ref={treeContainerRef}
+            data-tree-container
+            tabIndex={0}
+            onClick={handleTreeContainerClick}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown' && flatItems.length > 0) {
+                e.preventDefault();
+                const next = focusedIndex < 0 ? 0 : Math.min(focusedIndex + 1, flatItems.length - 1);
+                setFocusedIndex(next);
+                scrollToItem(flatItems, next);
+              } else if (e.key === 'ArrowUp' && flatItems.length > 0) {
+                e.preventDefault();
+                const prev = focusedIndex < 0 ? flatItems.length - 1 : Math.max(focusedIndex - 1, 0);
+                setFocusedIndex(prev);
+                scrollToItem(flatItems, prev);
+              } else if (e.key === 'Enter' && focusedIndex >= 0 && focusedIndex < flatItems.length) {
+                e.preventDefault();
+                const item = flatItems[focusedIndex];
+                if (item.node.type === 'directory') {
+                  toggleDir(item.node.relPath);
+                } else {
+                  loadFile(item.node);
+                }
+              } else if (e.key === 'ArrowRight' && focusedIndex >= 0 && focusedIndex < flatItems.length) {
+                const item = flatItems[focusedIndex];
+                if (item.node.type === 'directory' && !expanded.has(item.node.relPath)) {
+                  e.preventDefault();
+                  toggleDir(item.node.relPath);
+                }
+              } else if (e.key === 'ArrowLeft' && focusedIndex >= 0 && focusedIndex < flatItems.length) {
+                const item = flatItems[focusedIndex];
+                if (item.node.type === 'directory' && expanded.has(item.node.relPath)) {
+                  e.preventDefault();
+                  toggleDir(item.node.relPath);
+                }
+              }
+            }}
+            style={{ flex: 1, overflowY: 'auto', paddingTop: 6, paddingBottom: 24, outline: 'none' }}
+          >
             {treeLoading ? (
               <div style={{ padding: '20px 12px', color: '#555', fontSize: 11 }}>Loading…</div>
             ) : tree.length === 0 ? (
               <div style={{ padding: '20px 12px', color: '#555', fontSize: 11 }}>Empty workspace</div>
-            ) : tree.map((node) => (
-              <TreeNodeRow key={node.relPath} node={node} depth={0} selected={selectedPath} expanded={expanded} onToggle={toggleDir} onSelect={loadFile} />
+            ) : flatItems.map((item, index) => (
+              <TreeNodeRow
+                key={item.node.relPath}
+                id={`tree-item-${item.node.relPath.replace(/[^a-zA-Z0-9_-]/g, '_')}`}
+                node={item.node}
+                depth={item.depth}
+                selected={selectedPath}
+                expanded={expanded}
+                onToggle={toggleDir}
+                onSelect={loadFile}
+                onKeyDown={handleTreeKeyDown}
+                focused={index === focusedIndex}
+              />
             ))}
           </div>
         </div>
