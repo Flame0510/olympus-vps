@@ -1,8 +1,15 @@
 {
   "name": "@flame0510/olympus",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Olympus — OpenClaw Agency Monitor Dashboard. Monitor workspaces, config, agents, lineage, cron, e costi.",
-  "keywords": ["openclaw", "olympus", "dashboard", "monitoring", "ai", "agents"],
+  "keywords": [
+    "openclaw",
+    "olympus",
+    "dashboard",
+    "monitoring",
+    "ai",
+    "agents"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
