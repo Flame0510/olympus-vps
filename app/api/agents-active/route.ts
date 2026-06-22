@@ -60,7 +60,7 @@ function mapWorkspace(agentId: string): string {
 }
 
 const MAX_WORKSPACE_TREE_DEPTH = 32;
-const MAX_WORKSPACE_TREE_ITEMS = 1000;
+const MAX_WORKSPACE_TREE_ITEMS = 5000;
 
 function listWorkspaceFiles(workspacePath: string): WorkspaceFile[] {
   const out: WorkspaceFile[] = [];
@@ -98,9 +98,16 @@ function listWorkspaceFiles(workspacePath: string): WorkspaceFile[] {
   }
 
   walk(workspacePath, 0);
-  return out
-    .sort((a, b) => a.rel_path.localeCompare(b.rel_path))
-    .slice(0, MAX_WORKSPACE_TREE_ITEMS);
+  // Root-level files first (no '/' in rel_path), then the rest, both sorted alphabetically
+  const rootFiles = out.filter((f) => f.type !== 'folder' && !f.rel_path.includes('/'));
+  const rootFolders = out.filter((f) => f.type === 'folder' && !f.rel_path.includes('/'));
+  const rest = out.filter((f) => f.rel_path.includes('/'));
+
+  rootFiles.sort((a, b) => a.rel_path.localeCompare(b.rel_path));
+  rootFolders.sort((a, b) => a.rel_path.localeCompare(b.rel_path));
+  rest.sort((a, b) => a.rel_path.localeCompare(b.rel_path));
+
+  return [...rootFiles, ...rootFolders, ...rest].slice(0, MAX_WORKSPACE_TREE_ITEMS);
 }
 
 function extractAgentId(sessionId: string): string {

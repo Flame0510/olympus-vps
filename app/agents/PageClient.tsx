@@ -95,7 +95,18 @@ function validateBindings(bindings: EditableTelegramBinding[], agentIds: string[
 }
 
 export default function AgentsPage() {
-  const isMobile = useResponsive('lg');
+  const [isMobile, setIsMobile] = useState<'phone'|'tablet'|'desktop'>('desktop');
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      if (w < 768) setIsMobile('phone');
+      else if (w < 992) setIsMobile('tablet');
+      else setIsMobile('desktop');
+    };
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentChannels, setAgentChannels] = useState<Record<string, AgentChannelSummary>>({});
   const [selectedAgentId, setSelectedAgentId] = useState('');
@@ -207,7 +218,7 @@ export default function AgentsPage() {
   return (
     <div style={{ height: '100vh', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'var(--font-mono-stack)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: '48px', padding: '0 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        {isMobile && mobileDetailOpen ? (
+        {isMobile === 'phone' && mobileDetailOpen ? (
           <button onClick={() => setMobileDetailOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', color: '#888', fontSize: 12, cursor: 'pointer', padding: '4px 0' }}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M9 2L4 7l5 5"/></svg>
             BACK
@@ -219,13 +230,13 @@ export default function AgentsPage() {
           </>
         )}
       </div>
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, flexDirection: isMobile ? 'column' : 'row' }}>
-        <section style={{ width: isMobile ? '100%' : '32%', minWidth: isMobile ? 0 : 290, borderRight: isMobile ? 'none' : '1px solid var(--border)', overflow: 'auto', display: isMobile && mobileDetailOpen ? 'none' : undefined }}>
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, flexDirection: isMobile === 'phone' ? 'column' : 'row' }}>
+        <section style={{ width: isMobile === 'phone' ? '100%' : isMobile === 'tablet' ? '40%' : '32%', minWidth: isMobile === 'phone' ? 0 : isMobile === 'tablet' ? 200 : 290, borderRight: isMobile === 'phone' ? 'none' : '1px solid var(--border)', overflow: 'auto', display: isMobile === 'phone' && mobileDetailOpen ? 'none' : undefined }}>
           {!agentsLoaded && <div style={{ padding: 14, display: 'grid', gap: 14 }}>{Array.from({ length: 5 }).map((_, index) => <div key={index} style={{ border: '1px solid var(--border)', background: 'var(--bg2)', padding: 12 }}><SkeletonLines count={3} /></div>)}</div>}
           {agentsLoaded && agents.length === 0 && <div style={{ padding: 14, color: '#888', fontSize: 12 }}>Nessun agente rilevato</div>}
           {agentsLoaded && agents.map((agent) => {
             const isActive = selectedAgentId === agent.agent_id; const hasWorking = agent.status === 'working'; const model = agent.config_model ?? agent.sessions[0]?.model ?? 'unknown'; const channelSummary = agentChannels[agent.agent_id]; const telegramAccounts = channelSummary?.telegram.accounts ?? []; const telegramBindings = channelSummary?.telegram.bindings ?? []; const primaryAccount = telegramAccounts[0];
-            return <button key={agent.agent_id} onClick={() => { setSelectedAgentId(agent.agent_id); if (isMobile) setMobileDetailOpen(true); }} style={{ width: '100%', textAlign: 'left', background: isActive ? '#1a1208' : 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text)', padding: '10px 12px', cursor: 'pointer' }}>
+            return <button key={agent.agent_id} onClick={() => { setSelectedAgentId(agent.agent_id); if (isMobile === 'phone') setMobileDetailOpen(true); }} style={{ width: '100%', textAlign: 'left', background: isActive ? '#1a1208' : 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text)', padding: '10px 12px', cursor: 'pointer' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: hasWorking ? '#22c55e' : '#888', display: 'inline-block' }} /><span style={{ color: isActive ? 'var(--copper)' : 'var(--text)', fontSize: 12 }}>{agent.agent_id}</span></div><span style={{ fontSize: 10, color: '#555' }}>{agent.sessions.length} sess</span></div>
               <div style={{ display: 'inline-block', marginTop: 6, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 999, color: '#888', fontSize: 10, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={model}>{model}</div>
               <div style={{ ...metaLineStyle(), marginTop: 6 }}>{agent.workspace_path}</div>
@@ -233,7 +244,7 @@ export default function AgentsPage() {
             </button>;
           })}
         </section>
-        <section style={{ flex: 1, minWidth: 0, overflow: 'auto', background: 'var(--bg2)', padding: 12, display: isMobile && !mobileDetailOpen ? 'none' : undefined }}>
+        <section style={{ flex: 1, minWidth: 0, overflow: 'auto', background: 'var(--bg2)', padding: 12, display: isMobile === 'phone' && !mobileDetailOpen ? 'none' : undefined }}>
           {selectedAgent ? <div style={{ display: 'grid', gap: 10 }}>
             <div style={{ fontSize: 11, color: '#888' }}>Config, Telegram bindings e wizard. I tab FILES + CONFIG e l'editor file sono stati spostati in Workspace.</div>
             {selectedAgentChannel && editableConfig && <>
@@ -246,7 +257,7 @@ export default function AgentsPage() {
           </div> : <div style={{ color: '#666', fontSize: 12 }}>Select an agent</div>}
         </section>
       </div>
-      {wizardOpen && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}><div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, width: isMobile ? '95vw' : 480, maxHeight: '90vh', overflow: 'auto' }}><div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ color: 'var(--copper)', fontSize: 12, letterSpacing: '0.08em' }}>{wizardStep === 'template' ? 'NEW AGENT — SCEGLI TEMPLATE' : `NEW AGENT — CONFIGURA (${wizardTemplate.label})`}</span><button onClick={() => setWizardOpen(false)} style={{ background: 'transparent', border: 'none', color: '#888', fontSize: 14, cursor: 'pointer' }}>✕</button></div>{wizardStep === 'template' ? <div style={{ padding: 16, display: 'grid', gap: 10 }}>{AGENT_TEMPLATES.map((tpl) => <button key={tpl.id} onClick={() => selectTemplate(tpl)} style={{ textAlign: 'left', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, padding: '12px 14px', cursor: 'pointer', color: 'var(--text)' }}><div style={{ color: 'var(--copper)', fontSize: 12, marginBottom: 4 }}>{tpl.label}</div><div style={{ fontSize: 11, color: '#888' }}>{tpl.description}</div></button>)}</div> : <div style={{ padding: 16, display: 'grid', gap: 10 }}>{(['id', 'name', 'label', 'model', 'workspace'] as const).map((key) => <div key={key}><div style={{ fontSize: 10, color: '#888', marginBottom: 3 }}>{key}{key === 'id' ? ' *' : ''}</div><input value={wizardForm[key]} onChange={(e) => setWizardForm((prev) => ({ ...prev, [key]: e.target.value }))} style={fieldStyle()} /></div>)}<div><div style={{ fontSize: 10, color: '#888', marginBottom: 3 }}>identity.name</div><input value={wizardForm.identity.name} onChange={(e) => setWizardForm((prev) => ({ ...prev, identity: { ...prev.identity, name: e.target.value } }))} style={fieldStyle()} /></div><div><div style={{ fontSize: 10, color: '#888', marginBottom: 3 }}>identity.emoji</div><input value={wizardForm.identity.emoji} onChange={(e) => setWizardForm((prev) => ({ ...prev, identity: { ...prev.identity, emoji: e.target.value } }))} style={fieldStyle()} /></div>{wizardError && <div style={{ color: '#ef4444', fontSize: 11 }}>{wizardError}</div>}<div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}><button onClick={() => setWizardStep('template')} style={{ border: '1px solid var(--border)', borderRadius: 4, background: 'transparent', color: '#888', fontSize: 11, padding: '7px 12px' }}>← INDIETRO</button><button onClick={() => void createAgent()} disabled={wizardSaving || !wizardForm.id.trim()} style={{ border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg3)', color: wizardSaving ? '#888' : 'var(--copper)', fontSize: 11, padding: '7px 14px' }}>{wizardSaving ? 'Creazione…' : 'CREA AGENTE'}</button></div></div>}</div></div>}
+      {wizardOpen && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}><div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, width: isMobile === 'phone' ? '95vw' : 480, maxHeight: '90vh', overflow: 'auto' }}><div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ color: 'var(--copper)', fontSize: 12, letterSpacing: '0.08em' }}>{wizardStep === 'template' ? 'NEW AGENT — SCEGLI TEMPLATE' : `NEW AGENT — CONFIGURA (${wizardTemplate.label})`}</span><button onClick={() => setWizardOpen(false)} style={{ background: 'transparent', border: 'none', color: '#888', fontSize: 14, cursor: 'pointer' }}>✕</button></div>{wizardStep === 'template' ? <div style={{ padding: 16, display: 'grid', gap: 10 }}>{AGENT_TEMPLATES.map((tpl) => <button key={tpl.id} onClick={() => selectTemplate(tpl)} style={{ textAlign: 'left', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, padding: '12px 14px', cursor: 'pointer', color: 'var(--text)' }}><div style={{ color: 'var(--copper)', fontSize: 12, marginBottom: 4 }}>{tpl.label}</div><div style={{ fontSize: 11, color: '#888' }}>{tpl.description}</div></button>)}</div> : <div style={{ padding: 16, display: 'grid', gap: 10 }}>{(['id', 'name', 'label', 'model', 'workspace'] as const).map((key) => <div key={key}><div style={{ fontSize: 10, color: '#888', marginBottom: 3 }}>{key}{key === 'id' ? ' *' : ''}</div><input value={wizardForm[key]} onChange={(e) => setWizardForm((prev) => ({ ...prev, [key]: e.target.value }))} style={fieldStyle()} /></div>)}<div><div style={{ fontSize: 10, color: '#888', marginBottom: 3 }}>identity.name</div><input value={wizardForm.identity.name} onChange={(e) => setWizardForm((prev) => ({ ...prev, identity: { ...prev.identity, name: e.target.value } }))} style={fieldStyle()} /></div><div><div style={{ fontSize: 10, color: '#888', marginBottom: 3 }}>identity.emoji</div><input value={wizardForm.identity.emoji} onChange={(e) => setWizardForm((prev) => ({ ...prev, identity: { ...prev.identity, emoji: e.target.value } }))} style={fieldStyle()} /></div>{wizardError && <div style={{ color: '#ef4444', fontSize: 11 }}>{wizardError}</div>}<div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}><button onClick={() => setWizardStep('template')} style={{ border: '1px solid var(--border)', borderRadius: 4, background: 'transparent', color: '#888', fontSize: 11, padding: '7px 12px' }}>← INDIETRO</button><button onClick={() => void createAgent()} disabled={wizardSaving || !wizardForm.id.trim()} style={{ border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg3)', color: wizardSaving ? '#888' : 'var(--copper)', fontSize: 11, padding: '7px 14px' }}>{wizardSaving ? 'Creazione…' : 'CREA AGENTE'}</button></div></div>}</div></div>}
       <ModelPickerModal open={!!modelPickerAgentId} value={modelPickerAgentId ? modelValueToString(agentChannels[modelPickerAgentId]?.config.model) : ''} title={modelPickerAgentId ? `Modello default · ${modelPickerAgentId}` : 'Modello default'} onClose={() => setModelPickerAgentId(null)} onSelect={(model) => { if (modelPickerAgentId) void saveAgentDefaultModel(modelPickerAgentId, model); }} />
     </div>
   );

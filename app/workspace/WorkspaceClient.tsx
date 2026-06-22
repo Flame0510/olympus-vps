@@ -25,6 +25,15 @@ const EXT_LANG: Record<string, string> = {
 
 function extOf(name: string) { return name.slice(name.lastIndexOf('.')).toLowerCase(); }
 function isMarkdown(name: string) { return extOf(name) === '.md'; }
+function isPdfExt(name: string): boolean {
+  return name.slice(name.lastIndexOf('.')).toLowerCase() === '.pdf';
+}
+
+function isBinaryExt(name: string): boolean {
+  const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
+  return ['.png','.jpg','.jpeg','.gif','.webp','.svg','.pdf','.ico'].includes(ext);
+}
+
 function fmtSize(bytes: number) {
   if (bytes < 1024) return `${bytes}B`;
   if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)}KB`;
@@ -33,6 +42,34 @@ function fmtSize(bytes: number) {
 function fmtDate(ms: number) {
   const d = new Date(ms);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+// ─── File type icon SVGs ──────────────────────────────────────────────────────
+function FileIcon({ name, size }: { name: string; size?: number }) {
+  const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
+  const s = size ?? 12;
+  const color = '#888';
+  const mono = (p: string) => <path d={p} stroke={color} strokeWidth="1.2" fill="none" strokeLinejoin="round"/>;
+  const dim = { width: s, height: s, viewBox: `0 0 ${s} ${s}`, fill: 'none', stroke: color, strokeWidth: '1.2', style: { flexShrink: 0, opacity: 0.5 } as React.CSSProperties };
+  const doc = <svg {...dim}><path d="M1 1h7L11 4v9H1z" strokeLinejoin="round"/><path d="M8 1v3h3" strokeLinejoin="round"/></svg>;
+  switch (ext) {
+    case '.md': return <svg {...dim}><path d="M1 1h7L11 4v9H1z" strokeLinejoin="round"/><path d="M8 1v3h3" strokeLinejoin="round"/><path d="M3 7h5M3 9h3" strokeLinecap="round"/></svg>;
+    case '.ts':
+    case '.tsx': return <svg {...dim}>{mono('M1 1h7L11 4v9H1z')}{mono('M8 1v3h3')}<text x="2.5" y="9" fontSize="5" fill="#3178c6" stroke="none" fontWeight="bold">TS</text></svg>;
+    case '.js': return <svg {...dim}>{mono('M1 1h7L11 4v9H1z')}{mono('M8 1v3h3')}<text x="2.5" y="9" fontSize="5" fill="#f7df1e" stroke="none" fontWeight="bold">JS</text></svg>;
+    case '.json': return <svg {...dim}>{mono('M1 1h7L11 4v9H1z')}{mono('M8 1v3h3')}<text x="2" y="9" fontSize="5" fill="#ecc" stroke="none">{'{ }'}</text></svg>;
+    case '.sh': return <svg {...dim}>{mono('M1 1h7L11 4v9H1z')}{mono('M8 1v3h3')}<line x1="4" y1="5" x2="7" y2="10" stroke={color} strokeWidth="1"/><line x1="7" y1="5" x2="4" y2="10" stroke={color} strokeWidth="1"/></svg>;
+    case '.py': return <svg {...dim}>{mono('M1 1h7L11 4v9H1z')}{mono('M8 1v3h3')}<rect x="3" y="6" width="5" height="4" rx="0.5" stroke={color} strokeWidth="0.8" fill="none"/></svg>;
+    case '.css': return <svg {...dim}>{mono('M1 1h7L11 4v9H1z')}{mono('M8 1v3h3')}<path d="M9 9l2-3H4l1 3z" fill="#264de4" stroke="none"/></svg>;
+    case '.html': return <svg {...dim}>{mono('M1 1h7L11 4v9H1z')}{mono('M8 1v3h3')}<path d="M3 7l1 3 1-3" stroke={color} strokeWidth="0.8" fill="none"/></svg>;
+    case '.pdf': return <svg {...dim}>{mono('M1 1h7L11 4v9H1z')}{mono('M8 1v3h3')}<rect x="2.5" y="6" width="6" height="4.5" rx="0.3" fill="#ef4444" stroke="none" opacity="0.6"/></svg>;
+    case '.png': case '.jpg': case '.jpeg': case '.gif': case '.webp': case '.svg':
+      return <svg {...dim}>{mono('M1 1h7L11 4v9H1z')}{mono('M8 1v3h3')}<circle cx="5" cy="7" r="2" fill={color} opacity="0.4" stroke="none"/><path d="M3 11l3-3 3 3" stroke={color} strokeWidth="0.8" fill="none"/></svg>;
+    case '.yaml': case '.yml': return <svg {...dim}>{mono('M1 1h7L11 4v9H1z')}{mono('M8 1v3h3')}<line x1="3" y1="7" x2="8" y2="7" stroke={color} strokeWidth="0.8"/><line x1="3" y1="9" x2="6" y2="9" stroke={color} strokeWidth="0.8"/></svg>;
+    case '.env': return <svg {...dim}>{mono('M1 1h7L11 4v9H1z')}{mono('M8 1v3h3')}<text x="3" y="9" fontSize="5" fill="#ffa" stroke="none">.env</text></svg>;
+    case '.txt': return <svg {...dim}>{mono('M1 1h7L11 4v9H1z')}{mono('M8 1v3h3')}<rect x="3" y="7" width="5" height="0.8" fill={color} opacity="0.5" stroke="none"/><rect x="3" y="9" width="5" height="0.8" fill={color} opacity="0.5" stroke="none"/></svg>;
+    default: return doc;
+  }
 }
 
 // ─── Tree helpers ─────────────────────────────────────────────────────────────
@@ -126,10 +163,7 @@ function TreeNodeRow({
             <path d="M1.75 4.5a1.75 1.75 0 0 1 1.75-1.75h2.35l1.2 1.5h5.45a1.75 1.75 0 0 1 1.75 1.75v5.5a1.75 1.75 0 0 1-1.75 1.75H3.5a1.75 1.75 0 0 1-1.75-1.75v-7Z" strokeLinejoin="round"/>
           </svg>
         ) : (
-          <svg width="10" height="12" viewBox="0 0 10 12" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ flexShrink: 0, opacity: 0.4 }}>
-            <path d="M1 1h5.5L9 3.5V11H1z" strokeLinejoin="round"/>
-            <path d="M6 1v3h3" strokeLinejoin="round"/>
-          </svg>
+          <FileIcon name={node.name} />
         )}
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
         {!isDir && node.size > 0 && (
@@ -184,9 +218,12 @@ export default function WorkspaceClient() {
     setMobileView('editor');
     try {
       const ext = extOf(node.name);
-      const isBinary = ['.png','.jpg','.jpeg','.gif','.webp','.svg','.pdf','.ico'].includes(ext);
-      if (isBinary) {
-        setFileContent(`[binary: ${node.name}]`);
+      if (isBinaryExt(node.name)) {
+        if (isPdfExt(node.name)) {
+          setFileContent('__pdf__');
+        } else {
+          setFileContent(`[binary: ${node.name}]`);
+        }
         setEditContent('');
         setFileLoading(false);
         return;
@@ -235,10 +272,15 @@ export default function WorkspaceClient() {
   const dirty = editContent !== fileContent && !fileLoading && selectedPath != null;
   const lang = selectedNode ? (EXT_LANG[extOf(selectedNode.name)] ?? 'text') : 'text';
 
-  // Mobile: detect viewport
-  const [isMobile, setIsMobile] = useState(false);
+  // Responsive breakpoints
+  const [isMobile, setIsMobile] = useState<'phone'|'tablet'|'desktop'>('desktop');
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 1024);
+    const check = () => {
+      const w = window.innerWidth;
+      if (w < 768) setIsMobile('phone');
+      else if (w < 1024) setIsMobile('tablet');
+      else setIsMobile('desktop');
+    };
     check();
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
@@ -248,7 +290,7 @@ export default function WorkspaceClient() {
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'var(--font-mono-stack)', overflow: 'hidden' }}>
       {/* Header */}
       <div style={{ height: 48, padding: '0 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        {isMobile && mobileView === 'editor' ? (
+        {isMobile === 'phone' && mobileView === 'editor' ? (
           <button onClick={() => setMobileView('tree')} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', color: '#888', fontSize: 12, cursor: 'pointer', padding: '4px 0' }}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M9 2L4 7l5 5"/></svg>
             BACK
@@ -273,7 +315,7 @@ export default function WorkspaceClient() {
       {/* Body */}
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {/* Sidebar tree */}
-        <div style={{ width: isMobile ? '100%' : sidebarWidth, minWidth: isMobile ? '100%' : sidebarWidth, borderRight: isMobile ? 'none' : '1px solid var(--border)', display: isMobile && mobileView === 'editor' ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ width: isMobile === 'phone' ? '100%' : isMobile === 'tablet' ? '40%' : sidebarWidth, minWidth: isMobile === 'phone' ? '100%' : isMobile === 'tablet' ? '200px' : sidebarWidth, borderRight: isMobile === 'phone' ? 'none' : '1px solid var(--border)', display: isMobile === 'phone' && mobileView === 'editor' ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ flex: 1, overflowY: 'auto', paddingTop: 6, paddingBottom: 24 }}>
             {treeLoading ? (
               <div style={{ padding: '20px 12px', color: '#555', fontSize: 11 }}>Loading…</div>
@@ -286,7 +328,7 @@ export default function WorkspaceClient() {
         </div>
 
         {/* Resize handle — desktop only */}
-        {!isMobile && (
+        {isMobile === 'desktop' && (
         <div
           onMouseDown={onMouseDown}
           style={{ width: 4, cursor: 'col-resize', background: isDragging ? 'var(--copper)' : 'transparent', transition: isDragging ? 'none' : 'background 0.15s', flexShrink: 0 }}
@@ -296,7 +338,7 @@ export default function WorkspaceClient() {
         )}
 
         {/* Editor / Preview */}
-        <div style={{ flex: 1, minWidth: 0, display: isMobile && mobileView === 'tree' ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, minWidth: 0, display: isMobile === 'phone' && mobileView === 'tree' ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {!selectedPath ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#444', fontSize: 12 }}>
               Select a file to view or edit
@@ -314,7 +356,13 @@ export default function WorkspaceClient() {
               </div>
 
               {/* Content */}
-              {previewMode ? (
+              {fileContent === '__pdf__' && selectedPath ? (
+                <iframe
+                  src={`/api/workspace?path=${encodeURIComponent(selectedPath)}`}
+                  style={{ flex: 1, width: '100%', border: 'none', background: '#fff' }}
+                  title={selectedNode?.name ?? 'PDF'}
+                />
+              ) : previewMode ? (
                 <div
                   style={{ flex: 1, overflow: 'auto', padding: '20px 28px', fontSize: 13, lineHeight: 1.7, color: '#d0d0d0' }}
                   dangerouslySetInnerHTML={{ __html: `<p>${renderMarkdown(editContent)}</p>` }}
