@@ -16,12 +16,12 @@ module.exports = {
     },
     {
       name: 'olympus-next',
-      cwd: '/data/.openclaw/workspace-ops/olympus',
+      cwd: '/docker/olympus-vps',
       script: 'npm',
       args: 'start',
       interpreter: 'none',
       env: {
-        PORT: '3720',
+        PORT: '3740',
         NODE_ENV: 'production',
         NEXT_TELEMETRY_DISABLED: '1',
       },
