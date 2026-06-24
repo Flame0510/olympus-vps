@@ -467,7 +467,34 @@ ALTER TABLE sessions ADD COLUMN ended_at INTEGER;
 
 ---
 
-## 11. Technology Stack
+## 11. Container Terminal
+
+Olympus provides a real, interactive terminal for any agent container via
+a WebSocket-connected PTY. The implementation is documented in detail in
+[docs/container-terminal.md](container-terminal.md).
+
+### Two-process architecture
+
+| Process | Port | Role |
+|---|---|---|
+| `olympus-next` (Next.js) | 3740 | Serves the terminal page, auth, API |
+| `olympus-terminal-ws` (standalone) | 3741 | WebSocket PTY server via `node-pty` |
+
+The terminal server runs as a separate PM2 process to avoid event-loop
+contention with Next.js during high-throughput I/O.
+
+### Why custom DOM over xterm.js
+
+The initial implementation used xterm.js (both canvas and DOM renderers).
+Both suffered from black-screen-on-large-output and broken scrolling due to
+CSS conflicts. The current implementation uses a plain `<div>` with native
+browser scrolling and a hidden `<textarea>` for input — stable under any
+output volume.
+
+See [container-terminal.md](container-terminal.md#terminal-client-browser)
+for the full rationale.
+
+## 12. Technology Stack
 
 | Layer | Technology | Notes |
 |---|---|---|
