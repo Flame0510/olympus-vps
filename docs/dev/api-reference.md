@@ -390,23 +390,179 @@ Memory context snapshot for the current agent workspace.
 
 ---
 
-## Workspace
+## Workspace (V2 — multi-workspace)
 
-### `GET /api/workspace?path=<rel_path>`
-Read a workspace file by relative path (markdown, JSON, txt only). Path is validated against allowed roots.
+Olympus supports multiple workspaces: the VPS host and any Docker container with an `AGENT_ID` label.
+
+### `GET /api/workspace?action=list`
+List available workspaces.
+
+**Auth:** Bearer, query param, x-agent-token, or browser cookie
+
+**Response:**
+```json
+{
+  "workspaces": [
+    { "id": "vps", "label": "VPS Host (Nexus)", "type": "host" },
+    { "id": "container-openclaw-atlas", "label": "atlas (openclaw-atlas)", "type": "container" }
+  ]
+}
+```
+
+### `GET /api/workspace?workspace=<id>`
+List root files in a workspace.
+
+**Auth:** any auth method
+
+**Query params:** `workspace` (required), `path` (optional — directory or file)
+
+**Response (directory):**
+```json
+{
+  "workspace": "vps",
+  "label": "VPS Host (Nexus)",
+  "path": "/home/nexus/.openclaw/workspace",
+  "type": "host",
+  "files": [
+    { "name": "SOUL.md", "isDirectory": false, "isFile": true, "path": "..." },
+    { "name": "config", "isDirectory": true, "isFile": false, "path": "..." }
+  ]
+}
+```
+
+**Response (file):** Same structure with `content` field instead of `files`.
+
+### `PUT /api/workspace`
+Write content to a workspace file.
+
+**Auth:** any auth method
+
+**Body:** `{ "workspace": "vps", "path": "/home/nexus/.openclaw/workspace/test.md", "content": "hello" }`
+
+**Response:** `{ "ok": true }`
+
+### Implementation notes
+- **Host workspace:** uses `fs.readdirSync` / `fs.readFileSync` / `fs.writeFileSync` — real-time, no caching
+- **Container workspaces:** uses `docker exec` with `ls -1Ap`, `test -d`, `cat`, and heredoc writes
+- Subdirectories are lazy-loaded (expand on click in the UI)
+- Binary files (images, PDFs): detected by extension, served inline or displayed
+
+---
+
+## Vault
+
+### `GET /api/vault`
+List all stored credentials (keys masked).
 
 **Auth:** browser cookie
 
-**Response:** `{ "content": "# MEMORY.md\n...", "path": "MEMORY.md" }`
+**Response:**
+```json
+{
+  "providers": {
+    "openai-codex": { "keyStatus": "present", "scoped": ["atlas"] }
+  },
+  "services": {
+    "github": { "tokenStatus": "present", "user": "Flame0510", "scoped": ["argus", "atlas"] }
+  }
+}
+```
 
-**Error:** `400` if path is disallowed; `500` on read error.
+### `PUT /api/vault/provider`
+Add or update a provider API key.
 
-### `POST /api/workspace`
-Write content to a workspace file (allowed paths only).
+**Auth:** browser cookie
 
-**Body:** `{ "path": "MEMORY.md", "content": "# updated..." }`
+**Body:** `{ "id": "openai-codex", "key": "sk-...", "scopes": ["atlas"] }`
 
 **Response:** `{ "ok": true }`
+
+### `DELETE /api/vault/provider`
+Remove a provider and all its keys.
+
+**Auth:** browser cookie
+
+**Body:** `{ "id": "openai-codex" }`
+
+**Response:** `{ "ok": true }`
+
+### `PUT /api/vault/service`
+Add or update a service token.
+
+**Auth:** browser cookie
+
+**Body:** `{ "id": "github", "token": "***", "user": "Flame0510", "scopes": ["atlas"] }`
+
+**Response:** `{ "ok": true }`
+
+### `DELETE /api/vault/service`
+Remove a service.
+
+**Auth:** browser cookie
+
+**Body:** `{ "id": "github" }`
+
+**Response:** `{ "ok": true }`
+
+### `PUT /api/vault/permissions`
+Update agent permissions for a credential.
+
+**Body:** `{ "type": "provider" | "service", "id": "openai-codex", "scopes": ["atlas", "argus"] }`
+
+**Response:** `{ "ok": true }`
+
+---
+
+## Containers
+
+### `GET /api/containers`
+List all running Docker containers with resource usage.
+
+**Auth:** browser cookie
+
+**Response:**
+```json
+{
+  "containers": [
+    {
+      "name": "openclaw-atlas",
+      "image": "nexus-agent-base:latest",
+      "status": "running",
+      "ports": ["0.0.0.0:3731->3000/tcp"],
+      "created": "2026-06-20T10:00:00Z",
+      "cpu_percent": 2.1,
+      "mem_usage_mb": 340
+    }
+  ]
+}
+```
+
+### `GET /api/containers/logs?name=<name>&tail=<lines>`
+Get container logs.
+
+**Auth:** browser cookie
+
+**Query params:** `name` (required), `tail` (default 50)
+
+**Response:** `{ "name": "openclaw-atlas", "logs": "[log lines...]" }`
+
+### `POST /api/containers/action`
+Execute action on a container.
+
+**Body:** `{ "action": "restart" | "stop" | "start", "name": "openclaw-atlas" }`
+
+**Response:** `{ "ok": true, "message": "Container openclaw-atlas restarted" }`
+
+---
+
+## Agent Providers
+
+### `GET /api/agent-providers`
+List provider configurations available across all agents.
+
+**Auth:** browser cookie
+
+**Response:** `{ "providers": [...] }`
 
 ---
 

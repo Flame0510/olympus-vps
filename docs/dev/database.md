@@ -6,7 +6,7 @@ Olympus uses a single SQLite file (`events.db`) in WAL mode.
 
 | Environment | Path |
 |---|---|
-| Container (default) | `/data/.openclaw/workspace-ops/olympus-next-ts/events.db` |
+| VPS (default) | `/docker/olympus-vps/data/events.db` |
 | Custom | Set `OLYMPUS_DB` env var |
 
 ## WAL Mode
@@ -163,3 +163,7 @@ For future schema changes, add a `try/catch` ALTER TABLE block in `daemon.js` fo
 sqlite3 events.db "PRAGMA quick_check"
 # Expected output: ok
 ```
+
+**Current location on VPS:** `/docker/olympus-vps/data/events.db`
+
+The `OLYMPUS_DB` env var is set in the systemd override file at `/etc/systemd/system/olympus-vps.service.d/env.conf`.
