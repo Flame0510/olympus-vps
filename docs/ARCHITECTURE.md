@@ -1,6 +1,6 @@
 # Olympus Architecture — Design & Vision
 
-> **Status:** In progress — `vps-host` branch
+> **Status:** Active — `main` branch
 > **Last updated:** 2026-06-24
 > **Goal:** Transform Olympus from a monitoring dashboard into a central orchestrator for a distributed multi-container agency.
 
@@ -70,7 +70,7 @@
 
 **Container separation:** `openclaw-atlas` already runs as a standalone container with `AGENT_ID=atlas`, discovered dynamically by Olympus. This proves the container-per-agent model works.
 
-**Vault system:** A credentials vault (`/vault` page) stores API keys and service tokens with per-agent permissions. File-backed (`vault.json`). Implemented on `vps-host` branch.
+**Vault system:** A credentials vault (`/vault` page) stores API keys and service tokens with per-agent permissions. File-backed vault system (removed - sensitive data is env-only).
 
 **Container management UI:** The `/containers` page lists all running Docker containers with resource usage, logs, and quick links. Fully functional.
 
@@ -106,7 +106,7 @@ The central container, running the Next.js dashboard + orchestration API.
 
 **Volume mounts (target):**
 ```
-/docker/olympus-control/data  → /data (persistent)
+/home/nexus/.openclaw/workspace/olympus-vps/data  → /data (persistent)
 /var/run/docker.sock          → /var/run/docker.sock
 /docker/shared-skills          → /data/shared-skills (rw)
 /docker/shared-repos           → /data/shared-repos (rw)
@@ -408,7 +408,7 @@ ALTER TABLE sessions ADD COLUMN ended_at INTEGER;
 - [x] Architecture document exists
 - [x] Olympus code is in the workspace
 - [x] Git repository on `github.com/Flame0510/olympus-vps.git`
-- [x] Branch `vps-host` created for VPS-specific changes
+- [x] VPS-specific changes merged into `main` branch
 
 ### Phase 1 — Container separation
 - [x] `openclaw-atlas` running as standalone container

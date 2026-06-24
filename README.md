@@ -9,9 +9,9 @@ Real-time monitoring dashboard for AI agent systems.
 - **Live agent graph** — force-directed graph showing parent→child session hierarchy in real time
 - **Cost tracker** — per session / model / day breakdown with optional manual override
 - **Real-time event feed** — spawn, complete, error events with label and timestamp
-- **Workspace file editor** — file tree con navigazione tastiera, icone per tipo file, viewer PDF integrato, editor markdown con preview
-- **Agent config manager** — creazione/modifica agenti, binding Telegram, wizard template
-- **Provider/OAuth UI** — login provider interattivi con bottoni OAuth e API key
+- **Workspace file editor** — file tree with keyboard navigation, file type icons, integrated PDF viewer, markdown editor with preview
+- **Agent config manager** — agent creation/editing, binding Telegram, wizard template
+- **Provider/OAuth UI** — interactive login providers with OAuth buttons and API key
 - **Period filters** — today / 7d / 30d / all time
 - **System health** — CPU, RAM, disk, daemon status, cron checks
 - **PYTHIA** — embedded AI assistant for natural-language queries about sessions and costs

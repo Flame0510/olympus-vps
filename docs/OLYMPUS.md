@@ -17,7 +17,7 @@ A Next.js 16 dashboard for monitoring and managing the OpenClaw ecosystem on thi
 | VPS IP | `187.77.156.41` |
 | OS | Ubuntu 24.04.4 LTS |
 | Resources | 4 CPU, 15 GB RAM, 193 GB disk |
-| Gateway Token | `1397c69122ed7e7aded9436b2043b0e2fe7e515230350e77ecc804f07372b2f7` |
+
 
 ---
 

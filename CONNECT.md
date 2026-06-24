@@ -11,7 +11,7 @@ Olympus is a real-time monitoring dashboard for AI agent systems. It tracks live
 ## Repository
 
 ```
-https://github.com/Flame0510/olympus-dashboard
+https://github.com/Flame0510/olympus-vps
 ```
 
 ---
@@ -50,7 +50,7 @@ openclaw --version 2>/dev/null || echo "not found"
 
 ```bash
 # If /data/olympus does not exist:
-git clone https://github.com/Flame0510/olympus-dashboard /data/olympus
+git clone https://github.com/Flame0510/olympus-vps /data/olympus
 
 # If it already exists:
 git -C /data/olympus pull
