@@ -407,7 +407,7 @@ ALTER TABLE sessions ADD COLUMN ended_at INTEGER;
 ### Phase 0 — Preparation (✅ Done)
 - [x] Architecture document exists
 - [x] Olympus code is in the workspace
-- [x] Git repository on `github.com/Flame0510/olympus.git`
+- [x] Git repository on `github.com/Flame0510/olympus-vps.git`
 - [x] Branch `vps-host` created for VPS-specific changes
 
 ### Phase 1 — Container separation
@@ -480,4 +480,4 @@ ALTER TABLE sessions ADD COLUMN ended_at INTEGER;
 | Vault | JSON file + encryption | Current: plain JSON. Future: encrypted |
 | Reverse proxy | Traefik | Already in use |
 | Monitoring | Olympus daemon (extended) | Evolution of current daemon |
-| Version control | Git + GitHub | `github.com/Flame0510/olympus.git` |
+| Version control | Git + GitHub | `github.com/Flame0510/olympus-vps.git` |

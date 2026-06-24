@@ -6,7 +6,7 @@ A Next.js 16 dashboard for monitoring and managing the OpenClaw ecosystem on thi
 **Port:** 3740 (Next.js, reverse-proxied by Traefik)
 **Build directory:** `/docker/olympus-vps/`
 **Runtime:** systemd service `olympus-vps`
-**Repository:** `github.com/Flame0510/olympus.git` (branch: `vps-host`)
+**Repository:** `github.com/Flame0510/olympus-vps.git` (branch: `main`)
 
 ---
 
