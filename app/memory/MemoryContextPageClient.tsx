@@ -61,7 +61,7 @@ export default function MemoryContextPageClient() {
       <div className="ui-page" style={{ padding: '24px 20px 40px', overflow: 'auto' }}>
         <div className="ui-page__inner" style={{ maxWidth: 1280, display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div style={{ marginBottom: 8 }}>
-            <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: '13px', lineHeight: 1.5 }}>USER condiviso quando serve identità comune, MEMORY locale per ogni agente, SOUL e AGENTS locali come bootstrap operativo.</p>
+            <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: '13px', lineHeight: 1.5 }}>Shared USER for common identity, local MEMORY per agent, local SOUL and AGENTS as operating bootstrap.</p>
           </div>
 
         {loading && (

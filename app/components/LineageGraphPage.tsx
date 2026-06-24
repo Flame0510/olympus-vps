@@ -114,7 +114,7 @@ export default function LineageGraphPage({ initialCosts }: LineageGraphPageProps
                 sessions={visibleSessions}
                 filter={filter.agent}
                 onNodeClick={selectSession}
-                emptyMessage={filter.showOnlyActive ? 'Nessuna sessione attiva nel periodo selezionato' : 'Nessuna sessione visibile con i filtri correnti'}
+                emptyMessage={filter.showOnlyActive ? 'No active sessions in the selected period' : 'No sessions visible with current filters'}
               />
             ) : (
               <div className="empty-state">

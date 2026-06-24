@@ -652,7 +652,7 @@ function pollSessions() {
 
   // ── Timeout Detection ────────────────────────────────────────────────────
   // Trova subagenti che erano 'working' nell'ultimo snapshot ma ora non sono
-  // presenti nell'output corrente e sono spariti da più di 10 minuti.
+  // present in the current output and have been missing for more than 10 minutes.
   // Questi vengono marcati come 'timeout' nella tabella events.
   const TIMEOUT_THRESHOLD_MS = 10 * 60 * 1000; // 10 minuti
   for (const [session_id, snap] of knownSessions) {
@@ -660,18 +660,18 @@ function pollSessions() {
     if (!session_id.includes('subagent')) continue;
     // Solo se erano working nell'ultimo poll
     if (snap.status !== 'working') continue;
-    // Solo se non presenti nel poll corrente
+    // Only if not present in the current poll
     if (currentIds.has(session_id)) continue;
-    // Solo se spariti da abbastanza tempo
+    // Only if missing long enough
     const missingFor = now - (snap.updatedAt || now);
     if (missingFor < TIMEOUT_THRESHOLD_MS) continue;
-    // Evita di loggare lo stesso timeout più volte (controlla se già presente)
+    // Prevent logging the same timeout multiple times (check if already logged)
     const alreadyLogged = db.prepare(
       `SELECT id FROM events WHERE session_id = ? AND type = 'spawn_timeout' LIMIT 1`
     ).get(session_id);
     if (alreadyLogged) continue;
 
-    // Inserisci evento timeout
+    // Insert timeout event
     insertEvent.run({
       ts: now,
       session_id,

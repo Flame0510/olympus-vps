@@ -1,6 +1,6 @@
 /**
- * POST /api/vault/service  — salva credenziale servizio
- * DEL  /api/vault/service  — rimuovi credenziale servizio (body: { service })
+ * POST /api/vault/service  — save service credential
+ * DEL  /api/vault/service  — remove service credential (body: { service })
  */
 
 import { NextRequest, NextResponse } from 'next/server';

@@ -43,7 +43,7 @@ export default function ContainersPage() {
         <button onClick={load} style={{ marginLeft: 12, background: 'none', border: '1px solid var(--border)', color: 'var(--text-dim)', borderRadius: 4, padding: '2px 10px', cursor: 'pointer', fontSize: 12 }}>↻</button>
       </p>
 
-      {loading && <p style={{ color: 'var(--text-dim)' }}>Caricamento...</p>}
+      {loading && <p style={{ color: 'var(--text-dim)' }}>Loading...</p>}
       {error && <p style={{ color: '#ef4444' }}>{error}</p>}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

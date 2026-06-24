@@ -56,7 +56,7 @@ node "$SCRIPT_DIR/generate-agent-env.js" "$AGENT_ID" > "$ENV_FILE" 2>&1 || {
 }
 
 # Converti in formato docker --env-file compatibile
-# (rimuovi apici, già gestiti da --env-file)
+# (quotes removed, handled by --env-file)
 sed -i "s/'//g" "$ENV_FILE"
 
 echo "[spawn] Env vars generate:"
@@ -68,9 +68,9 @@ mkdir -p "$HOST_DATA_DIR"
 # Crea directory repo condivisi se non esistono
 mkdir -p "$SHARED_REPOS"
 
-# Verifica se il container esiste già
+# Check if the container already exists
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-  echo "[spawn] Container '$CONTAINER_NAME' esiste già."
+  echo "[spawn] Container '$CONTAINER_NAME' already exists."
   read -p "Rimuoverlo e ricrearlo? [y/N] " -n 1 -r
   echo
   if [[ $REPLY =~ ^[Yy]$ ]]; then

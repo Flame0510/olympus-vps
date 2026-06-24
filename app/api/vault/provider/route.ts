@@ -1,6 +1,6 @@
 /**
- * POST /api/vault/provider  — salva credenziale provider
- * DEL  /api/vault/provider  — rimuovi credenziale provider (body: { provider })
+ * POST /api/vault/provider  — save provider credential
+ * DEL  /api/vault/provider  — remove provider credential (body: { provider })
  */
 
 import { NextRequest, NextResponse } from 'next/server';

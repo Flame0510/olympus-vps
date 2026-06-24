@@ -20,7 +20,7 @@ export function useScreenshot() {
       a.click();
     } catch (e) {
       console.error('screenshot failed', e);
-      alert('Screenshot fallito: ' + (e instanceof Error ? e.message : String(e)));
+      alert('Screenshot failed: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
       setLoading(false);
     }

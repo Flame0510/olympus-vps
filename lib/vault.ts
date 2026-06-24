@@ -38,7 +38,7 @@ export interface VaultData {
   permissions: AgentPermissions[];
 }
 
-// ── Caricamento / salvataggio ──────────────────────────────────────────────
+// ── Load / save ────────────────────────────────────────────────────────────
 
 function loadVault(): VaultData {
   try {
@@ -53,7 +53,7 @@ function loadVault(): VaultData {
       permissions: Array.isArray(data.permissions) ? data.permissions : [],
     };
   } catch (err) {
-    console.error('[vault] Errore caricamento vault:', err);
+    console.error('[vault] Error loading vault:', err);
     return { providers: [], services: [], permissions: [] };
   }
 }
@@ -63,7 +63,7 @@ function saveVault(data: VaultData): void {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  // Backup prima di salvare
+  // Backup before saving
   if (fs.existsSync(VAULT_PATH)) {
     const bak = VAULT_PATH + '.bak';
     try { fs.copyFileSync(VAULT_PATH, bak); } catch {}

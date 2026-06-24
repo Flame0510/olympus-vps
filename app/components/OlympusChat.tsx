@@ -225,7 +225,7 @@ export default function OlympusChat() {
           <div className="ochat__messages">
             {messages.length === 0 && (
               <p className="ochat__empty">
-                Ciao! Sono <strong>Pythia</strong> 🔮, l'oracolo di Olympus. Chiedimi qualcosa sulla dashboard, sui dati o sulla pagina che stai guardando.
+                Hello! I'm <strong>Pythia</strong> 🔮, the oracle of Olympus. Ask me about the dashboard, data, or the page you're looking at.
               </p>
             )}
             {messages.map((m, i) => (

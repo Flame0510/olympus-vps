@@ -40,7 +40,7 @@ db.prepare(`CREATE TABLE IF NOT EXISTS lineage (
 // Aggiungi colonna agent_name se non esiste (migration safe)
 try {
   db.prepare('ALTER TABLE lineage ADD COLUMN agent_name TEXT').run();
-} catch (e) { /* già esiste */ }
+} catch (e) { /* already exists */ }
 
 db.prepare('INSERT OR REPLACE INTO lineage (child_id, parent_id, agent_name, declared_at) VALUES (?, ?, ?, ?)')
   .run(childId, parentId, agentName || null, Date.now());

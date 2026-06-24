@@ -29,7 +29,7 @@ function loadVault() {
     }
     return JSON.parse(fs.readFileSync(VAULT_PATH, 'utf-8'));
   } catch (err) {
-    console.error('[env-gen] Errore caricamento vault:', err.message);
+    console.error('[env-gen] Error loading vault:', err.message);
     process.exit(1);
   }
 }

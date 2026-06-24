@@ -6,7 +6,7 @@
  *   olympus start             Avvia il server (build automatica se necessario)
  *   olympus start --port 3720 Avvia su porta specifica
  *   olympus build             Build manuale
- *   olympus --help            Mostra aiuto
+ *   olympus --help            Show help
  */
 
 const { spawn, execSync } = require('child_process');

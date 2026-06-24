@@ -32,7 +32,7 @@ export default function LiveFeed({ events }: LiveFeedProps) {
         ))}
         {events.length === 0 && (
           <div className="feed-item" style={{ color: 'var(--text-dim)' }}>
-            In attesa di eventi…
+            Waiting for events...
           </div>
         )}
       </div>

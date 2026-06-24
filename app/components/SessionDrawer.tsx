@@ -216,7 +216,7 @@ export default function SessionDrawer({ sessionId, onClose }: SessionDrawerProps
           </Section>
 
           <Section title="SESSIONI FIGLIE">
-            {children.length === 0 && <Muted>Nessuna sessione figlia</Muted>}
+            {children.length === 0 && <Muted>No child sessions</Muted>}
             {children.map((child) => (
               <div key={child.session_id} style={{ fontSize: 12 }}>
                 <div>{truncate(deriveSessionDisplayLabel(child), 44)}</div>

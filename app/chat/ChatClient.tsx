@@ -382,7 +382,7 @@ export default function ChatClient() {
       console.log("[onRunComplete] key:", sessionKey);
       setStreaming(false);
       fetchSessions();
-      // Forza ricarica conversazione dopo 2 secondi
+      // Force conversation reload after 2 seconds
       // Cambia selectedAgentRef a se stesso per triggerare refresh messaggi
       setTick(t => t + 10);
     };
@@ -697,7 +697,7 @@ export default function ChatClient() {
           {sessionsExpanded && (
             <div className="chat-layout__sessions-list">
               {sessions.length === 0 && (
-                <div className="chat-layout__sessions-empty">Nessuna conversazione</div>
+                <div className="chat-layout__sessions-empty">No conversations</div>
               )}
               {sessions.map(s => (
                 <div

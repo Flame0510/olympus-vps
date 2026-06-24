@@ -3,8 +3,8 @@
  * 
  * GET  /api/vault              — lista tutto (provider mascherati, servizi, permessi)
  * GET  /api/vault/provider/{p} — dettaglio provider (key mascherata)
- * POST /api/vault/provider     — salva provider
- * DEL  /api/vault/provider/{p} — rimuovi provider
+ * POST /api/vault/provider     — save provider
+ * DEL  /api/vault/provider/{p} — remove provider
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -33,6 +33,6 @@ export async function GET(): Promise<NextResponse> {
     providers,
     services,
     permissions,
-    _note: 'Usa POST /api/vault/provider per salvare una API key',
+    _note: 'Use POST /api/vault/provider to save an API key',
   });
 }

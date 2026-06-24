@@ -1,6 +1,6 @@
 /**
  * POST /api/vault/permissions  — imposta permessi agente
- * DEL  /api/vault/permissions  — rimuovi permessi agente (body: { agentId })
+ * DEL  /api/vault/permissions  — remove agent permissions (body: { agentId })
  * GET  /api/vault/permissions  — risolvi env vars per agente (query: agentId)
  */
 

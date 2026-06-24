@@ -78,7 +78,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       label: 'Runtime sessions',
       health: 'ok',
       value: sessionCount,
-      details: latestSessionAgeSeconds === null ? 'Nessuna sessione rilevata' : `ultima attività sessione ${Math.round(latestSessionAgeSeconds / 60)}m fa`,
+      details: latestSessionAgeSeconds === null ? 'No session detected' : `last session activity ${Math.round(latestSessionAgeSeconds / 60)}m ago`,
       source: 'runtime',
     });
 

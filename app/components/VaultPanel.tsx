@@ -15,14 +15,14 @@ import { apiFetch } from '@/lib/apiFetch';
 
 interface ProviderItem {
   provider: string;
-  apiKey: string;  // già mascherato dal server
+  apiKey: string;  // masked by server
   baseUrl?: string;
   updatedAt: number;
 }
 
 interface ServiceItem {
   service: string;
-  token: string;   // già mascherato
+  token: string;   // masked by server
   user?: string;
   updatedAt: number;
 }

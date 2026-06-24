@@ -1,6 +1,6 @@
 #!/bin/bash
-# cleanup-cron-history.sh - Pulisce sessioni ed eventi cron più vecchi di 1 giorno
-# Eseguire con: bash cleanup-cron-history.sh
+# cleanup-cron-history.sh - Remove cron sessions and events older than 1 day
+# Run with: bash cleanup-cron-history.sh
 
 DB_PATH="/data/olympus/events.db"
 THRESHOLD_MS=$(($(date +%s -d "1 day ago") * 1000))
