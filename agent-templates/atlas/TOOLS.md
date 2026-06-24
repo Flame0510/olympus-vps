@@ -1,18 +1,11 @@
-# TOOLS.md — Tools Atlas
+# TOOLS.md — Atlas Tools
 
 ## Git
 ```bash
 git config user.email "micheletornello5@gmail.com"
-git status
-git log --oneline -5
+git config user.name "Atlas"
 ```
 
-## Build & Test
-```bash
-npm run build
-npm test
-npm run lint
-```
-
-## Repo comuni
-- Olympus: /data/.openclaw/workspace-ops/olympus-next-ts/
+## Projects
+- Olympus: `/docker/olympus-vps/`
+- Repository: `github.com/Flame0510/olympus-vps.git`

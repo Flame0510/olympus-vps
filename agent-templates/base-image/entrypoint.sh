@@ -1,18 +1,18 @@
 #!/bin/bash
 # Agent Container Entrypoint
 #
-# Genera config e avvia OpenClaw gateway in foreground.
+# Generates config and starts OpenClaw gateway in foreground.
 
 set -e
 
 AGENT_ID="${AGENT_ID:-unknown}"
-echo "[entrypoint] Avvio agente: $AGENT_ID"
+echo "[entrypoint] Starting agent: $AGENT_ID"
 
-# Genera config OpenClaw
+# Generate OpenClaw config
 mkdir -p /root/.openclaw
 CONFIG_FILE="/root/.openclaw/openclaw.json"
 if [ ! -f "$CONFIG_FILE" ]; then
-  echo "[entrypoint] Generazione config OpenClaw..."
+  echo "[entrypoint] Generating OpenClaw config..."
   cat > "$CONFIG_FILE" << JSONEOF
 {
   "gateway": {
@@ -46,9 +46,9 @@ if [ ! -f "$CONFIG_FILE" ]; then
   }
 }
 JSONEOF
-  echo "[entrypoint] Config generata"
+  echo "[entrypoint] Config generated"
 fi
 
-# Avvia il comando passato (default: openclaw gateway --bind lan)
-echo "[entrypoint] Esecuzione: $@"
+# Execute the passed command (default: openclaw gateway --bind lan)
+echo "[entrypoint] Running: $@"
 exec "$@"

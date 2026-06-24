@@ -1,12 +1,12 @@
 # Nexus Agent Base Image
 #
-# Immagine base minimale per gli agent container dell'ecosistema Olympus.
-# Contiene solo l'indispensabile: Node, OpenClaw, entrypoint.
-# Tool aggiuntivi (git, gh, supabase, vercel, etc.) vengono installati
-# on-demand da Olympus o direttamente dall'utente nella dashboard.
+# Minimal base image for agent containers in the Olympus ecosystem.
+# Contains only essentials: Node, OpenClaw, entrypoint.
+# Additional tools (git, gh, supabase, vercel, etc.) are installed
+# on-demand by Olympus or directly by the user from the dashboard.
 #
 # Build:
-#   docker build -t nexus-agent-base:latest -f Dockerfile.agent-base .
+#   docker build -t nexus-agent-base:latest -f Dockerfile .
 #
 # Test:
 #   docker run --rm nexus-agent-base:latest openclaw --version
@@ -16,30 +16,30 @@ FROM node:24-bookworm-slim
 LABEL description="Nexus Agent Base — Olympus multicontainer ecosystem"
 LABEL maintainer="Olympus Agency"
 
-# Evita prompt interattivi
+# Avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 ENV NODE_ENV=production
 
-# Installazione strettamente minima
+# Minimal system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Solo OpenClaw — niente PM2, niente gh, niente git
-# L'agente userà il Provider Gateway per le credenziali
-# e Olympus per installare tool extra via API
+# OpenClaw only — no PM2, no gh, no git
+# Agents use the Provider Gateway for credentials
+# and Olympus for on-demand tool installation via API
 RUN npm install -g openclaw
 
-# Configurazioni di default
+# Default config directory
 RUN mkdir -p /data/.openclaw
 
-# Entrypoint standard
-COPY agent-entrypoint.sh /agent-entrypoint.sh
-RUN chmod +x /agent-entrypoint.sh
+# Standard entrypoint
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 WORKDIR /data
 EXPOSE 3000
 
-ENTRYPOINT ["/agent-entrypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["openclaw", "gateway", "--bind", "lan"]

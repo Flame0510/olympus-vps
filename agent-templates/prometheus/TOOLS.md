@@ -1,28 +1,14 @@
-# TOOLS.md — Tools Prometheus
+# TOOLS.md — Prometheus Tools
 
 ## Workspace
-- Path: `/docker/openclaw-glxx/data/.openclaw/workspace-website/`
-- Area clienti: `teams/clients/`
+- Path: `/data/.openclaw/workspace-prometheus/`
+- Client area: `teams/clients/`
 
-## Comandi rapidi
+## Git
 ```bash
-# Lista clienti
-ls teams/clients/
-
-# Leggi brief
-cat teams/clients/<cliente>/BRIEF.md
-
-# Leggi memoria progetto
-cat teams/clients/<cliente>/MEMORY.md
-
-# Crea nuova cartella cliente (da template)
-cp -r teams/clients/_template teams/clients/<nuovo-cliente>/
+git config user.email "micheletornello5@gmail.com"
 ```
 
-## Script disponibili
-- Generazione PDF preventivi: Chromium headless
-- Template: `teams/clients/_template/`
-
-## Notifiche
-- Forge: via Telegram (coordinamento)
-- Michele: solo per escalation
+## Project management
+- Trello board for client tasks
+- Weekly status to Michele via Argus
