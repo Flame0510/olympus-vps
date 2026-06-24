@@ -48,6 +48,18 @@ const NAV: NavItem[] = [
     ),
   },
   {
+    href: '/containers',
+    label: 'Containers',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <rect x="1.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
+        <rect x="9.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
+        <rect x="1.5" y="9.5" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
+        <rect x="9.5" y="9.5" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
+      </svg>
+    ),
+  },
+  {
     href: '/workspace',
     label: 'Workspace',
     icon: (

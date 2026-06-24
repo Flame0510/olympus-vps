@@ -153,11 +153,11 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
           agent_id: d.agentId,
           label: d.agentId,
           config_model: null,
-          workspace_path: null,
+          workspace_path: '',
           files: [],
-          docker: d,
+          docker: d as any,
           status: d.status.startsWith('Up') ? 'running' : d.status.toLowerCase(),
-          config: null,
+          config: {} as ConfiguredAgent,
         });
       }
     }

@@ -166,7 +166,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const result = readHostFile(targetPath);
     if (result.isBinary && result.buffer) {
       const mime = MIME_MAP[path.extname(targetPath).toLowerCase()] || 'application/octet-stream';
-      return new NextResponse(result.buffer, {
+      return new NextResponse(new Uint8Array(result.buffer), {
         headers: { 'Content-Type': mime, 'Content-Length': String(result.buffer.length) },
       });
     }
