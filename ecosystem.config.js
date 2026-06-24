@@ -1,19 +1,19 @@
 module.exports = {
   apps: [
     {
-      name: 'olympus-boot-guard',
-      script: '/data/olympus/boot-guard.sh',
-      interpreter: 'bash',
-      autorestart: false,
-      cron_restart: '*/30 * * * *',
-    },
-    {
-      name: 'olympus-daemon',
-      script: '/data/olympus/start-daemon.sh',
-      interpreter: 'bash',
+      name: 'olympus-terminal-ws',
+      cwd: '/home/nexus/.openclaw/workspace/olympus-vps',
+      script: 'terminal-ws-server.js',
+      interpreter: 'node',
       autorestart: true,
+      max_restarts: 10,
+      restart_delay: 3000,
       watch: false,
+      env: {
+        TERMINAL_WS_PORT: '3741',
+      },
     },
+
     {
       name: 'olympus-next',
       cwd: '/home/nexus/.openclaw/workspace/olympus-vps',

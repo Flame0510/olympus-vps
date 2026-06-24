@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { } from '../components/ui';
 
 interface ContainerInfo {
   id: string;
@@ -64,7 +63,25 @@ export default function ContainersPage() {
                 {c.ports && <span>{c.ports}</span>}
               </div>
             </div>
-            <span style={{ fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{c.status}</span>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {c.state === 'running' && (
+                <a
+                  href={`/containers/terminal/${encodeURIComponent(c.name)}`}
+                  style={{
+                    border: '1px solid var(--border)',
+                    borderRadius: 4,
+                    background: 'transparent',
+                    color: 'var(--copper)',
+                    fontSize: 10,
+                    padding: '4px 8px',
+                    textDecoration: 'none',
+                  }}
+                >
+                  TERMINAL
+                </a>
+              )}
+              <span style={{ fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{c.status}</span>
+            </div>
           </div>
         ))}
       </div>
