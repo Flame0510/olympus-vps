@@ -136,25 +136,68 @@ const showInput = pendingCmdRef.current ? pendingCmdRef.current : currentInput;
 `pendingCmdRef` is reset as soon as any server output arrives (the echo),
 so the command text stays visible without flicker.
 
-### ANSI stripping
+### ANSI parsing (color rendering)
 
-The server PTY uses bash with bracketed paste mode enabled by default.
-This emits control sequences `[?2004h` / `[?2004l` that are invisible in
-real terminals but would appear as garbage in plain text.
+The terminal now includes a real ANSI parser (`parseAnsi()`) that converts
+SGR (Select Graphic Rendition) escape sequences into styled `<span>`
+elements:
+
+| Feature | Supported |
+|---|---|
+| Foreground colors 30-37 (normal) | ✅ |
+| Foreground colors 90-97 (bright) | ✅ |
+| Background colors 40-47 | ✅ |
+| Background colors 100-107 (bright) | ✅ |
+| Bold (1) | ✅ `fontWeight: 700` |
+| Dim (2) | ✅ `opacity: 0.6` |
+| Italic (3) | ✅ |
+| Underline (4) | ✅ |
+| Reset (0) | ✅ clears all styles |
+| Bracketed paste `[?2004h/l` | 🚫 stripped |
+| Non-SGR CSI (cursor, erase) | 🚫 stripped |
+| OSC sequences (title, clipboard) | 🚫 stripped |
+
+**Implementation:**
 
 ```ts
-function stripAnsi(text: string): string {
-  return text
-    .replace(/\x1b\[\?2004[hl]/g, '')       // bracketed paste
-    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')  // colors, cursor, clear
-    .replace(/\x1b\][0-9;]+[\x07\x1b\\]/g, '')  // OSC sequences
-    .replace(/\x07/g, '')                   // bell
-    .replace(/\r/g, '');                     // carriage returns
-}
+type AnsiStyle = {
+  fg?: string;          // CSS color
+  bg?: string;          // CSS background-color
+  bold?: boolean;
+  dim?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+};
+type Segment = { text: string; style: AnsiStyle };
 ```
 
-Only visible text is kept. This means **colors and bold text are lost**.
-A future improvement could parse and render ANSI color codes as inline spans.
+The parser walks the raw ANSI string character by character. When it
+encounters `\x1b[`, it reads until `m` to get SGR parameters. Each
+parameter (e.g. `31` for red foreground) is translated into a color
+from the ANSI color map. All non-SGR escape sequences (cursor movement,
+erase display, bracketed paste) are silently stripped.
+
+The raw PTY output is kept in state as-is (with ANSI), split by `\n`,
+and each line is passed through `RenderAnsi` which uses `useMemo` to
+avoid re-parsing on every render.
+
+**Color palette** follows the One Dark theme used by the UI:
+
+| Code | Color | Hex |
+|---|---|---|
+| 30/90 (black) | Dark gray | `#1d1d1d` / `#5c6370` |
+| 31/91 (red) | Soft red | `#e06c75` |
+| 32/92 (green) | Soft green | `#98c379` |
+| 33/93 (yellow) | Amber | `#d19a66` |
+| 34/94 (blue) | Soft blue | `#61afef` |
+| 35/95 (magenta) | Purple | `#c678dd` |
+| 36/96 (cyan) | Teal | `#56b6c2` |
+| 37/97 (white) | Light gray / white | `#abb2bf` / `#ffffff` |
+
+### Legacy: ANSI stripping (pre-color support)
+
+The original implementation stripped all ANSI sequences, keeping only
+visible text. This was replaced by the parser above on 2026-06-25.
 
 ## Terminal Server (`terminal-ws-server.js`)
 
@@ -220,9 +263,6 @@ ecosystem.config.js             # PM2 config for both processes
 
 ## Known Limitations
 
-- **No ANSI color rendering** — all escape sequences are stripped.
-  Colors, bold, underline are lost. This is acceptable for `ls`, `cat`,
-  `echo`, and most shell workflows.
 - **No full-screen TUI support** — `vim`, `top`, `nano`, `htop` will
   not render correctly because cursor positioning sequences are stripped.
   These tools require a proper xterm-compatible terminal.
@@ -233,7 +273,6 @@ ecosystem.config.js             # PM2 config for both processes
 
 ## Future Improvements
 
-- [ ] Parse ANSI color codes and render as styled `<span>` elements
 - [ ] Detect TUI applications and fall back to xterm.js WebGL renderer
 - [ ] Terminal multiplexer (multiple tabs, split panes)
 - [ ] Download session log as text file
