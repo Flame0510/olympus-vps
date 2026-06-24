@@ -36,7 +36,7 @@ export default function ContainersPage() {
 
   return (
     <div style={{ padding: '24px', maxWidth: 960, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 22, fontWeight: 400, color: 'var(--copper)', letterSpacing: 2, marginBottom: 4 }}>CONTAINER AGENTS</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 400, color: 'var(--copper)', letterSpacing: 2, marginBottom: 4 }}>CONTAINERS</h1>
       <p style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 20 }}>
         {containers.length} container · {new Date().toLocaleTimeString('it-IT')}
         <button onClick={load} style={{ marginLeft: 12, background: 'none', border: '1px solid var(--border)', color: 'var(--text-dim)', borderRadius: 4, padding: '2px 10px', cursor: 'pointer', fontSize: 12 }}>↻</button>
