@@ -16,7 +16,7 @@ module.exports = {
     },
     {
       name: 'olympus-next',
-      cwd: '/docker/olympus-vps',
+      cwd: '/home/nexus/.openclaw/workspace/olympus-vps',
       script: 'npm',
       args: 'start',
       interpreter: 'none',

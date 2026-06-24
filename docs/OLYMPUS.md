@@ -4,7 +4,7 @@ A Next.js 16 dashboard for monitoring and managing the OpenClaw ecosystem on thi
 
 **URL:** `https://olympus.srv1490011.hstgr.cloud`
 **Port:** 3740 (Next.js, reverse-proxied by Traefik)
-**Build directory:** `/docker/olympus-vps/`
+**Build directory:** `/home/nexus/.openclaw/workspace/olympus-vps/`
 **Runtime:** systemd service `olympus-vps`
 **Repository:** `github.com/Flame0510/olympus-vps.git` (branch: `main`)
 
@@ -126,7 +126,7 @@ File: `/etc/systemd/system/olympus-vps.service.d/env.conf`
 Environment=OLYMPUS_PASSWORD=***
 Environment=OLYMPUS_TOKEN=***
 Environment=OLYMPUS_JWT_SECRET=***
-Environment=OLYMPUS_DB=/docker/olympus-vps/data/events.db
+Environment=OLYMPUS_DB=/home/nexus/.openclaw/workspace/olympus-vps/data/events.db
 Environment=OPENCLAW_CONFIG_PATH=/home/nexus/.openclaw/workspace/openclaw-core.json
 Environment=SHARED_CONTEXT_DIR=/home/nexus/.openclaw/workspace/shared-context
 Environment=NODE_ENV=production
@@ -138,7 +138,7 @@ Environment=NEXT_TELEMETRY_DISABLED=1
 ## Build & Deploy
 
 ```bash
-cd /docker/olympus-vps
+cd /home/nexus/.openclaw/workspace/olympus-vps
 
 # Build
 npm run build
@@ -318,7 +318,7 @@ curl -b /tmp/cookies.txt -X PUT http://localhost:3740/api/workspace \
 ## Repository Structure
 
 ```
-/docker/olympus-vps/
+/home/nexus/.openclaw/workspace/olympus-vps/
 ├── app/                     # Next.js app router pages & API routes
 │   ├── agents/
 │   ├── api/                 # API routes (workspace, agents, vault, auth, …)
