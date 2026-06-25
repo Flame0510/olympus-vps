@@ -394,6 +394,8 @@ Memory context snapshot for the current agent workspace.
 
 Olympus supports multiple workspaces: the VPS host and any Docker container with an `AGENT_ID` label.
 
+Full design, decisions, and usage guide at [docs/dev/workspace.md](workspace.md).
+
 ### `GET /api/workspace?action=list`
 List available workspaces.
 
@@ -410,11 +412,11 @@ List available workspaces.
 ```
 
 ### `GET /api/workspace?workspace=<id>`
-List root files in a workspace.
+List files in a workspace, read a file, or return a recursive tree payload for the editor UI.
 
 **Auth:** any auth method
 
-**Query params:** `workspace` (required), `path` (optional — directory or file)
+**Query params:** `workspace` (optional, defaults to `vps`), `path` (optional — directory or file), `tree=1` (optional — recursive tree payload)
 
 **Response (directory):**
 ```json
@@ -424,9 +426,34 @@ List root files in a workspace.
   "path": "/home/nexus/.openclaw/workspace",
   "type": "host",
   "files": [
-    { "name": "SOUL.md", "isDirectory": false, "isFile": true, "path": "..." },
-    { "name": "config", "isDirectory": true, "isFile": false, "path": "..." }
+    { "name": "config", "isDirectory": true, "isFile": false, "path": "..." },
+    { "name": "SOUL.md", "isDirectory": false, "isFile": true, "path": "..." }
   ]
+}
+```
+
+**Response (`tree=1`):**
+```json
+{
+  "workspace": "vps",
+  "label": "VPS Host (Nexus)",
+  "path": "/home/nexus/.openclaw/workspace",
+  "root": "/home/nexus/.openclaw/workspace",
+  "type": "host",
+  "entries": [
+    {
+      "name": "olympus-vps",
+      "path": "/home/nexus/.openclaw/workspace/olympus-vps",
+      "relPath": "olympus-vps",
+      "type": "directory",
+      "size": 0,
+      "mtimeMs": 1750000000000,
+      "isDirectory": true,
+      "isFile": false
+    }
+  ],
+  "tree": [ "...same items as entries..." ],
+  "files": [ "...same items as entries..." ]
 }
 ```
 
@@ -440,12 +467,6 @@ Write content to a workspace file.
 **Body:** `{ "workspace": "vps", "path": "/home/nexus/.openclaw/workspace/test.md", "content": "hello" }`
 
 **Response:** `{ "ok": true }`
-
-### Implementation notes
-- **Host workspace:** uses `fs.readdirSync` / `fs.readFileSync` / `fs.writeFileSync` — real-time, no caching
-- **Container workspaces:** uses `docker exec` with `ls -1Ap`, `test -d`, `cat`, and heredoc writes
-- Subdirectories are lazy-loaded (expand on click in the UI)
-- Binary files (images, PDFs): detected by extension, served inline or displayed
 
 ---
 
