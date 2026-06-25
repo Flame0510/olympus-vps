@@ -318,6 +318,7 @@ export default function ProvidersPage() {
   const [revealedFor, setRevealedFor] = useState('');    // per quale provider è rivelata
   const [revealLoading, setRevealLoading] = useState('');
   const [revealError, setRevealError] = useState('');
+  const [apiKeyError, setApiKeyError] = useState('');
   const [ttyCommand, setTtyCommand] = useState<string | null>(null);
   // ── Claude CLI setup-token state ──
   const [claudeSetupFlow, setClaudeSetupFlow] = useState<{
@@ -383,7 +384,7 @@ export default function ProvidersPage() {
 
   async function loadAgents() {
     try {
-      const res = await fetch('/api/agent-providers?token=olympus2026', { cache: 'no-store' });
+      const res = await fetch('/api/agent-providers?token=olympus2026', { cache: 'no-store', credentials: 'include' });
       if (!res.ok) return;
       const json = await res.json() as AgentProviderStatus[];
       const agentTargets: AgentTarget[] = [
@@ -644,6 +645,7 @@ export default function ProvidersPage() {
 
   async function handleApiKeyConnect(provider: string) {
     if (!apiKeyInput.trim()) return;
+    setApiKeyError('');
     setLoginLoading(provider);
     try {
       const body: Record<string, unknown> = { provider, method: 'api-key', apiKey: apiKeyInput.trim() };
@@ -656,13 +658,22 @@ export default function ProvidersPage() {
       const data = await res.json();
       if (data.status === 'ok') {
         setRevealedKey('');
+        setApiKeyModal(null);
+        setApiKeyInput('');
+        setApiKeyError('');
+        setLoginLoading('');
+        await reloadActiveAgent();
+        return;
       }
-      setApiKeyModal(null); setApiKeyInput('');
+      // Non-ok response — show error, keep modal open
+      setApiKeyError(data.error || 'Login failed. Check the API key and try again.');
+      setLoginLoading('');
+      return;
     } catch {
-      // Ignore
+      setApiKeyError('Login failed. Check the API key and connection logs.');
+      setLoginLoading('');
+      return;
     }
-    await reloadActiveAgent();
-    setLoginLoading('');
   }
 
   async function handleRevealKey(provider: string) {
@@ -1414,9 +1425,12 @@ export default function ProvidersPage() {
             <div style={{ fontSize: 12, color: '#d6e2e8', marginBottom: 12 }}>Add API Key for <strong>{selectedProvider}</strong></div>
             <input value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} placeholder="sk-..."
               style={{ width: '100%', background: '#0a141a', border: '1px solid #1a2a33', borderRadius: 4, padding: '8px 10px', color: '#d6e2e8', fontSize: 11, marginBottom: 12, boxSizing: 'border-box' }} />
+            {apiKeyError && (
+              <div style={{ fontSize: 10, color: '#d55', marginBottom: 8 }}>{apiKeyError}</div>
+            )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => { setApiKeyModal(null); setApiKeyInput(''); }} style={{ background: 'transparent', border: '1px solid #2a4a5a', borderRadius: 4, color: '#888', fontSize: 10, padding: '6px 12px', cursor: 'pointer' }}>CANCEL</button>
-              <button onClick={() => handleApiKeyConnect(selectedProvider)} disabled={!apiKeyInput.trim()} style={{ background: '#1a3a4a', border: '1px solid #2a5a7a', borderRadius: 4, color: '#d6e2e8', fontSize: 10, padding: '6px 12px', cursor: 'pointer' }}>CONNECT</button>
+              <button onClick={() => { setApiKeyModal(null); setApiKeyInput(''); setApiKeyError(''); }} style={{ background: 'transparent', border: '1px solid #2a4a5a', borderRadius: 4, color: '#888', fontSize: 10, padding: '6px 12px', cursor: 'pointer' }}>CANCEL</button>
+              <button onClick={() => handleApiKeyConnect(selectedProvider)} disabled={!apiKeyInput.trim() || loginLoading === selectedProvider} style={{ background: '#1a3a4a', border: '1px solid #2a5a7a', borderRadius: 4, color: loginLoading === selectedProvider ? '#888' : '#d6e2e8', fontSize: 10, padding: '6px 12px', cursor: loginLoading === selectedProvider ? 'wait' : 'pointer' }}>{loginLoading === selectedProvider ? 'CONNECTING...' : 'CONNECT'}</button>
             </div>
           </div>
         </div>

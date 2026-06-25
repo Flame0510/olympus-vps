@@ -252,15 +252,24 @@ export async function POST(req: Request) {
 
       // Agent container
       const container = safeAgent!;
+
+      // Find agent data directory (same strategy as disconnect branch)
+      const findDataDir =
+        `docker exec ${container} sh -c 'for d in /data/.openclaw/agents/main/agent /root/.openclaw/agents/main/agent; do if [ -f "$d/models.json" ] || [ -f "$d/openclaw-agent.sqlite" ]; then echo "$d"; exit 0; fi; done; echo "";'`;
+      let dataDir = '';
+      try { dataDir = execSync(findDataDir, { timeout: 5000, encoding: 'utf-8' }).trim(); } catch {}
+      if (!dataDir) dataDir = '/data/.openclaw/agents/main/agent';
+
+      // Try openclaw CLI for paste-api-key
       try {
         const pasteCmd = `${execPrefix} sh -c 'echo ${JSON.stringify(apiKey)} | openclaw models auth paste-api-key --provider ${provider}'`;
         execSync(pasteCmd, { timeout: 15000 });
       } catch {
-        const modelsJsonPath = `/data/.openclaw/agents/main/agent/models.json`;
+        // Fallback: write directly into detected data directory
         let raw = '{}';
         try {
           raw = execSync(
-            `docker exec ${container} sh -c "cat ${modelsJsonPath} 2>/dev/null || echo '{}'"`,
+            `docker exec ${container} sh -c "cat ${dataDir}/models.json 2>/dev/null || echo '{}'"`,
             { timeout: 5000, encoding: 'utf-8', maxBuffer: 128 * 1024 },
           );
         } catch {}
@@ -270,7 +279,7 @@ export async function POST(req: Request) {
         models.providers[provider] = { ...(models.providers[provider] || {}), apiKey };
         const b64 = Buffer.from(JSON.stringify(models, null, 2)).toString('base64');
         execSync(
-          `docker exec ${container} sh -c "echo '${b64}' | base64 -d > ${modelsJsonPath}"`,
+          `docker exec ${container} sh -c "echo '${b64}' | base64 -d > ${dataDir}/models.json"`,
           { timeout: 5000 },
         );
       }
