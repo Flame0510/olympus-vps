@@ -16,6 +16,8 @@ interface Agent {
   ip: string | null;
   created: string | null;
   env: string[];
+  traefikUrl: string | null;
+  authToken: string | null;
 }
 
 type FilterState = 'all' | 'running' | 'exited';
@@ -26,6 +28,57 @@ const STATUS_BULLET: Record<string, string> = {
   paused: '#f59e0b',
   restarting: '#3b82f6',
 };
+
+// ─── Copiable token row ───
+function TokenRow({ label, token }: { label: string; token: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(token);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback: select text
+      const el = document.createElement('textarea');
+      el.value = token;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }
+
+  return (
+    <div style={{ padding: '7px 14px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+      <div style={{ color: '#888', marginBottom: 2 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <code style={{ flex: 1, fontSize: 10, color: '#aaa', wordBreak: 'break-all', background: 'rgba(0,0,0,0.2)', padding: '4px 8px', borderRadius: 4, fontFamily: 'var(--font-mono-stack)' }}>
+          {token.slice(0, 16)}…{token.slice(-4)}
+        </code>
+        <button
+          onClick={handleCopy}
+          style={{
+            background: copied ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.05)',
+            border: '1px solid',
+            borderColor: copied ? 'rgba(34,197,94,0.3)' : 'var(--border)',
+            borderRadius: 4,
+            color: copied ? '#22c55e' : '#888',
+            fontSize: 10,
+            padding: '4px 10px',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+          }}
+        >
+          {copied ? 'COPIATO' : 'COPIA'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function fmtCreated(created: string | null): string {
   if (!created) return '—';
@@ -283,6 +336,24 @@ function DetailPanel({ agent }: { agent: Agent }) {
           </div>
         ))}
       </div>
+
+      {/* Access — Traefik URL + Token */}
+      {(agent.traefikUrl || agent.authToken) && (
+        <div style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', overflow: 'hidden' }}>
+          <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', color: 'var(--copper)', fontSize: 10, letterSpacing: '0.08em' }}>ACCESSO</div>
+          {agent.traefikUrl && (
+            <div style={{ padding: '7px 14px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+              <div style={{ color: '#888', marginBottom: 2 }}>Traefik URL</div>
+              <a href={agent.traefikUrl} target="_blank" rel="noopener noreferrer"
+                style={{ color: '#60a5fa', textDecoration: 'underline', fontSize: 12, wordBreak: 'break-all' }}
+              >{agent.traefikUrl}</a>
+            </div>
+          )}
+          {agent.authToken && (
+            <TokenRow label="Auth Token" token={agent.authToken} />
+          )}
+        </div>
+      )}
 
       {/* Env */}
       {agent.env.length > 0 && (

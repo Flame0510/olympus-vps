@@ -5,16 +5,42 @@
 # Additional tools (git, gh, supabase, vercel, etc.) are installed
 # on-demand by Olympus or directly by the user from the dashboard.
 #
+# Traefik integration:
+#   - Static labels (enable, service port) are baked into the image.
+#   - Dynamic labels (router rule with agent hostname) are provided
+#     at container creation time via `docker run -l ...`.
+#   - See agent-templates/README.md for the full label set.
+#
 # Build:
 #   docker build -t nexus-agent-base:latest -f Dockerfile .
 #
 # Test:
 #   docker run --rm nexus-agent-base:latest openclaw --version
+#
+# Run with Traefik support:
+#   docker run -d \
+#     --name agent-<id> \
+#     --network openclaw-core_default \
+#     --restart unless-stopped \
+#     -l "AGENT_ID=<id>" \
+#     -l "traefik.enable=true" \
+#     -l "traefik.http.routers.agent-<id>.entrypoints=websecure" \
+#     -l "traefik.http.routers.agent-<id>.rule=Host(\`<id>.srv1490011.hstgr.cloud\`)" \
+#     -l "traefik.http.routers.agent-<id>.tls.certresolver=letsencrypt" \
+#     -l "traefik.http.services.agent-<id>.loadbalancer.server.port=3000" \
+#     -e AGENT_ID=<id> \
+#     nexus-agent-base:latest
 
 FROM node:24-bookworm-slim
 
 LABEL description="Nexus Agent Base — Olympus multicontainer ecosystem"
 LABEL maintainer="Olympus Agency"
+
+# Traefik static labels — enable proxy support by default.
+# Dynamic router/service labels must be provided at container creation.
+# These ensure basic Traefik awareness even if --labels are omitted.
+LABEL traefik.enable="true"
+LABEL traefik.http.services.agent.loadbalancer.server.port="3000"
 
 # Avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive

@@ -43,6 +43,8 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
         let ip: string | null = null;
         let created: string | null = null;
         let env: string[] = [];
+        let authToken: string | null = null;
+        let traefikUrl: string | null = null;
 
         try {
           const inspect: any = await dockerFetch(
@@ -59,6 +61,37 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
           env = (inspect.Config?.Env || []).filter((e: string) =>
             e.startsWith('AGENT_') || e.startsWith('MODEL_')
           );
+
+          // Build Traefik URL from the traefik router rule label, fallback to container name
+          const cName = (c.Names?.[0] || '').replace(/^\//, '');
+          const labels = c.Labels || {};
+          const routerRule = Object.keys(labels).find(k => k.startsWith('traefik.http.routers.') && k.endsWith('.rule'));
+          if (labels['traefik.enable'] === 'true') {
+            if (routerRule) {
+              const rule = labels[routerRule];
+              // Extract host from rule like Host(`...`)
+              const hostMatch = rule.match(/Host\([`'"]([^`'"]+)[`'"]\)/);
+              if (hostMatch) {
+                traefikUrl = `https://${hostMatch[1]}`;
+              }
+            }
+            if (!traefikUrl) {
+              // Fallback: use container name
+              traefikUrl = `https://${cName}.srv1490011.hstgr.cloud`;
+            }
+          }
+
+          // Read auth token from openclaw.json inside container
+          try {
+            const { execSync } = require('child_process');
+            const token = execSync(
+              `docker exec ${cName} node -e "const j=require('/root/.openclaw/openclaw.json'); console.log(j.gateway?.auth?.token || '')" 2>/dev/null || echo ''`,
+              { timeout: 5000, encoding: 'utf-8' }
+            ).toString().trim();
+            if (token && token !== 'undefined') authToken = token;
+          } catch {
+            // token unavailable for this container
+          }
         } catch {
           // inspect non-critical, continue with partial data
         }
@@ -92,6 +125,8 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
           ip,
           created,
           env,
+          traefikUrl,
+          authToken,
         };
       }),
     );
