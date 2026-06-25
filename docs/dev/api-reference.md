@@ -472,6 +472,8 @@ Write content to a workspace file.
 
 ## Vault
 
+Full key management documentation at [docs/dev/providers.md](providers.md).
+
 ### `GET /api/vault`
 List all stored credentials (keys masked).
 
@@ -489,23 +491,44 @@ List all stored credentials (keys masked).
 }
 ```
 
-### `PUT /api/vault/provider`
+### `GET /api/vault/provider/key`
+Return the full API key for a provider. Used by the Providers page SHOW KEY flow.
+
+**Auth:** browser cookie
+
+**Query params:** `provider` (required), `agent` (optional — container name)
+
+**Response (200):**
+```json
+{
+  "provider": "openai",
+  "apiKey": "sk-...full-key...",
+  "masked": "sk-...ast4",
+  "source": "local"
+}
+```
+
+**Error:** `400` if `provider` missing; `404` if key not found.
+
+See [docs/dev/providers.md](providers.md#get-apivaultproviderkey) for full detail.
+
+### `POST /api/vault/provider`
 Add or update a provider API key.
 
 **Auth:** browser cookie
 
-**Body:** `{ "id": "openai-codex", "key": "sk-...", "scopes": ["atlas"] }`
+**Body:** `{ "provider": "openai", "apiKey": "sk-...", "baseUrl": "https://api.openai.com/v1" }`
 
-**Response:** `{ "ok": true }`
+**Response:** `{ "status": "ok", "provider": "openai", "masked": "sk-...ast4", "updatedAt": 1749200000000 }`
 
 ### `DELETE /api/vault/provider`
 Remove a provider and all its keys.
 
 **Auth:** browser cookie
 
-**Body:** `{ "id": "openai-codex" }`
+**Body:** `{ "provider": "openai" }`
 
-**Response:** `{ "ok": true }`
+**Response:** `{ "status": "removed" }`
 
 ### `PUT /api/vault/service`
 Add or update a service token.
@@ -607,8 +630,11 @@ Update audio or timezone config in `openclaw.json`.
 
 ## Providers
 
+Full UI documentation, key management controls (SHOW/HIDE KEY, ADD/CHANGE API KEY,
+REMOVE KEY), and the reveal endpoint at [docs/dev/providers.md](providers.md).
+
 ### `GET /api/providers`
-AI provider configurations (keys masked).
+AI provider configurations (keys masked — full keys never exposed here).
 
 **Auth:** browser cookie
 

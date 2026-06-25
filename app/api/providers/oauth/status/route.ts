@@ -5,11 +5,20 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const provider = url.searchParams.get('provider');
+    const agent = url.searchParams.get('agent');
     if (!provider) return NextResponse.json({ error: 'provider required' }, { status: 400 });
+
+    const execPrefix = agent
+      ? `docker exec ${agent.replace(/[^a-zA-Z0-9_-]/g, '')}`
+      : '';
+
+    const cmd = execPrefix
+      ? `${execPrefix} openclaw models status --json`
+      : 'openclaw models status --json';
 
     let out = '';
     try {
-      out = execSync('openclaw models status --json', { encoding: 'utf-8', timeout: 15000 }).toString();
+      out = execSync(cmd, { encoding: 'utf-8', timeout: 15000 }).toString();
     } catch (e: any) {
       return NextResponse.json({ status: 'failed', error: e.message });
     }

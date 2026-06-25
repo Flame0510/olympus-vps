@@ -1,35 +1,38 @@
 /**
- * Olympus Vault — Gestione centralizzata credenziali provider e servizi.
- * 
- * Il vault è un file JSON che contiene:
- * - providers: API key per ogni provider AI
- * - services: token per servizi esterni (GitHub, Vercel, …)
- * - permissions: quali credenziali sono assegnate a quali agenti
+ * Olympus Vault — Centralized credential management
+ *
+ * Provides two layers:
+ *   1. Stored vault (vault.json) for manual/saved credentials
+ *   2. Runtime resolution via docker exec on openclaw-core for live API keys
+ *
+ * The runtime layer is the primary source — it reads models.json and
+ * auth-profiles.json from the core agent container.
  */
 
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 
 const VAULT_PATH = process.env.OLYMPUS_VAULT_PATH || path.join(process.cwd(), 'vault.json');
 
 export interface ProviderCredential {
-  provider: string;      // es: 'openai-codex', 'anthropic', 'groq'
+  provider: string;
   apiKey: string;
-  baseUrl?: string;      // override URL (es. per OpenRouter)
-  updatedAt: number;     // timestamp ms
+  baseUrl?: string;
+  updatedAt: number;
 }
 
 export interface ServiceCredential {
-  service: string;       // es: 'github', 'vercel'
+  service: string;
   token: string;
-  user?: string;         // username associato
+  user?: string;
   updatedAt: number;
 }
 
 export interface AgentPermissions {
   agentId: string;
-  providers: string[];   // lista provider consentiti, ['*'] = tutti
-  services: string[];    // lista servizi consentiti, ['*'] = tutti
+  providers: string[];
+  services: string[];
 }
 
 export interface VaultData {
@@ -38,7 +41,77 @@ export interface VaultData {
   permissions: AgentPermissions[];
 }
 
-// ── Load / save ────────────────────────────────────────────────────────────
+// ── Runtime (live from core agent container) ────────────────────────────────
+
+interface RuntimeProviderEntry {
+  provider: string;
+  apiKey: string | null;
+  kind: 'models.json' | 'token' | 'oauth' | 'api-key';
+}
+
+/**
+ * Fetch all provider credentials from the core agent container.
+ * This is the live source — what's actually configured in OpenClaw.
+ */
+export function getRuntimeProviders(): RuntimeProviderEntry[] {
+  try {
+    const statusRaw = execSync(
+      'docker exec openclaw-core openclaw models status --json 2>/dev/null',
+      { timeout: 10000, encoding: 'utf-8', maxBuffer: 1024 * 1024 },
+    );
+    const status = JSON.parse(statusRaw);
+    const providers: Record<string, unknown>[] = status.auth?.providers ?? [];
+
+    return providers.map((p: any) => {
+      let apiKey: string | null = null;
+      const kind: RuntimeProviderEntry['kind'] = p.effective?.kind === 'profiles'
+        ? (p.profiles?.oauth > 0 ? 'oauth' : p.profiles?.token > 0 ? 'token' : 'api-key')
+        : 'models.json';
+
+      // Extract API key from models.json value
+      if (p.modelsJson?.value && typeof p.modelsJson.value === 'string') {
+        apiKey = p.modelsJson.value;
+      }
+      // For token profiles, try auth-profiles.json
+      if (!apiKey && kind === 'token') {
+        try {
+          const profilesRaw = execSync(
+            'docker exec openclaw-core cat /data/.openclaw/agents/main/agent/auth-profiles.json 2>/dev/null || echo "{}"',
+            { timeout: 5000, encoding: 'utf-8', maxBuffer: 128 * 1024 },
+          );
+          const profiles = JSON.parse(profilesRaw);
+          for (const [, profile] of Object.entries(profiles)) {
+            const pr = profile as Record<string, unknown>;
+            if (String(pr.provider) === p.provider && pr.token) {
+              apiKey = String(pr.token);
+              break;
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      return {
+        provider: p.provider,
+        apiKey: kind === 'oauth' ? null : apiKey, // OAuth keys are not extractable
+        kind,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get a single provider's API key from the runtime.
+ */
+export function getRuntimeProviderKey(provider: string): string | null {
+  const entries = getRuntimeProviders();
+  return entries.find((e) => e.provider === provider)?.apiKey ?? null;
+}
+
+// ── Stored vault (vault.json) ───────────────────────────────────────────────
 
 function loadVault(): VaultData {
   try {
@@ -63,7 +136,6 @@ function saveVault(data: VaultData): void {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  // Backup before saving
   if (fs.existsSync(VAULT_PATH)) {
     const bak = VAULT_PATH + '.bak';
     try { fs.copyFileSync(VAULT_PATH, bak); } catch {}
@@ -71,11 +143,11 @@ function saveVault(data: VaultData): void {
   fs.writeFileSync(VAULT_PATH, JSON.stringify(data, null, 2), { mode: 0o600 });
 }
 
-// ── Provider ────────────────────────────────────────────────────────────────
+// ── Provider (merged: runtime first, vault fallback) ────────────────────────
 
 export function setProviderCredential(provider: string, apiKey: string, baseUrl?: string): ProviderCredential {
   const vault = loadVault();
-  const existing = vault.providers.find(p => p.provider === provider);
+  const existing = vault.providers.find((p) => p.provider === provider);
   const cred: ProviderCredential = {
     provider,
     apiKey,
@@ -94,37 +166,60 @@ export function setProviderCredential(provider: string, apiKey: string, baseUrl?
 }
 
 export function getProviderCredential(provider: string): ProviderCredential | null {
-  const vault = loadVault();
-  return vault.providers.find(p => p.provider === provider) || null;
-}
+  // Try runtime first (live from core agent)
+  const runtimeKey = getRuntimeProviderKey(provider);
+  if (runtimeKey) {
+    return { provider, apiKey: runtimeKey, updatedAt: Date.now() };
+  }
 
-export function getAllProviders(): ProviderCredential[] {
+  // Fallback to stored vault
   const vault = loadVault();
-  // Non esporre le API key complete all'esterno
-  return vault.providers.map(p => ({
-    ...p,
-    apiKey: maskKey(p.apiKey),
-  }));
+  return vault.providers.find((p) => p.provider === provider) || null;
 }
 
 export function getProviderCredentialFull(provider: string): ProviderCredential | null {
   return getProviderCredential(provider);
 }
 
+export function getAllProviders(): ProviderCredential[] {
+  const runtime = getRuntimeProviders();
+  const vault = loadVault();
+  const seen = new Set<string>();
+
+  const result: ProviderCredential[] = [];
+
+  // Runtime first
+  for (const entry of runtime) {
+    if (entry.apiKey) {
+      result.push({ provider: entry.provider, apiKey: maskKey(entry.apiKey), updatedAt: Date.now() });
+      seen.add(entry.provider);
+    }
+  }
+
+  // Vault entries not already covered
+  for (const p of vault.providers) {
+    if (!seen.has(p.provider)) {
+      result.push({ ...p, apiKey: maskKey(p.apiKey) });
+    }
+  }
+
+  return result;
+}
+
 export function removeProvider(provider: string): boolean {
   const vault = loadVault();
-  const idx = vault.providers.findIndex(p => p.provider === provider);
+  const idx = vault.providers.findIndex((p) => p.provider === provider);
   if (idx === -1) return false;
   vault.providers.splice(idx, 1);
   saveVault(vault);
   return true;
 }
 
-// ── Servizi ─────────────────────────────────────────────────────────────────
+// ── Services ────────────────────────────────────────────────────────────────
 
 export function setServiceCredential(service: string, token: string, user?: string): ServiceCredential {
   const vault = loadVault();
-  const existing = vault.services.find(s => s.service === service);
+  const existing = vault.services.find((s) => s.service === service);
   const cred: ServiceCredential = {
     service,
     token,
@@ -144,12 +239,12 @@ export function setServiceCredential(service: string, token: string, user?: stri
 
 export function getServiceCredential(service: string): ServiceCredential | null {
   const vault = loadVault();
-  return vault.services.find(s => s.service === service) || null;
+  return vault.services.find((s) => s.service === service) || null;
 }
 
 export function getAllServices(): ServiceCredential[] {
   const vault = loadVault();
-  return vault.services.map(s => ({
+  return vault.services.map((s) => ({
     ...s,
     token: maskKey(s.token),
   }));
@@ -157,18 +252,18 @@ export function getAllServices(): ServiceCredential[] {
 
 export function removeService(service: string): boolean {
   const vault = loadVault();
-  const idx = vault.services.findIndex(s => s.service === service);
+  const idx = vault.services.findIndex((s) => s.service === service);
   if (idx === -1) return false;
   vault.services.splice(idx, 1);
   saveVault(vault);
   return true;
 }
 
-// ── Permessi agenti ────────────────────────────────────────────────────────
+// ── Agent permissions ──────────────────────────────────────────────────────
 
 export function setAgentPermissions(agentId: string, providers: string[], services: string[]): AgentPermissions {
   const vault = loadVault();
-  const existing = vault.permissions.find(p => p.agentId === agentId);
+  const existing = vault.permissions.find((p) => p.agentId === agentId);
   const perm: AgentPermissions = { agentId, providers, services };
 
   if (existing) {
@@ -183,7 +278,7 @@ export function setAgentPermissions(agentId: string, providers: string[], servic
 
 export function getAgentPermissions(agentId: string): AgentPermissions | null {
   const vault = loadVault();
-  return vault.permissions.find(p => p.agentId === agentId) || null;
+  return vault.permissions.find((p) => p.agentId === agentId) || null;
 }
 
 export function getAllPermissions(): AgentPermissions[] {
@@ -193,61 +288,49 @@ export function getAllPermissions(): AgentPermissions[] {
 
 export function removeAgentPermissions(agentId: string): boolean {
   const vault = loadVault();
-  const idx = vault.permissions.findIndex(p => p.agentId === agentId);
+  const idx = vault.permissions.findIndex((p) => p.agentId === agentId);
   if (idx === -1) return false;
   vault.permissions.splice(idx, 1);
   saveVault(vault);
   return true;
 }
 
-// ── Risoluzione permessi ────────────────────────────────────────────────────
+// ── Permission resolution ──────────────────────────────────────────────────
 
-/**
- * Controlla se un agente ha accesso a un provider.
- */
 export function agentCanUseProvider(agentId: string, provider: string): boolean {
   const perm = getAgentPermissions(agentId);
-  if (!perm) return false;
+  if (!perm) return true; // default: allow all
   return perm.providers.includes('*') || perm.providers.includes(provider);
 }
 
-/**
- * Controlla se un agente ha accesso a un servizio.
- */
 export function agentCanUseService(agentId: string, service: string): boolean {
   const perm = getAgentPermissions(agentId);
-  if (!perm) return false;
+  if (!perm) return true; // default: allow all
   return perm.services.includes('*') || perm.services.includes(service);
 }
 
-/**
- * Risolve le env vars che un agente deve ricevere.
- */
 export function resolveAgentEnv(agentId: string): Record<string, string> {
   const vault = loadVault();
-  const perm = vault.permissions.find(p => p.agentId === agentId);
+  const perm = vault.permissions.find((p) => p.agentId === agentId);
   if (!perm) return {};
 
   const env: Record<string, string> = {};
 
-  // Provider
   for (const providerKey of perm.providers) {
     if (providerKey === '*') {
-      // Dagli tutti i provider
       for (const p of vault.providers) {
         env[providerToEnvVar(p.provider)] = p.apiKey;
         if (p.baseUrl) env[providerToBaseUrlEnvVar(p.provider)] = p.baseUrl;
       }
       break;
     }
-    const cred = vault.providers.find(p => p.provider === providerKey);
+    const cred = vault.providers.find((p) => p.provider === providerKey);
     if (cred) {
       env[providerToEnvVar(cred.provider)] = cred.apiKey;
       if (cred.baseUrl) env[providerToBaseUrlEnvVar(cred.provider)] = cred.baseUrl;
     }
   }
 
-  // Servizi
   for (const serviceKey of perm.services) {
     if (serviceKey === '*') {
       for (const s of vault.services) {
@@ -255,7 +338,7 @@ export function resolveAgentEnv(agentId: string): Record<string, string> {
       }
       break;
     }
-    const cred = vault.services.find(s => s.service === serviceKey);
+    const cred = vault.services.find((s) => s.service === serviceKey);
     if (cred) {
       env[serviceToEnvVar(cred.service)] = cred.token;
     }
@@ -264,7 +347,7 @@ export function resolveAgentEnv(agentId: string): Record<string, string> {
   return env;
 }
 
-// ── Utility ─────────────────────────────────────────────────────────────────
+// ── Utils ──────────────────────────────────────────────────────────────────
 
 function maskKey(key: string): string {
   if (!key || key.length < 8) return '***';
@@ -272,11 +355,11 @@ function maskKey(key: string): string {
 }
 
 function providerToEnvVar(provider: string): string {
-  // openai-codex → OPENAI_API_KEY, anthropic → ANTHROPIC_API_KEY, …
   const map: Record<string, string> = {
     'openai-codex': 'OPENAI_API_KEY',
     'openai': 'OPENAI_API_KEY',
     'anthropic': 'ANTHROPIC_API_KEY',
+    'claude-cli': 'CLAUDE_CODE_OAUTH_TOKEN',
     'groq': 'GROQ_API_KEY',
     'github-copilot': 'GITHUB_TOKEN',
     'openrouter': 'OPENROUTER_API_KEY',
@@ -296,6 +379,7 @@ function serviceToEnvVar(service: string): string {
     'github': 'GITHUB_TOKEN',
     'vercel': 'VERCEL_TOKEN',
     'netlify': 'NETLIFY_AUTH_TOKEN',
+    'claude-cli': 'CLAUDE_CODE_OAUTH_TOKEN',
   };
   if (map[service]) return map[service];
   return `${service.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_TOKEN`;

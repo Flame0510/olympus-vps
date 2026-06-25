@@ -32,6 +32,22 @@ interface ProviderEntry {
   modelsJson?: { value: string; source: string };
 }
 
+/** Normalized provider entry (core + agent-compatible) */
+interface NormalizedProvider {
+  provider: string;
+  kind: string;
+  detail: string;
+  profiles: { count: number; labels: string[] };
+  /** Whether this provider is actually configured on the target */
+  active: boolean;
+  /** Preset auth type */
+  presetAuth: AuthMethod;
+  /** Preset label */
+  presetLabel: string;
+  /** Preset description */
+  presetDescription: string;
+}
+
 interface QuotaMetric {
   label: string;
   used: number;
@@ -48,6 +64,57 @@ interface ProviderUsageData {
   providers: { key: string; label: string; totalCost: number; totalTokens: number; sessionCount: number }[];
   openrouterLive: { usage: number; limit: number; limitRemaining: number } | null;
   quotas: Record<string, QuotaMetric[] | null>;
+}
+
+type AuthMethod = 'oauth' | 'api-key' | 'token' | 'mixed';
+
+interface ProviderPreset {
+  provider: string;
+  label: string;
+  icon: string;
+  auth: AuthMethod;
+  description: string;
+}
+
+const PROVIDER_PRESETS: ProviderPreset[] = [
+  { provider: 'openai', label: 'OpenAI', icon: '◉', auth: 'api-key', description: 'Direct OpenAI API (GPT-4, GPT-4o)' },
+  { provider: 'openai-codex', label: 'OpenAI Codex', icon: '◉', auth: 'oauth', description: 'OpenAI Codex CLI (OAuth login)' },
+  { provider: 'anthropic', label: 'Anthropic', icon: '◆', auth: 'api-key', description: 'Claude via API key (sk-ant-) or setup token (sk-ant-oat01-)' },
+  { provider: 'claude-cli', label: 'Claude CLI', icon: '◆', auth: 'api-key', description: 'Claude CLI token (reuse local claude auth)' },
+  { provider: 'deepseek', label: 'DeepSeek', icon: '○', auth: 'api-key', description: 'DeepSeek API (V3, R1)' },
+  { provider: 'openrouter', label: 'OpenRouter', icon: '◎', auth: 'api-key', description: 'OpenRouter (multi-model gateway)' },
+  { provider: 'groq', label: 'Groq', icon: '▶', auth: 'api-key', description: 'Groq (fast inference, Llama, Mixtral)' },
+  { provider: 'github-copilot', label: 'GitHub Copilot', icon: '◈', auth: 'oauth', description: 'GitHub Copilot via OAuth device login' },
+  { provider: 'perplexity', label: 'Perplexity', icon: '◎', auth: 'api-key', description: 'Perplexity API (search-augmented models)' },
+  { provider: 'google', label: 'Google Gemini', icon: '◈', auth: 'api-key', description: 'Google Gemini API (Gemini 2.0+)' },
+  { provider: 'xai', label: 'xAI Grok', icon: '○', auth: 'api-key', description: 'xAI Grok API' },
+  { provider: 'cohere', label: 'Cohere', icon: '○', auth: 'api-key', description: 'Cohere API (Command R+ etc.)' },
+  { provider: 'mistral', label: 'Mistral', icon: '○', auth: 'api-key', description: 'Mistral AI API' },
+];
+
+interface AgentTarget {
+  id: string;
+  label: string;
+  type: 'core' | 'agent';
+  containerName?: string;
+  state?: string;
+}
+
+interface AgentProviderStatus {
+  agentId: string;
+  containerName: string;
+  state: string;
+  defaultModel: string;
+  fallbacks: string[];
+  allowed: string[];
+  aliases: Record<string, string>;
+  providers: {
+    provider: string;
+    kind: string;
+    detail: string;
+    profiles: number;
+    labels: string[];
+  }[];
 }
 
 interface ModelsData {
@@ -247,9 +314,33 @@ export default function ProvidersPage() {
   const [oauthFlow, setOauthFlow] = useState<{provider:string;verificationUri:string|null;userCode:string|null} | null>(null);
   const [apiKeyModal, setApiKeyModal] = useState<string | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState('');
+  const [revealedKey, setRevealedKey] = useState('');   // la key rivelata in chiaro
+  const [revealedFor, setRevealedFor] = useState('');    // per quale provider è rivelata
+  const [revealLoading, setRevealLoading] = useState('');
+  const [revealError, setRevealError] = useState('');
+  const [ttyCommand, setTtyCommand] = useState<string | null>(null);
+  // ── Claude CLI setup-token state ──
+  const [claudeSetupFlow, setClaudeSetupFlow] = useState<{
+    status: string;
+    setupUrl?: string | null;
+    userCode?: string | null;
+    message?: string;
+    logFile?: string;
+    command?: string;
+    claudeFound?: boolean;
+    manualSteps?: string[];
+    source?: string;
+    tokenDir?: string;
+    tokenFile?: string;
+    tokenPrefix?: string;
+  } | null>(null);
+  const [claudeTokenInput, setClaudeTokenInput] = useState('');
   const [aliasForm, setAliasForm] = useState({ name: '', model: '' });
   const [aliasSaving, setAliasSaving] = useState('');
   const [aliasDrafts, setAliasDrafts] = useState<Record<string, string>>({});
+  const [agents, setAgents] = useState<AgentTarget[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<string>('core');
+  const [agentProviderData, setAgentProviderData] = useState<Record<string, AgentProviderStatus>>({});
   const timezone = useOlympusTimezone();
 
   async function loadUsage() {
@@ -290,20 +381,101 @@ export default function ProvidersPage() {
     }
   }
 
+  async function loadAgents() {
+    try {
+      const res = await fetch('/api/agent-providers?token=olympus2026', { cache: 'no-store' });
+      if (!res.ok) return;
+      const json = await res.json() as AgentProviderStatus[];
+      const agentTargets: AgentTarget[] = [
+        { id: 'core', label: 'VPS', type: 'core' },
+        ...json.map((a) => ({
+          id: a.agentId,
+          label: a.agentId,
+          type: 'agent' as const,
+          containerName: a.containerName,
+          state: a.state,
+        })),
+      ];
+      setAgents(agentTargets);
+
+      const byId: Record<string, AgentProviderStatus> = {};
+      for (const a of json) {
+        byId[a.agentId] = a;
+      }
+      setAgentProviderData(byId);
+    } catch {
+      // Agents unavailable, just show VPS
+    }
+  }
+
   useEffect(() => { void load(); }, []);
   useEffect(() => {
     void loadUsage();
     const t = setInterval(() => void loadUsage(), 30_000);
     return () => clearInterval(t);
   }, []);
+  useEffect(() => { void loadAgents(); }, []);
 
   const oauthByProvider = new Map<string, OAuthProvider>(
     (data?.auth?.oauth?.providers ?? []).map((p) => [p.provider, p]),
   );
 
-  const selected = data?.auth?.providers?.find((p) => p.provider === selectedProvider);
-  const selectedOAuth = oauthByProvider.get(selectedProvider);
-  const selectedQuotaKey = resolveQuotaProviderKey(usageData?.quotas, selectedProvider, data?.aliases);
+  // Resolve active agent's data
+  const isAgentTarget = selectedAgent !== 'core';
+  const agentStatus = isAgentTarget ? agentProviderData[selectedAgent] : null;
+
+  // Merge preset providers with runtime data
+  const runtimeProviders = new Map<string, Record<string, unknown>>();
+  const runtimeList = isAgentTarget
+    ? (agentStatus?.providers ?? [])
+    : (data?.auth?.providers ?? []);
+  for (const p of runtimeList) {
+    const entry = p as Record<string, unknown>;
+    runtimeProviders.set(String(entry.provider ?? ''), entry);
+  }
+
+  const activeProviders: NormalizedProvider[] = PROVIDER_PRESETS.map((preset) => {
+    const runtime = runtimeProviders.get(preset.provider);
+    if (runtime) {
+      return {
+        provider: preset.provider,
+        kind: String((runtime as any).effective?.kind ?? runtime.kind ?? 'unknown'),
+        detail: String((runtime as any).effective?.detail ?? runtime.detail ?? ''),
+        profiles: {
+          count: Number((runtime as any).profiles?.count ?? (runtime as any).profiles ?? 0),
+          labels: (runtime as any).profiles?.labels ?? (runtime as any).labels ?? [],
+        },
+        active: true,
+        presetAuth: preset.auth,
+        presetLabel: preset.label,
+        presetDescription: preset.description,
+      };
+    }
+    // Not configured yet — show as inactive preset
+    return {
+      provider: preset.provider,
+      kind: 'preset',
+      detail: preset.description,
+      profiles: { count: 0, labels: [] },
+      active: false,
+      presetAuth: preset.auth,
+      presetLabel: preset.label,
+      presetDescription: preset.description,
+    };
+  });
+  const activeAliases = isAgentTarget
+    ? agentStatus?.aliases ?? {}
+    : data?.aliases ?? {};
+  const activeAllowed = isAgentTarget
+    ? agentStatus?.allowed ?? []
+    : data?.allowed ?? [];
+  const activeDefaultModel = isAgentTarget
+    ? agentStatus?.defaultModel ?? ''
+    : data?.defaultModel ?? '';
+
+  const selected = activeProviders.find((p) => p.provider === selectedProvider);
+  const selectedOAuth = isAgentTarget ? undefined : oauthByProvider.get(selectedProvider);
+  const selectedQuotaKey = resolveQuotaProviderKey(usageData?.quotas, selectedProvider, activeAliases);
   const selectedQuotaMetrics = selectedQuotaKey ? usageData?.quotas?.[selectedQuotaKey] : null;
   const selectedUsageEntry = usageData?.providers.find((entry) => entry.key === selectedQuotaKey || entry.key === selectedProvider) ?? null;
   const selectedQuotaState: 'loading' | 'error' | 'empty' = !usageLoaded
@@ -314,14 +486,14 @@ export default function ProvidersPage() {
   const selectedQuotaEmpty = quotaEmptyState(selectedProvider, selectedQuotaState, usageError);
 
   const providerModels = selectedProvider
-    ? (data?.allowed ?? []).filter((m) => m.startsWith(selectedProvider + '/') || m.startsWith(selectedProvider + '-'))
+    ? activeAllowed.filter((m) => m.startsWith(selectedProvider + '/') || m.startsWith(selectedProvider + '-'))
     : [];
 
   const providerAliases = useMemo(() => (
     selectedProvider
-      ? Object.entries(data?.aliases ?? {}).filter(([, v]) => v.startsWith(selectedProvider + '/') || v.startsWith(selectedProvider + '-'))
+      ? Object.entries(activeAliases).filter(([, v]) => v.startsWith(selectedProvider + '/') || v.startsWith(selectedProvider + '-'))
       : []
-  ), [selectedProvider, data?.aliases]);
+  ), [selectedProvider, activeAliases]);
 
   useEffect(() => {
     const drafts = Object.fromEntries(providerAliases.map(([alias, model]) => [alias, model]));
@@ -375,55 +547,281 @@ export default function ProvidersPage() {
 
   const oauthTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  async function pollDeviceCode(provider: string, deviceAuthId: string, userCode: string, expiresAt: number, agent?: string) {
+    if (oauthTimerRef.current) clearInterval(oauthTimerRef.current);
+    oauthTimerRef.current = setInterval(async () => {
+      try {
+        let url = `/api/providers/device-code?provider=${encodeURIComponent(provider)}&deviceAuthId=${encodeURIComponent(deviceAuthId)}&userCode=${encodeURIComponent(userCode)}&expiresAt=${expiresAt}`;
+        if (agent) url += `&agent=${encodeURIComponent(agent)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.status === 'completed') {
+          clearInterval(oauthTimerRef.current!);
+          oauthTimerRef.current = null;
+          setOauthFlow(null);
+          // Save the tokens
+          try {
+            await fetch('/api/providers/device-code/save', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                provider,
+                accessToken: data.accessToken,
+                refreshToken: data.refreshToken,
+                expiresMs: data.expiresMs,
+                agent: agent || undefined,
+              }),
+            });
+          } catch {}
+          await reloadActiveAgent();
+          setLoginLoading('');
+        } else if (data.status === 'failed' || data.status === 'timeout') {
+          clearInterval(oauthTimerRef.current!);
+          oauthTimerRef.current = null;
+          setOauthFlow(null);
+          setLoginLoading('');
+        }
+      } catch {}
+    }, 3000);
+  }
+
   async function handleOAuthLogin(provider: string) {
-    setLoginLoading(provider); setOauthFlow(null);
+    setLoginLoading(provider); setOauthFlow(null); setTtyCommand(null);
     try {
-      const res = await fetch('/api/providers/login', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, method: 'oauth' })
+      const body: Record<string, unknown> = { provider };
+      if (isAgentTarget && agentStatus?.containerName) {
+        body.agent = agentStatus.containerName;
+      }
+      const res = await fetch('/api/providers/device-code', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
       });
       const data = await res.json();
       if (!res.ok) {
         setLoginLoading('');
         return;
       }
-      if (data.verificationUri || data.userCode) {
+      if (data.status === 'pending' && data.deviceAuthId && data.userCode) {
         setOauthFlow({ provider, verificationUri: data.verificationUri, userCode: data.userCode });
-        if (oauthTimerRef.current) clearInterval(oauthTimerRef.current);
-        oauthTimerRef.current = setInterval(async () => {
-          try {
-            const sRes = await fetch(`/api/providers/oauth/status?provider=${encodeURIComponent(provider)}`);
-            const sData = await sRes.json();
-            if (sData.status === 'completed') { clearInterval(oauthTimerRef.current!); oauthTimerRef.current = null; setOauthFlow(null); await load(); }
-            else if (sData.status === 'failed') { clearInterval(oauthTimerRef.current!); oauthTimerRef.current = null; setOauthFlow(null); }
-          } catch {}
-        }, 3000);
-      } else if (data.status === 'already_connected') { await load(); }
+        pollDeviceCode(provider, data.deviceAuthId, data.userCode, data.expiresAt, body.agent as string | undefined);
+      } else if (data.status === 'tty_required') {
+        setTtyCommand(data.command || data.message || 'Use CLI to login');
+        setLoginLoading('');
+      } else {
+        setLoginLoading('');
+      }
     } catch {
-      // If OAuth login fails (provider not supported, etc.), silently reset
+      setLoginLoading('');
     }
-    setLoginLoading('');
+    // loginLoading stays active while polling — cleared when completed/timeout in pollDeviceCode
+  }
+
+  async function handleRefreshOAuth(provider: string) {
+    setLoginLoading(provider);
+    setOauthFlow(null);
+    setTtyCommand(null);
+    try {
+      const body: Record<string, unknown> = { provider };
+      if (isAgentTarget && agentStatus?.containerName) {
+        body.agent = agentStatus.containerName;
+      }
+      const res = await fetch('/api/providers/device-code', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (data.status === 'pending' && data.deviceAuthId && data.userCode) {
+        setOauthFlow({ provider, verificationUri: data.verificationUri, userCode: data.userCode });
+        pollDeviceCode(provider, data.deviceAuthId, data.userCode, data.expiresAt, body.agent as string | undefined);
+      } else if (data.status === 'tty_required') {
+        setTtyCommand(data.command || data.message || 'Use CLI to login');
+        setLoginLoading('');
+      } else {
+        setLoginLoading('');
+      }
+    } catch {
+      setLoginLoading('');
+    }
   }
 
   async function handleApiKeyConnect(provider: string) {
     if (!apiKeyInput.trim()) return;
     setLoginLoading(provider);
     try {
-      await fetch('/api/providers/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, method: 'api-key', apiKey: apiKeyInput.trim() }) });
-      setApiKeyModal(null); setApiKeyInput(''); await load();
-    } catch {}
+      const body: Record<string, unknown> = { provider, method: 'api-key', apiKey: apiKeyInput.trim() };
+      if (isAgentTarget && agentStatus?.containerName) {
+        body.agent = agentStatus.containerName;
+      }
+      const res = await fetch('/api/providers/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        setRevealedKey('');
+      }
+      setApiKeyModal(null); setApiKeyInput('');
+    } catch {
+      // Ignore
+    }
+    await reloadActiveAgent();
     setLoginLoading('');
+  }
+
+  async function handleRevealKey(provider: string) {
+    if (revealedFor === provider) {
+      // Toggle off
+      setRevealedKey('');
+      setRevealedFor('');
+      setRevealError('');
+      return;
+    }
+    setRevealLoading(provider);
+    setRevealError('');
+    try {
+      const params = new URLSearchParams({ provider });
+      if (isAgentTarget && agentStatus?.containerName) {
+        params.set('agent', agentStatus.containerName);
+      }
+      const res = await fetch(`/api/vault/provider/key?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) {
+        setRevealedKey('');
+        setRevealedFor('');
+        setRevealError(res.status === 404 ? 'Key not available in this runtime' : `Reveal failed (HTTP ${res.status})`);
+        return;
+      }
+      const data = await res.json();
+      if (!data.apiKey) {
+        setRevealedKey('');
+        setRevealedFor('');
+        setRevealError('Key not available in this runtime');
+        return;
+      }
+      setRevealedKey(String(data.apiKey));
+      setRevealedFor(provider);
+    } catch {
+      setRevealedKey('');
+      setRevealedFor('');
+      setRevealError('Reveal failed');
+    } finally {
+      setRevealLoading('');
+    }
+  }
+
+  // ── Claude CLI setup-token flow ─────────────────────────────────────
+  async function handleClaudeSetupTokenStart() {
+    setLoginLoading('claude-cli');
+    setClaudeSetupFlow(null);
+    setClaudeTokenInput('');
+    try {
+      const body: Record<string, unknown> = {};
+      if (isAgentTarget && agentStatus?.containerName) {
+        body.agent = agentStatus.containerName;
+      }
+      const res = await fetch('/api/providers/claude-cli/setup-token/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.status === 'started') {
+        setClaudeSetupFlow({
+          status: 'started',
+          setupUrl: data.setupUrl,
+          userCode: data.userCode,
+          message: data.message || 'Visit the URL to authorize Claude CLI.',
+          logFile: data.logFile,
+        });
+        setLoginLoading('');
+      } else if (data.status === 'claude_not_found') {
+        setClaudeSetupFlow({ status: 'claude_not_found', message: data.message });
+        setLoginLoading('');
+      } else if (data.status === 'already_provisioned') {
+        setClaudeSetupFlow({ status: 'already_provisioned', message: data.message });
+        setLoginLoading('');
+      } else if (data.status === 'manual_required') {
+        setClaudeSetupFlow({
+          status: 'manual_required',
+          message: data.message,
+          command: data.command,
+          claudeFound: data.claudeFound,
+          manualSteps: data.manualSteps,
+          tokenDir: data.tokenDir,
+        });
+        setLoginLoading('');
+      } else {
+        setClaudeSetupFlow({ status: 'unknown', message: data.message || data.rawOutput || 'Unexpected response', logFile: data.logFile });
+        setLoginLoading('');
+      }
+    } catch (e: any) {
+      setClaudeSetupFlow({ status: 'error', message: e.message || 'Failed to start setup-token' });
+      setLoginLoading('');
+    }
+  }
+
+  async function handleClaudeSetupTokenSave() {
+    const token = claudeTokenInput.trim();
+    if (!token || token.length < 20) return;
+    setLoginLoading('claude-cli:save');
+    try {
+      const body: Record<string, unknown> = {
+        token,
+        profileId: 'claude-cli:setup',
+        setEnv: true,
+      };
+      if (isAgentTarget && agentStatus?.containerName) {
+        body.agent = agentStatus.containerName;
+      }
+      const res = await fetch('/api/providers/claude-cli/setup-token/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        setClaudeSetupFlow(null);
+        setClaudeTokenInput('');
+        await reloadActiveAgent();
+      } else {
+        setClaudeSetupFlow({ status: 'error', message: data.error || 'Save failed' });
+      }
+      setLoginLoading('');
+    } catch (e: any) {
+      setClaudeSetupFlow({ status: 'error', message: e.message || 'Failed to save token' });
+      setLoginLoading('');
+    }
   }
 
   async function handleDisconnect(provider: string) {
     setLoginLoading(provider);
+    setOauthFlow(null);
+    setTtyCommand(null);
     try {
-      await fetch('/api/providers/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, disconnect: true }) });
-      await load();
-    } catch {}
+      const body: Record<string, unknown> = { provider, disconnect: true, force: true };
+      if (isAgentTarget && agentStatus?.containerName) {
+        body.agent = agentStatus.containerName;
+      }
+      await fetch('/api/providers/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      // Ignore
+    }
+    await reloadActiveAgent();
     setLoginLoading('');
   }
 
+  /** Reload data based on active target */
+  async function reloadActiveAgent() {
+    if (isAgentTarget) {
+      await loadAgents();
+    } else {
+      await load();
+    }
+  }
+
   return (
+    <>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     <div style={{
       height: '100vh', background: 'var(--bg)', color: 'var(--text)',
       fontFamily: 'var(--font-mono-stack)', display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -433,9 +831,33 @@ export default function ProvidersPage() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexShrink: 0, boxSizing: 'border-box'
       }}>
-        <span style={{ fontFamily: 'var(--font-serif-stack)', fontSize: '20px', letterSpacing: '4px', color: 'var(--copper)' }}>PROVIDERS</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontFamily: 'var(--font-serif-stack)', fontSize: '20px', letterSpacing: '4px', color: 'var(--copper)' }}>PROVIDERS</span>
+          {agents.length > 0 && (
+            <select
+              value={selectedAgent}
+              onChange={(e) => {
+                setSelectedAgent(e.target.value);
+                setSelectedProvider('');
+              }}
+              style={{
+                background: '#0a141a', border: '1px solid #1a2a33', borderRadius: 4,
+                color: '#d6e2e8', fontSize: 10, padding: '3px 6px', outline: 'none', cursor: 'pointer',
+              }}
+            >
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label}{a.type === 'agent' ? ' ●' : ' ◇'} {a.state === 'running' ? '🟢' : '🔴'}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
         <span style={{ fontSize: 10, color: '#555' }}>
-          default: <span style={{ color: '#d6e2e8' }}>{data?.defaultModel ?? '—'}</span>
+          default: <span style={{ color: '#d6e2e8' }}>{activeDefaultModel || (data?.defaultModel ?? '—')}</span>
+          {isAgentTarget && agentStatus?.state && (
+            <> · state: <span style={{ color: agentStatus.state === 'running' ? '#4a8' : '#d66' }}>{agentStatus.state}</span></>
+          )}
         </span>
       </div>
 
@@ -452,17 +874,20 @@ export default function ProvidersPage() {
       {data && (
         <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: 0 }}>
           <section style={{ width: isMobile ? '100%' : 220, borderRight: isMobile ? 'none' : '1px solid var(--border)', overflow: 'auto', flexShrink: 0, display: isMobile && tab !== 'providers' ? 'none' : 'block' }}>
-            {data.auth.providers.map((p) => {
-              const oauth = oauthByProvider.get(p.provider);
-              const status = oauth?.status ?? 'static';
+            {activeProviders.map((p) => {
+              const oauth = isAgentTarget ? undefined : oauthByProvider.get(p.provider);
+              const effectiveStatus = p.active ? (oauth?.status ?? 'ok') : 'unconfigured';
+              const pillStatus: Tone = effectiveStatus === 'unconfigured' ? 'neutral' : (oauth?.status as Tone ?? 'success');
+              const pillLabel = effectiveStatus === 'unconfigured' ? 'INACTIVE' : (oauth?.status?.toUpperCase() ?? 'OK');
               const isActive = selectedProvider === p.provider;
-              const quotaKey = resolveQuotaProviderKey(usageData?.quotas, p.provider, data.aliases);
+              const quotaKey = resolveQuotaProviderKey(usageData?.quotas, p.provider, activeAliases);
               const quotaMetrics = quotaKey ? usageData?.quotas?.[quotaKey] : null;
               return (
                 <button
                   key={p.provider}
                   onClick={() => {
                     setSelectedProvider(p.provider);
+                setApiKeyModal(null);
                     if (isMobile) setTab('details');
                   }}
                   style={{
@@ -470,16 +895,26 @@ export default function ProvidersPage() {
                     background: isActive ? '#1a1208' : 'transparent',
                     border: 'none', borderBottom: '1px solid var(--border)',
                     color: 'var(--text)', padding: '10px 12px', cursor: 'pointer',
+                    opacity: p.active ? 1 : 0.6,
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ color: toneVars[statusTone(status)].text, fontSize: 14 }}>{providerIcon(p.provider)}</span>
-                    <span style={{ color: isActive ? 'var(--copper)' : 'var(--text)', fontSize: 12 }}>{p.provider}</span>
+                    <span style={{ color: toneVars[statusTone(effectiveStatus)].text, fontSize: 14 }}>{p.presetAuth === 'oauth' ? '🔑' : p.presetAuth === 'api-key' ? '🔐' : '🪙'} {providerIcon(p.provider)}</span>
+                    <span style={{
+                      color: isActive ? 'var(--copper)' : 'var(--text)',
+                      fontSize: 12,
+                      fontStyle: p.active ? 'normal' : 'italic',
+                    }}>
+                      {p.presetLabel || p.provider}
+                    </span>
                   </div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <Pill tone={statusTone(status)}>{statusLabel(status)}</Pill>
-                    <span style={{ fontSize: 9, color: '#555' }}>{p.effective.kind}</span>
-                    <span style={{ fontSize: 9, color: hasQuotaMetrics(quotaMetrics) ? '#4a7a94' : '#666' }}>{quotaSummary(quotaMetrics)}</span>
+                    <Pill tone={pillStatus}>{pillLabel}</Pill>
+                    {p.active && <span style={{ fontSize: 9, color: '#555' }}>{p.kind}</span>}
+                    {p.active && hasQuotaMetrics(quotaMetrics) && (
+                      <span style={{ fontSize: 9, color: '#4a7a94' }}>{quotaSummary(quotaMetrics)}</span>
+                    )}
+                    {!p.active && <span style={{ fontSize: 9, color: '#555' }}>{p.presetAuth}</span>}
                   </div>
                 </button>
               );
@@ -487,15 +922,49 @@ export default function ProvidersPage() {
           </section>
 
           <section style={{ flex: 1, overflow: 'auto', padding: isMobile ? 10 : 16, display: isMobile && tab !== 'details' ? 'none' : 'flex', flexDirection: 'column', gap: 16, alignItems: 'stretch' }}>
-            {selected && (
+            {selected && !selected.active && (
+              <Surface variant="panel" className="providers-panel">
+                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 10, color: 'var(--copper)', letterSpacing: '0.08em' }}>
+                  {selected.presetLabel?.toUpperCase() || selectedProvider.toUpperCase()} — NOT CONFIGURED
+                </div>
+                <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <Row label="auth" value={selected.presetAuth === 'oauth' ? 'OAuth Login' : selected.presetAuth === 'api-key' ? 'API Key' : 'Token'} />
+                  <Row label="description" value={selected.presetDescription} dim />
+                </div>
+                <div style={{ padding: '8px 12px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {selected.presetAuth === 'oauth' && (
+                    <button onClick={() => handleOAuthLogin(selectedProvider)} disabled={!!loginLoading}
+                      style={{ background: loginLoading === selectedProvider ? '#1a2a33' : '#1a2a33', border: '1px solid #2a4a5a', borderRadius: 4, color: loginLoading === selectedProvider ? '#888' : '#d6e2e8', fontSize: 10, padding: '6px 12px', cursor: loginLoading ? 'wait' : 'pointer', opacity: loginLoading && loginLoading !== selectedProvider ? 0.4 : 1 }}>
+                      {loginLoading === selectedProvider ? <>⌛</> : '🔑'} LOGIN WITH {selectedProvider.toUpperCase()}
+                    </button>
+                  )}
+                  {selectedProvider === 'claude-cli' && (
+                    <button onClick={handleClaudeSetupTokenStart} disabled={!!loginLoading}
+                      style={{ background: '#1a2a33', border: '1px solid #2a4a5a', borderRadius: 4, color: loginLoading ? '#888' : '#d6e2e8', fontSize: 10, padding: '6px 12px', cursor: loginLoading ? 'wait' : 'pointer' }}>
+                      {loginLoading === 'claude-cli' ? '⌛' : '◆'} SET UP CLAUDE CLI
+                    </button>
+                  )}
+                  {selected.presetAuth === 'api-key' && selectedProvider !== 'claude-cli' && (
+                    <button onClick={() => setApiKeyModal(selectedProvider)}
+                      style={{ background: '#1a2a33', border: '1px solid #2a4a5a', borderRadius: 4, color: '#d6e2e8', fontSize: 10, padding: '6px 12px', cursor: 'pointer' }}>
+                      + ADD API KEY
+                    </button>
+                  )}
+                  {selected.presetAuth === 'token' && (
+                    <span style={{ fontSize: 10, color: '#888' }}>🪙 Token provider — configure in Core or agent directly</span>
+                  )}
+                </div>
+              </Surface>
+            )}
+            {selected && selected.active && (
               <>
                 <Surface variant="panel" className="providers-panel">
                   <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 10, color: 'var(--copper)', letterSpacing: '0.08em' }}>
                     AUTH
                   </div>
                   <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <Row label="kind" value={selected.effective.kind} />
-                    <Row label="source" value={selected.effective.detail} dim />
+                    <Row label="kind" value={selected.kind} />
+                    <Row label="source" value={selected.detail} dim />
                     {selected.profiles.labels.map((l, i) => (
                       <Row key={i} label={i === 0 ? 'profile' : ''} value={l} />
                     ))}
@@ -508,54 +977,135 @@ export default function ProvidersPage() {
                     )}
                   </div>
 
-                  {/* Login/OAuth buttons */}
                   <div style={{ padding: '8px 12px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                    {selectedOAuth && selectedOAuth.status !== 'ok' && (selected?.profiles.count ?? 0) === 0 && (
-                      <button onClick={() => handleOAuthLogin(selectedProvider)} disabled={loginLoading === selectedProvider}
-                        style={{ background: '#1a2a33', border: '1px solid #2a4a5a', borderRadius: 4, color: '#d6e2e8', fontSize: 10, padding: '6px 12px', cursor: 'pointer' }}>
-                        {loginLoading === selectedProvider ? '⏳' : '🔑'} LOGIN WITH {selectedProvider.toUpperCase()}
+                    {/* OAuth: LOGIN/REFRESH/LOGOUT */}
+                    {selectedOAuth && selectedOAuth.status !== 'ok' && (selected?.profiles?.count ?? 0) === 0 && (
+                      <button onClick={() => handleOAuthLogin(selectedProvider)} disabled={!!loginLoading}
+                        style={{ background: '#1a2a33', border: '1px solid #2a4a5a', borderRadius: 4, color: loginLoading === selectedProvider ? '#888' : '#d6e2e8', fontSize: 10, padding: '6px 12px', cursor: loginLoading ? 'wait' : 'pointer', opacity: loginLoading && loginLoading !== selectedProvider ? 0.4 : 1 }}>
+                        {loginLoading === selectedProvider ? '⌛' : '🔑'} LOGIN WITH {selectedProvider.toUpperCase()}
                       </button>
                     )}
-                    {(selected?.effective.kind === 'token' || selected?.effective.kind === 'api-key') && (
-                      <button onClick={() => setApiKeyModal(selectedProvider)}
-                        style={{ background: '#1a2a33', border: '1px solid #2a4a5a', borderRadius: 4, color: '#d6e2e8', fontSize: 10, padding: '6px 12px', cursor: 'pointer' }}>
-                        + ADD API KEY
-                      </button>
-                    )}
-                    {(selectedOAuth?.status === 'ok' || (selected?.profiles.count ?? 0) > 0) && (
+
+                    {selectedOAuth && selectedOAuth.status === 'expired' && (selected?.profiles?.count ?? 0) > 0 && (
                       <>
-                        <span style={{ fontSize: 10, color: '#4a8' }}>✅ Connected{selectedOAuth?.profiles?.[0]?.label ? ` via ${selectedOAuth.profiles[0].label}` : ''}</span>
-                        <button onClick={() => handleDisconnect(selectedProvider)} disabled={loginLoading === selectedProvider}
-                          style={{ background: 'transparent', border: '1px solid #5a3a3a', borderRadius: 4, color: '#d66', fontSize: 10, padding: '6px 12px', cursor: 'pointer' }}>
-                          {loginLoading === selectedProvider ? '⏳' : '🚪'} DISCONNECT
+                        <span style={{ fontSize: 10, color: '#d66' }}>⚠️ Token expired</span>
+                        <button onClick={() => handleRefreshOAuth(selectedProvider)} disabled={!!loginLoading}
+                          style={{ background: '#2a3a22', border: '1px solid #3a5a3a', borderRadius: 4, color: loginLoading === selectedProvider ? '#666' : '#8d8', fontSize: 10, padding: '6px 12px', cursor: loginLoading ? 'wait' : 'pointer', opacity: loginLoading && loginLoading !== selectedProvider ? 0.4 : 1 }}>
+                          {loginLoading === selectedProvider ? '⌛' : '🔄'} REFRESH TOKEN
                         </button>
+                        <button onClick={() => handleDisconnect(selectedProvider)} disabled={!!loginLoading}
+                          style={{ background: 'transparent', border: '1px solid #5a3a3a', borderRadius: 4, color: loginLoading === selectedProvider ? '#833' : '#d66', fontSize: 10, padding: '6px 12px', cursor: loginLoading ? 'wait' : 'pointer', opacity: loginLoading && loginLoading !== selectedProvider ? 0.4 : 1 }}>
+                          {loginLoading === selectedProvider ? '⌛' : '🚪'} LOGOUT
+                        </button>
+                      </>
+                    )}
+
+                    {selectedOAuth && selectedOAuth.status === 'expiring' && selectedOAuth.remainingMs !== undefined && (
+                      <>
+                        <span style={{ fontSize: 10, color: '#da3' }}>⚠️ Expiring ({formatRemaining(selectedOAuth.remainingMs)} left)</span>
+                        <button onClick={() => handleRefreshOAuth(selectedProvider)} disabled={!!loginLoading}
+                          style={{ background: '#2a3a22', border: '1px solid #3a5a3a', borderRadius: 4, color: loginLoading === selectedProvider ? '#666' : '#8d8', fontSize: 10, padding: '6px 12px', cursor: loginLoading ? 'wait' : 'pointer', opacity: loginLoading && loginLoading !== selectedProvider ? 0.4 : 1 }}>
+                          {loginLoading === selectedProvider ? '⌛' : '🔄'} REFRESH
+                        </button>
+                      </>
+                    )}
+
+                    {/* Claude CLI specific: setup-token flow */}
+                    {selectedProvider === 'claude-cli' && (
+                      <>
+                        {selected?.profiles?.count > 0 ? (
+                          <span style={{ fontSize: 10, color: '#4a8' }}>✅ Connected (setup token saved)</span>
+                        ) : (
+                          <button
+                            onClick={handleClaudeSetupTokenStart}
+                            disabled={!!loginLoading}
+                            style={{
+                              background: '#1a2a33',
+                              border: '1px solid #2a4a5a',
+                              borderRadius: 4,
+                              color: loginLoading && loginLoading !== 'claude-cli' ? '#888' : '#d6e2e8',
+                              fontSize: 10, padding: '6px 12px',
+                              cursor: loginLoading ? 'wait' : 'pointer',
+                              opacity: loginLoading && loginLoading !== 'claude-cli' ? 0.4 : 1,
+                            }}
+                          >
+                            {loginLoading === 'claude-cli' ? '⌛' : '◆'} SET UP CLAUDE CLI
+                          </button>
+                        )}
+                        <button onClick={() => handleDisconnect(selectedProvider)} disabled={!!loginLoading}
+                          style={{ background: 'transparent', border: '1px solid #5a3a3a', borderRadius: 4, color: loginLoading === selectedProvider ? '#833' : '#d66', fontSize: 10, padding: '6px 12px', cursor: loginLoading ? 'wait' : 'pointer', opacity: loginLoading && loginLoading !== selectedProvider ? 0.4 : 1 }}>
+                          {loginLoading === selectedProvider ? '⌛' : '🚪'} DISCONNECT
+                        </button>
+                      </>
+                    )}
+
+                    {/* Determine if provider truly uses OAuth (has non-token profiles) */}
+                    {(() => {
+                      const isTrueOAuth = selectedOAuth && selectedOAuth.status === 'ok' &&
+                        selectedOAuth.profiles?.some((p: { type?: string }) => p?.type && p.type !== 'token');
+                      const isTokenOAuth = selectedOAuth && selectedOAuth.status === 'ok' &&
+                        selectedOAuth.profiles?.length > 0 &&
+                        selectedOAuth.profiles.every((p: { type?: string }) => p?.type === 'token');
+                      return null;
+                    })()}
+
+                    {/* True OAuth connected OK — show disconnect only */}
+                    {selectedOAuth && selectedOAuth.status === 'ok' &&
+                      selectedOAuth.profiles?.some((p: { type?: string }) => p?.type && p.type !== 'token') && (
+                      <>
+                        <span style={{ fontSize: 10, color: '#4a8' }}>✅ Connected{selectedOAuth.profiles?.[0]?.label ? ' via ' + selectedOAuth.profiles[0].label : ''}</span>
+                        <button onClick={() => handleDisconnect(selectedProvider)} disabled={!!loginLoading}
+                          style={{ background: 'transparent', border: '1px solid #5a3a3a', borderRadius: 4, color: loginLoading === selectedProvider ? '#833' : '#d66', fontSize: 10, padding: '6px 12px', cursor: loginLoading ? 'wait' : 'pointer', opacity: loginLoading && loginLoading !== selectedProvider ? 0.4 : 1 }}>
+                          {loginLoading === selectedProvider ? '⌛' : '🚪'} DISCONNECT
+                        </button>
+                      </>
+                    )}
+
+                    {/* API-key / token providers — key management */}
+                    {/* Shows for: no OAuth entry, OAuth entry with non-ok status, OR OAuth entry with only token profiles (false OAuth) */}
+                    {(!selectedOAuth || selectedOAuth.status !== 'ok' || (selectedOAuth.status === 'ok' &&
+                      selectedOAuth.profiles?.length > 0 &&
+                      selectedOAuth.profiles.every((p: { type?: string }) => p?.type === 'token')
+                    )) && selectedProvider !== 'claude-cli' && (
+                      <>
+                        {(selected?.profiles?.count ?? 0) > 0 && <span style={{ fontSize: 10, color: '#4a8' }}>✅ Connected</span>}
+                        <button onClick={() => handleRevealKey(selectedProvider)} disabled={revealLoading === selectedProvider}
+                          style={{ background: revealedFor === selectedProvider ? '#2a3a22' : '#1a2a33', border: '1px solid #2a4a5a', borderRadius: 4, color: revealedFor === selectedProvider ? '#8d8' : '#d6e2e8', fontSize: 10, padding: '6px 12px', cursor: revealLoading === selectedProvider ? 'wait' : 'pointer', opacity: revealLoading === selectedProvider ? 0.7 : 1 }}>
+                          {revealLoading === selectedProvider ? '⌛ LOADING' : revealedFor === selectedProvider ? '🔒 HIDE KEY' : '👁 SHOW KEY'}
+                        </button>
+                        <button onClick={() => setApiKeyModal(selectedProvider)}
+                          style={{ background: (selected?.profiles?.count ?? 0) > 0 ? '#2a3a22' : '#1a2a33', border: '1px solid #2a4a5a', borderRadius: 4, color: '#d6e2e8', fontSize: 10, padding: '6px 12px', cursor: 'pointer' }}>
+                          {(selected?.profiles?.count ?? 0) > 0 ? '✏️ CHANGE API KEY' : '+ ADD API KEY'}
+                        </button>
+                        <button onClick={() => handleDisconnect(selectedProvider)} disabled={!!loginLoading}
+                          style={{ background: 'transparent', border: '1px solid #5a3a3a', borderRadius: 4, color: loginLoading === selectedProvider ? '#833' : '#d66', fontSize: 10, padding: '6px 12px', cursor: loginLoading ? 'wait' : 'pointer', opacity: loginLoading && loginLoading !== selectedProvider ? 0.4 : 1 }}>
+                          {loginLoading === selectedProvider ? '⌛' : '🗑️'} REMOVE KEY
+                        </button>
+                        {revealedFor === selectedProvider && revealedKey && (
+                          <div style={{ width: '100%', marginTop: 8, padding: '8px 10px', background: '#0a141a', border: '1px solid #1a2a33', borderRadius: 4, fontSize: 11, color: '#8d8', wordBreak: 'break-all', fontFamily: 'monospace' }}>
+                            {revealedKey}
+                          </div>
+                        )}
+                        {revealError && (
+                          <div style={{ width: '100%', marginTop: 8, padding: '8px 10px', background: '#1a1010', border: '1px solid #4a2525', borderRadius: 4, fontSize: 11, color: '#e88' }}>
+                            {revealError}
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
 
-                  {/* OAuth device code flow */}
-                  {oauthFlow && oauthFlow.provider === selectedProvider && (
-                    <div style={{ margin: '4px 12px 8px', padding: 8, background: '#0d1a22', border: '1px solid #1a3a4a', borderRadius: 4 }}>
-                      {oauthFlow.verificationUri && <div style={{ fontSize: 10, color: '#8ab', marginBottom: 4 }}>1. Open <a href={oauthFlow.verificationUri} target="_blank" style={{ color: '#6af' }}>{oauthFlow.verificationUri}</a></div>}
-                      {oauthFlow.userCode && <div style={{ fontSize: 10, color: '#8ab', marginBottom: 4 }}>2. Enter code: <strong style={{ fontSize: 14, color: '#fff', letterSpacing: 4 }}>{oauthFlow.userCode}</strong></div>}
-                      <div style={{ fontSize: 9, color: '#666' }}>⏳ Waiting for authorization...</div>
+                  {/* nothing — oauthFlow is now a full modal below */}
+
+                  {ttyCommand && (
+                    <div style={{ margin: '4px 12px 8px', padding: 8, background: '#1a1a0d', border: '1px solid #5a5a3a', borderRadius: 4 }}>
+                      <div style={{ fontSize: 10, color: '#da3', marginBottom: 4 }}>⚠️ TTY Required</div>
+                      <div style={{ fontSize: 10, color: '#8ab', marginBottom: 4 }}>This provider requires an interactive terminal for OAuth. Run this command on the server:</div>
+                      <code style={{ fontSize: 11, color: '#d6e2e8', background: '#0a0a0a', padding: '6px 8px', borderRadius: 4, display: 'block', wordBreak: 'break-all', marginTop: 4 }}>{ttyCommand}</code>
+                      <button onClick={() => setTtyCommand(null)} style={{ background: 'transparent', border: '1px solid #2a4a5a', borderRadius: 4, color: '#888', fontSize: 10, padding: '4px 8px', cursor: 'pointer', marginTop: 6 }}>DISMISS</button>
                     </div>
                   )}
 
-                  {/* API Key modal */}
-                  {apiKeyModal === selectedProvider && (
-                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                      <div style={{ background: '#0f1a22', border: '1px solid #1a3a4a', borderRadius: 8, padding: 20, minWidth: 320 }}>
-                        <div style={{ fontSize: 12, color: '#d6e2e8', marginBottom: 12 }}>Add API Key for <strong>{selectedProvider}</strong></div>
-                        <input value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} placeholder="sk-..."
-                          style={{ width: '100%', background: '#0a141a', border: '1px solid #1a2a33', borderRadius: 4, padding: '8px 10px', color: '#d6e2e8', fontSize: 11, marginBottom: 12, boxSizing: 'border-box' }} />
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                          <button onClick={() => { setApiKeyModal(null); setApiKeyInput(''); }} style={{ background: 'transparent', border: '1px solid #2a4a5a', borderRadius: 4, color: '#888', fontSize: 10, padding: '6px 12px', cursor: 'pointer' }}>CANCEL</button>
-                          <button onClick={() => handleApiKeyConnect(selectedProvider)} disabled={!apiKeyInput.trim()} style={{ background: '#1a3a4a', border: '1px solid #2a5a7a', borderRadius: 4, color: '#d6e2e8', fontSize: 10, padding: '6px 12px', cursor: 'pointer' }}>CONNECT</button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </Surface>
 
                 <Surface variant="panel" className="providers-panel">
@@ -696,7 +1246,183 @@ export default function ProvidersPage() {
         </div>
       )}
 
+      {/* ── OAuth device code modal ── */}
+      {oauthFlow && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#0f1a22', border: '1px solid #1a3a4a', borderRadius: 8, padding: 24, minWidth: 340, maxWidth: 460 }}>
+            <div style={{ fontSize: 14, color: '#d6e2e8', marginBottom: 16 }}>
+              Authorize <strong style={{ color: 'var(--copper)' }}>{oauthFlow.provider.toUpperCase()}</strong>
+            </div>
+
+            {oauthFlow.verificationUri && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 10, color: '#8ab', marginBottom: 4 }}>1. Open this URL in your browser:</div>
+                <a href={oauthFlow.verificationUri} target="_blank"
+                  style={{ display: 'block', fontSize: 12, color: '#6af', wordBreak: 'break-all', background: '#0a141a', border: '1px solid #1a3a4a', borderRadius: 4, padding: '8px 10px', textDecoration: 'none' }}>
+                  {oauthFlow.verificationUri}
+                </a>
+              </div>
+            )}
+
+            {oauthFlow.userCode && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 10, color: '#8ab', marginBottom: 4 }}>2. Enter this code:</div>
+                <div style={{ position: 'relative', fontSize: 24, fontWeight: 'bold', color: '#fff', letterSpacing: 6, textAlign: 'center', padding: '12px 16px', background: '#0a141a', border: '1px solid #1a3a4a', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  <span>{oauthFlow.userCode}</span>
+                  <button onClick={() => navigator.clipboard.writeText(oauthFlow.userCode!).then(() => { const el = document.getElementById('code-copied-' + oauthFlow.provider); if (el) { el.style.opacity = '1'; setTimeout(() => el.style.opacity = '0', 1500); } })}
+                    style={{ position: 'relative', background: 'transparent', border: 'none', color: '#4a8', fontSize: 14, cursor: 'pointer', padding: '4px', lineHeight: 1, flexShrink: 0 }}>
+                    📋
+                    <span id={'code-copied-' + oauthFlow.provider} style={{ position: 'absolute', top: -28, left: '50%', transform: 'translateX(-50%)', background: '#1a3a4a', color: '#8d8', fontSize: 10, padding: '2px 6px', borderRadius: 3, opacity: 0, transition: 'opacity 0.2s', whiteSpace: 'nowrap', pointerEvents: 'none' }}>Copied!</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div style={{ fontSize: 9, color: '#666', marginBottom: 12, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <span style={{ display: 'inline-block', width: 10, height: 10, border: '2px solid #4a8', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              Waiting for authorization...{" "}
+              <span style={{ color: '#4a8' }}>polling every 3s</span>
+            </div>
+
+            <button onClick={() => { setOauthFlow(null); if (oauthTimerRef.current) { clearInterval(oauthTimerRef.current); oauthTimerRef.current = null; } }}
+              style={{ width: '100%', background: 'transparent', border: '1px solid #2a4a5a', borderRadius: 4, color: '#888', fontSize: 10, padding: '8px 12px', cursor: 'pointer' }}>
+              CANCEL
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Claude CLI setup-token modal ── */}
+      {claudeSetupFlow && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#0f1a22', border: '1px solid #1a3a4a', borderRadius: 8, padding: 24, minWidth: 380, maxWidth: 520 }}>
+            <div style={{ fontSize: 14, color: '#d6e2e8', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ color: 'var(--copper)' }}>◆</span> Claude CLI Setup Token
+            </div>
+
+            {/* ── claude_not_found ── */}
+            {claudeSetupFlow.status === 'claude_not_found' && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: '#d66', marginBottom: 8 }}>⚠️ Claude CLI not found</div>
+                <div style={{ fontSize: 10, color: '#8ab', marginBottom: 8 }}>{claudeSetupFlow.message}</div>
+              </div>
+            )}
+
+            {/* ── already_provisioned ── */}
+            {claudeSetupFlow.status === 'already_provisioned' && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: '#da3', marginBottom: 8 }}>⚠️ Already provisioned</div>
+                <div style={{ fontSize: 10, color: '#8ab', marginBottom: 8 }}>{claudeSetupFlow.message}</div>
+              </div>
+            )}
+
+            {/* ── manual_required (core path) ── */}
+            {claudeSetupFlow.status === 'manual_required' && (
+              <>
+                <div style={{ fontSize: 10, color: '#8ab', marginBottom: 12 }}>
+                  {claudeSetupFlow.claudeFound
+                    ? 'Claude CLI is installed. To link it via setup-token:'
+                    : 'Claude CLI is not installed.'}
+                </div>
+
+                {claudeSetupFlow.command && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 10, color: '#8ab', marginBottom: 4 }}>Run this command on the target:</div>
+                    <div style={{ position: 'relative' }}>
+                      <code style={{ display: 'block', fontSize: 11, color: '#d6e2e8', background: '#0a0a0a', padding: '10px 12px', borderRadius: 4, wordBreak: 'break-all', border: '1px solid #1a2a33' }}>
+                        {claudeSetupFlow.command}
+                      </code>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(claudeSetupFlow.command || '')}
+                        style={{ position: 'absolute', top: 4, right: 4, background: '#1a2a33', border: '1px solid #2a4a5a', borderRadius: 4, color: '#8ab', fontSize: 10, padding: '4px 8px', cursor: 'pointer' }}
+                      >📋 COPY</button>
+                    </div>
+                  </div>
+                )}
+
+                {claudeSetupFlow.manualSteps && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 9, color: '#666', marginBottom: 4 }}>STEPS:</div>
+                    {(claudeSetupFlow.manualSteps as string[]).map((step: string, i: number) => (
+                      <div key={i} style={{ fontSize: 9, color: '#8ab', marginBottom: 2, lineHeight: 1.5 }}>{step}</div>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, color: '#8ab', marginBottom: 4 }}>Then paste the token here:</div>
+                  <input
+                    value={claudeTokenInput}
+                    onChange={(e) => setClaudeTokenInput(e.target.value)}
+                    placeholder="sk-ant-oat01-..."
+                    style={{
+                      width: '100%', background: '#0a141a', border: '1px solid #1a3a4a', borderRadius: 4,
+                      padding: '8px 10px', color: '#d6e2e8', fontSize: 11, boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div style={{ fontSize: 10, color: '#8ab', marginBottom: 12 }}>
+                  The token starts with <code style={{ color: '#6af' }}>sk-ant-oat01-</code> and is usually 60+ characters.
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button onClick={() => { setClaudeSetupFlow(null); setClaudeTokenInput(''); }}
+                    style={{ background: 'transparent', border: '1px solid #2a4a5a', borderRadius: 4, color: '#888', fontSize: 10, padding: '6px 12px', cursor: 'pointer' }}>
+                    CANCEL
+                  </button>
+                  <button
+                    onClick={handleClaudeSetupTokenSave}
+                    disabled={claudeTokenInput.trim().length < 20 || loginLoading === 'claude-cli:save'}
+                    style={{
+                      background: claudeTokenInput.trim().length >= 20 ? '#2a3a22' : 'transparent',
+                      border: '1px solid #3a5a3a', borderRadius: 4,
+                      color: claudeTokenInput.trim().length >= 20 ? '#8d8' : '#555',
+                      fontSize: 10, padding: '6px 12px', cursor: claudeTokenInput.trim().length >= 20 ? 'pointer' : 'default',
+                    }}>
+                    {loginLoading === 'claude-cli:save' ? '⌛ SAVING...' : '💾 SAVE TOKEN'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ── unknown / error ── */}
+            {(claudeSetupFlow.status === 'unknown' || claudeSetupFlow.status === 'error') && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: '#da3', marginBottom: 8 }}>
+                  {claudeSetupFlow.status === 'error' ? '⚠️ Error' : '⚠️ Unexpected response'}
+                </div>
+                <div style={{ fontSize: 10, color: '#8ab', marginBottom: 8 }}>{claudeSetupFlow.message}</div>
+              </div>
+            )}
+
+            {/* ── Close button for non-input states ── */}
+            {(claudeSetupFlow.status === 'claude_not_found' || claudeSetupFlow.status === 'already_provisioned' || claudeSetupFlow.status === 'unknown' || claudeSetupFlow.status === 'error') && (
+              <button onClick={() => { setClaudeSetupFlow(null); setClaudeTokenInput(''); }}
+                style={{ width: '100%', background: 'transparent', border: '1px solid #2a4a5a', borderRadius: 4, color: '#888', fontSize: 10, padding: '8px 12px', cursor: 'pointer' }}>
+                CLOSE
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── API Key modal (global, outside provider sections) ── */}
+      {apiKeyModal && apiKeyModal === selectedProvider && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#0f1a22', border: '1px solid #1a3a4a', borderRadius: 8, padding: 20, minWidth: 320 }}>
+            <div style={{ fontSize: 12, color: '#d6e2e8', marginBottom: 12 }}>Add API Key for <strong>{selectedProvider}</strong></div>
+            <input value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} placeholder="sk-..."
+              style={{ width: '100%', background: '#0a141a', border: '1px solid #1a2a33', borderRadius: 4, padding: '8px 10px', color: '#d6e2e8', fontSize: 11, marginBottom: 12, boxSizing: 'border-box' }} />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setApiKeyModal(null); setApiKeyInput(''); }} style={{ background: 'transparent', border: '1px solid #2a4a5a', borderRadius: 4, color: '#888', fontSize: 10, padding: '6px 12px', cursor: 'pointer' }}>CANCEL</button>
+              <button onClick={() => handleApiKeyConnect(selectedProvider)} disabled={!apiKeyInput.trim()} style={{ background: '#1a3a4a', border: '1px solid #2a5a7a', borderRadius: 4, color: '#d6e2e8', fontSize: 10, padding: '6px 12px', cursor: 'pointer' }}>CONNECT</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+    </>
   );
 }
 
