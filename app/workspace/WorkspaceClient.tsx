@@ -13,6 +13,12 @@ interface TreeEntry {
   mtimeMs: number;
 }
 
+interface WorkspaceInfo {
+  id: string;
+  label: string;
+  type: 'host' | 'container';
+}
+
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -236,18 +242,43 @@ export default function WorkspaceClient() {
   const treeContainerRef = useRef<HTMLDivElement>(null);
   const flatItemsRef = useRef<FlatItem[]>([]);
 
-  // Load tree — include anche i file nascosti
+  const [workspaces, setWorkspaces] = useState<WorkspaceInfo[]>([]);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string>('vps');
+
+  // Load workspaces list on mount
   useEffect(() => {
     void (async () => {
       try {
-        const res = await apiFetch('/api/workspace?tree=1');
+        const res = await apiFetch('/api/workspace?action=list');
+        if (!res.ok) { setWorkspaces([{ id: 'vps', label: 'VPS Host (Nexus)', type: 'host' }]); return; }
+        const data = await res.json() as { workspaces: WorkspaceInfo[] };
+        if (data.workspaces && data.workspaces.length > 0) {
+          setWorkspaces(data.workspaces);
+          if (!data.workspaces.find((w) => w.id === selectedWorkspace)) {
+            setSelectedWorkspace(data.workspaces[0].id);
+          }
+        } else {
+          setWorkspaces([{ id: 'vps', label: 'VPS Host (Nexus)', type: 'host' }]);
+        }
+      } catch {
+        setWorkspaces([{ id: 'vps', label: 'VPS Host (Nexus)', type: 'host' }]);
+      }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load tree
+  useEffect(() => {
+    void (async () => {
+      setTreeLoading(true);
+      try {
+        const res = await apiFetch(`/api/workspace?workspace=${encodeURIComponent(selectedWorkspace)}&tree=1`);
         if (!res.ok) return;
         const data = await res.json() as { entries: TreeEntry[] };
         setTree(buildTree(data.entries));
       } catch { /* ignore */ }
       finally { setTreeLoading(false); }
     })();
-  }, []);
+  }, [selectedWorkspace]);
 
   // Load file
   const loadFile = useCallback(async (node: TreeNode) => {
@@ -270,7 +301,7 @@ export default function WorkspaceClient() {
         setFileLoading(false);
         return;
       }
-      const res = await apiFetch(`/api/workspace?path=${encodeURIComponent(node.absPath)}`);
+      const res = await apiFetch(`/api/workspace?workspace=${encodeURIComponent(selectedWorkspace)}&path=${encodeURIComponent(node.absPath)}`);
       if (!res.ok) { setFileContent('[error loading file]'); setEditContent(''); return; }
       const data = await res.json() as { content: string };
       setFileContent(data.content);
@@ -278,19 +309,19 @@ export default function WorkspaceClient() {
       setPreviewMode(isMarkdown(node.name));
     } catch { setFileContent('[error loading file]'); setEditContent(''); }
     finally { setFileLoading(false); }
-  }, []);
+  }, [selectedWorkspace]);
 
   const saveFile = useCallback(async () => {
     if (!selectedPath) return;
     setSaveState('saving');
     try {
-      const res = await apiFetch('/api/workspace', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: selectedPath, content: editContent }) });
+      const res = await apiFetch('/api/workspace', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspace: selectedWorkspace, path: selectedPath, content: editContent }) });
       if (!res.ok) { setSaveState('error'); return; }
       setFileContent(editContent);
       setSaveState('saved');
       setTimeout(() => setSaveState('idle'), 1500);
     } catch { setSaveState('error'); }
-  }, [selectedPath, editContent]);
+  }, [selectedPath, editContent, selectedWorkspace]);
 
   // Keyboard navigation
   const flatItems = useMemo(() => flattenTree(tree, expanded), [tree, expanded]);
@@ -399,7 +430,40 @@ export default function WorkspaceClient() {
             BACK
           </button>
         ) : (
-          <span style={{ fontFamily: 'var(--font-serif-stack)', fontSize: 20, letterSpacing: '4px', color: 'var(--copper)' }}>WORKSPACE</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontFamily: 'var(--font-serif-stack)', fontSize: 20, letterSpacing: '4px', color: 'var(--copper)' }}>WORKSPACE</span>
+            <select
+              value={selectedWorkspace}
+              onChange={(e) => {
+                const newWs = e.target.value;
+                setSelectedWorkspace(newWs);
+                setTree([]);
+                setSelectedPath(null);
+                setSelectedNode(null);
+                setFileContent('');
+                setEditContent('');
+                setFocusedIndex(-1);
+                setMobileView('tree');
+                setSaveState('idle');
+              }}
+              style={{
+                background: 'var(--bg3)',
+                color: 'var(--copper)',
+                border: '1px solid var(--border)',
+                borderRadius: 4,
+                fontSize: 11,
+                padding: '3px 8px',
+                fontFamily: 'var(--font-mono-stack)',
+                maxWidth: 220,
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
+              {workspaces.map((w) => (
+                <option key={w.id} value={w.id}>{w.label}</option>
+              ))}
+            </select>
+          </div>
         )}
         {selectedPath && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -501,7 +565,7 @@ export default function WorkspaceClient() {
               {/* Content */}
               {fileContent === '__pdf__' && selectedPath ? (
                 <iframe
-                  src={`/api/workspace?path=${encodeURIComponent(selectedPath)}`}
+                  src={`/api/workspace?workspace=${encodeURIComponent(selectedWorkspace)}&path=${encodeURIComponent(selectedPath)}`}
                   style={{ flex: 1, width: '100%', border: 'none', background: '#fff' }}
                   title={selectedNode?.name ?? 'PDF'}
                 />

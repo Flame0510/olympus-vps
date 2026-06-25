@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 import { NextResponse, type NextRequest } from 'next/server';
 
 const VPS_ROOT = '/home/nexus/.openclaw/workspace/';
@@ -21,13 +21,28 @@ interface Workspace {
   containerName?: string;
 }
 
+interface WorkspaceEntry {
+  name: string;
+  path: string;
+  relPath: string;
+  type: 'file' | 'directory';
+  size: number;
+  mtimeMs: number;
+  isDirectory: boolean;
+  isFile: boolean;
+}
+
+function shellEscape(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
 function getWorkspace(id: string): Workspace | null {
   if (id === 'vps') {
     return { id: 'vps', label: 'VPS Host (Nexus)', type: 'host', path: VPS_ROOT };
   }
   if (id.startsWith('container-')) {
     const name = id.slice(10);
-    return { id, label: name, type: 'container', path: '/root/.openclaw/', containerName: name };
+    return { id, label: name, type: 'container', path: '/root/.openclaw/workspace/', containerName: name };
   }
   return null;
 }
@@ -39,8 +54,9 @@ function listWorkspaces(): Workspace[] {
 
   // Discover container workspaces from Docker
   try {
-    const output = execSync(
-      'docker ps --filter "label=AGENT_ID" --format "{{.Names}}|{{.Label \"AGENT_ID\"}}"',
+    const output = execFileSync(
+      'docker',
+      ['ps', '--filter', 'label=AGENT_ID', '--format', '{{.Names}}|{{.Label "AGENT_ID"}}'],
       { timeout: 5000, encoding: 'utf-8' },
     ).trim();
     if (output) {
@@ -51,7 +67,7 @@ function listWorkspaces(): Workspace[] {
             id: `container-${name}`,
             label: `${agentId} (${name})`,
             type: 'container',
-            path: '/root/.openclaw/',
+            path: '/root/.openclaw/workspace/',
             containerName: name,
           });
         }
@@ -62,6 +78,27 @@ function listWorkspaces(): Workspace[] {
   }
 
   return workspaces;
+}
+
+function compareWorkspaceEntries(a: WorkspaceEntry, b: WorkspaceEntry): number {
+  const aSegs = a.relPath.split('/');
+  const bSegs = b.relPath.split('/');
+  const minLen = Math.min(aSegs.length, bSegs.length);
+
+  for (let i = 0; i < minLen; i++) {
+    if (aSegs[i] !== bSegs[i]) {
+      const aIsDir = i < aSegs.length - 1 || a.type === 'directory';
+      const bIsDir = i < bSegs.length - 1 || b.type === 'directory';
+      if (aIsDir !== bIsDir) {
+        return aIsDir ? -1 : 1;
+      }
+      return aSegs[i].localeCompare(bSegs[i]);
+    }
+  }
+
+  if (aSegs.length < bSegs.length) return -1;
+  if (aSegs.length > bSegs.length) return 1;
+  return 0;
 }
 
 function listHostDir(dirPath: string): Record<string, unknown>[] {
@@ -83,6 +120,50 @@ function listHostDir(dirPath: string): Record<string, unknown>[] {
       });
     }
   } catch { /* empty */ }
+  return entries;
+}
+
+function listHostTree(rootPath: string): WorkspaceEntry[] {
+  const entries: WorkspaceEntry[] = [];
+
+  function walk(dirPath: string, prefix = ''): void {
+    let dirEntries: fs.Dirent[] = [];
+    try {
+      dirEntries = fs.readdirSync(dirPath, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of dirEntries) {
+      if (IGNORED_DIRS.has(entry.name) || entry.name.startsWith('.')) continue;
+      const absPath = path.join(dirPath, entry.name);
+      const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+
+      let stat: fs.Stats;
+      try {
+        stat = fs.statSync(absPath);
+      } catch {
+        continue;
+      }
+
+      const isDirectory = entry.isDirectory();
+      entries.push({
+        name: entry.name,
+        path: absPath,
+        relPath,
+        type: isDirectory ? 'directory' : 'file',
+        size: isDirectory ? 0 : stat.size,
+        mtimeMs: stat.mtimeMs,
+        isDirectory,
+        isFile: !isDirectory,
+      });
+
+      if (isDirectory) walk(absPath, relPath);
+    }
+  }
+
+  walk(rootPath);
+  entries.sort(compareWorkspaceEntries);
   return entries;
 }
 
@@ -111,6 +192,53 @@ function listContainerDir(containerName: string, dirPath: string): Record<string
   return entries;
 }
 
+function listContainerTree(containerName: string, rootPath: string): WorkspaceEntry[] {
+  const entries: WorkspaceEntry[] = [];
+  const escapedRoot = shellEscape(rootPath);
+  const findCommand = `cd ${escapedRoot} && find . \\( -name node_modules -o -name .git -o -name .next -o -name .trash -o -name cache \\) -prune -o -mindepth 1 -printf '%P|%y|%s|%T@\\n'`;
+  const command = `docker exec ${containerName} sh -lc ${shellEscape(findCommand)}`;
+
+  try {
+    const output = execSync(command, { timeout: 10000, encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 }).trim();
+    if (!output) return entries;
+
+    for (const line of output.split('\n')) {
+      if (!line) continue;
+      const [relPath, rawType, rawSize, rawMtime] = line.split('|');
+      if (!relPath || relPath.startsWith('.')) continue;
+      const isDirectory = rawType === 'd';
+      entries.push({
+        name: path.posix.basename(relPath),
+        path: path.posix.join(rootPath, relPath),
+        relPath,
+        type: isDirectory ? 'directory' : 'file',
+        size: isDirectory ? 0 : Number(rawSize || 0),
+        mtimeMs: Math.round(Number(rawMtime || 0) * 1000),
+        isDirectory,
+        isFile: !isDirectory,
+      });
+    }
+  } catch {
+    return entries;
+  }
+
+  entries.sort(compareWorkspaceEntries);
+  return entries;
+}
+
+function treeResponse(workspace: Workspace, workspaceId: string, targetPath: string, entries: WorkspaceEntry[]) {
+  return NextResponse.json({
+    workspace: workspaceId,
+    label: workspace.label,
+    path: targetPath,
+    root: targetPath,
+    type: workspace.type,
+    entries,
+    tree: entries,
+    files: entries,
+  });
+}
+
 function readContainerFile(containerName: string, filePath: string): { content: string; isBinary: boolean } {
   const ext = path.extname(filePath).toLowerCase();
   const isBinary = BINARY_EXTENSIONS.has(ext);
@@ -128,17 +256,18 @@ function readContainerFile(containerName: string, filePath: string): { content: 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const url = new URL(request.url);
   const action = url.searchParams.get('action');
-  const ws = url.searchParams.get('workspace');
+  let ws = url.searchParams.get('workspace');
   const filePath = url.searchParams.get('path');
+  const wantsTree = url.searchParams.get('tree') === '1';
 
   // action=list → list available workspaces
   if (action === 'list') {
     return NextResponse.json({ workspaces: listWorkspaces() });
   }
 
-  // No workspace specified → error
+  // No workspace specified → default to 'vps' for backward compat
   if (!ws) {
-    return NextResponse.json({ error: 'Missing workspace parameter' }, { status: 400 });
+    ws = 'vps';
   }
 
   const workspace = getWorkspace(ws);
@@ -156,6 +285,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     if (!fs.existsSync(targetPath)) {
       return NextResponse.json({ error: 'Path not found' }, { status: 404 });
+    }
+
+    if (wantsTree) {
+      return treeResponse(workspace, ws, targetPath, listHostTree(targetPath));
     }
 
     if (fs.statSync(targetPath).isDirectory()) {
@@ -177,6 +310,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Container workspace
   if (workspace.type === 'container' && workspace.containerName) {
     const targetPath = filePath || workspace.path;
+
+    if (wantsTree) {
+      return treeResponse(workspace, ws, targetPath, listContainerTree(workspace.containerName, targetPath));
+    }
 
     if (filePath) {
       // Check if it's a directory
@@ -202,7 +339,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 export async function PUT(request: NextRequest): Promise<NextResponse> {
   try {
     const body = (await request.json()) as { workspace?: string; path?: string; content?: string };
-    const { workspace: ws, path: filePath, content } = body ?? {};
+    const ws = body?.workspace || 'vps';
+    const { path: filePath, content } = body ?? {};
     if (!ws || !filePath || typeof content !== 'string') {
       return NextResponse.json({ error: 'Missing workspace, path, or content' }, { status: 400 });
     }

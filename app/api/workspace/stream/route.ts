@@ -4,7 +4,7 @@ import { type NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const ROOT_PATH = '/data/.openclaw';
+const ROOT_PATH = '/home/nexus/.openclaw/workspace';
 const POLL_MS = 3000;
 const IGNORED_DIRS = new Set(['node_modules', '.trash']);
 const ALLOWED_EXT = new Set(['.md', '.json', '.txt', '.html', '.py', '.css', '.js', '.ts', '.tsx', '.yaml', '.yml', '.env', '.sh', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico']);
