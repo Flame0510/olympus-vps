@@ -58,6 +58,15 @@ const navItems = [
     ),
   },
   {
+    label: 'Gateway',
+    path: '/gateway',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2.5 5.5H7M11 5.5h4.5M4.75 5.5a2 2 0 1 0 0 .01ZM13.25 5.5a2 2 0 1 0 0 .01ZM2.5 12.5H6M8 12.5h7.5M7 12.5a2 2 0 1 0 0 .01Z"/>
+      </svg>
+    ),
+  },
+  {
     label: 'Providers',
     path: '/providers',
     icon: (

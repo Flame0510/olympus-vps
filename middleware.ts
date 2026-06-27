@@ -18,6 +18,7 @@ export async function middleware(request: NextRequest) {
     pathname === '/api/version' ||
     pathname.startsWith('/api/models') ||
     pathname === '/api/agents-config' ||
+    pathname.startsWith('/api/provider') ||
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/favicon') ||
     pathname.startsWith('/icon-') ||

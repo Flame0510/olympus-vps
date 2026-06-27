@@ -21,25 +21,21 @@ if [ ! -f "$CONFIG_FILE" ]; then
   "update": { "channel": "stable", "checkOnStart": false },
   "browser": { "headless": true, "noSandbox": true },
   "commands": { "bash": true, "native": "auto", "restart": true },
-  "tools": {
-    "profile": "full",
-    "skillRepository": "/shared-skills"
-  },
   "agents": {
     "list": [
       {
         "id": "main",
         "name": "${AGENT_NAME:-$AGENT_ID}",
         "model": {
-          "primary": "${MODEL_PRIMARY:-deepseek/deepseek-v4-flash}",
-          "fallbacks": ["${MODEL_FALLBACK:-openrouter/deepseek/deepseek-v4-flash}"]
+          "primary": "${MODEL_PRIMARY:-olympus/deepseek-v4-flash}",
+          "fallbacks": ["${MODEL_FALLBACK:-olympus/deepseek-v4-pro}"]
         }
       }
     ],
     "defaults": {
       "model": {
-        "primary": "${MODEL_PRIMARY:-deepseek/deepseek-v4-flash}",
-        "fallbacks": ["${MODEL_FALLBACK:-openrouter/deepseek/deepseek-v4-flash}"]
+        "primary": "${MODEL_PRIMARY:-olympus/deepseek-v4-flash}",
+        "fallbacks": ["${MODEL_FALLBACK:-olympus/deepseek-v4-pro}"]
       },
       "userTimezone": "Europe/Rome"
     }

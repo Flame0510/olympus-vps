@@ -368,9 +368,12 @@ export default function ProvidersPage() {
     }
   }
 
-  async function load() {
+  async function load(targetAgent?: string) {
     try {
-      const res = await fetch('/api/providers', { cache: 'no-store' });
+      const url = targetAgent && targetAgent !== 'core'
+        ? `/api/providers?agent=${encodeURIComponent(targetAgent)}`
+        : '/api/providers';
+      const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json() as ModelsData;
       setData(json);
@@ -390,7 +393,7 @@ export default function ProvidersPage() {
       const agentTargets: AgentTarget[] = [
         { id: 'core', label: 'VPS', type: 'core' },
         ...json.map((a) => ({
-          id: a.agentId,
+          id: a.containerName || a.agentId,
           label: a.agentId,
           type: 'agent' as const,
           containerName: a.containerName,
@@ -409,7 +412,9 @@ export default function ProvidersPage() {
     }
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load(selectedAgent);
+  }, [selectedAgent]);
   useEffect(() => {
     void loadUsage();
     const t = setInterval(() => void loadUsage(), 30_000);
@@ -423,7 +428,12 @@ export default function ProvidersPage() {
 
   // Resolve active agent's data
   const isAgentTarget = selectedAgent !== 'core';
-  const agentStatus = isAgentTarget ? agentProviderData[selectedAgent] : null;
+  // Find agent status by containerName (selectedAgent value) or fallback to agentId
+  const agentStatus = isAgentTarget
+    ? (agentProviderData[selectedAgent]
+        ?? Object.values(agentProviderData).find(a => a.containerName === selectedAgent)
+        ?? null)
+    : null;
 
   // Merge preset providers with runtime data
   const runtimeProviders = new Map<string, Record<string, unknown>>();
@@ -825,6 +835,7 @@ export default function ProvidersPage() {
   async function reloadActiveAgent() {
     if (isAgentTarget) {
       await loadAgents();
+      await load(selectedAgent);
     } else {
       await load();
     }

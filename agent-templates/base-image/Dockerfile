@@ -55,17 +55,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # OpenClaw only — no PM2, no gh, no git
 # Agents use the Provider Gateway for credentials
 # and Olympus for on-demand tool installation via API
-RUN npm install -g openclaw
+RUN npm install -g openclaw \
+    && openclaw plugins install npm:@openclaw/deepseek-provider
 
 # Default config directory
 RUN mkdir -p /data/.openclaw
 
 # Standard entrypoint
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY entrypoint.sh /agent-entrypoint.sh
+RUN chmod +x /agent-entrypoint.sh
 
 WORKDIR /data
 EXPOSE 3000
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/agent-entrypoint.sh"]
 CMD ["openclaw", "gateway", "--bind", "lan"]

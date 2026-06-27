@@ -70,6 +70,15 @@ const NAV: NavItem[] = [
     ),
   },
   {
+    href: '/gateway',
+    label: 'Gateway',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M3 4.5h4.5M8.5 4.5H13M5.25 4.5a1.75 1.75 0 1 0 0 .01ZM10.75 4.5a1.75 1.75 0 1 0 0 .01ZM3 11.5h2.5M5.5 11.5H13M7.25 11.5a1.75 1.75 0 1 0 0 .01Z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
     href: '/providers',
     label: 'Providers',
     icon: (
