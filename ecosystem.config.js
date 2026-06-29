@@ -25,9 +25,11 @@ module.exports = {
         NODE_ENV: 'production',
         NEXT_TELEMETRY_DISABLED: '1',
         OLYMPUS_PASSWORD: 'olympus2026',
-        OLYMPUS_TOKEN: 'olympus2026',
-        OLYMPUS_JWT_SECRET: 'olympus-jwt-secret-change-in-prod',
+        OLYMPUS_TOKEN: '***',
+        OLYMPUS_JWT_SECRET: '***',
+        OLYMPUS_API_KEY: '***',
         OLYMPUS_DB: '/home/nexus/.openclaw/workspace/olympus-vps/data/events.db',
+
         OPENCLAW_CONFIG_PATH: '/home/nexus/.openclaw/workspace/openclaw-core.json',
         SHARED_CONTEXT_DIR: '/home/nexus/.openclaw/workspace/shared-context',
       },
