@@ -62,8 +62,29 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
             e.startsWith('AGENT_') || e.startsWith('MODEL_')
           );
 
-          // Build Traefik URL from the traefik router rule label, fallback to container name
+          // Read auth token — read from fixed config or openclaw.json
           const cName = (c.Names?.[0] || '').replace(/^\//, '');
+          try {
+            const { execSync } = require('child_process');
+            // Try the fixed config file first (gateway.auth.token in openclaw-fixed.json)
+            let token = execSync(
+              `docker exec ${cName} node -e "const j=require('/root/.openclaw/openclaw.json'); console.log(j.gateway?.auth?.token || '')" 2>/dev/null || echo ''`,
+              { timeout: 5000, encoding: 'utf-8' }
+            ).toString().trim();
+            if (token && token !== 'undefined') authToken = token;
+            else {
+              // Fallback: try .env
+              token = execSync(
+                `docker exec ${cName} sh -c 'grep ^OPENCLAW_GATEWAY_TOKEN= /root/.openclaw/.env 2>/dev/null | cut -d= -f2- | tr -d "\"\""' 2>/dev/null || echo ''`,
+                { timeout: 5000, encoding: 'utf-8' }
+              ).toString().trim();
+              if (token && token !== 'undefined') authToken = token;
+            }
+          } catch {
+            // token unavailable for this container
+          }
+
+          // Build Traefik URL from the traefik router rule label, fallback to container name
           const labels = c.Labels || {};
           const routerRule = Object.keys(labels).find(k => k.startsWith('traefik.http.routers.') && k.endsWith('.rule'));
           if (labels['traefik.enable'] === 'true') {
@@ -72,25 +93,21 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
               // Extract host from rule like Host(`...`)
               const hostMatch = rule.match(/Host\([`'"]([^`'"]+)[`'"]\)/);
               if (hostMatch) {
-                traefikUrl = `https://${hostMatch[1]}`;
+                let baseUrl = `https://${hostMatch[1]}`;
+                // Append token as query param if available
+                if (authToken) {
+                  baseUrl += `?token=${encodeURIComponent(authToken)}`;
+                }
+                traefikUrl = baseUrl;
               }
             }
             if (!traefikUrl) {
-              // Fallback: use container name
-              traefikUrl = `https://${cName}.srv1490011.hstgr.cloud`;
+              // Fallback: use AGENT_ID as subdomain
+              traefikUrl = `https://${agentId}.srv1490011.hstgr.cloud`;
+              if (authToken) {
+                traefikUrl += `?token=${encodeURIComponent(authToken)}`;
+              }
             }
-          }
-
-          // Read auth token from openclaw.json inside container
-          try {
-            const { execSync } = require('child_process');
-            const token = execSync(
-              `docker exec ${cName} node -e "const j=require('/root/.openclaw/openclaw.json'); console.log(j.gateway?.auth?.token || '')" 2>/dev/null || echo ''`,
-              { timeout: 5000, encoding: 'utf-8' }
-            ).toString().trim();
-            if (token && token !== 'undefined') authToken = token;
-          } catch {
-            // token unavailable for this container
           }
         } catch {
           // inspect non-critical, continue with partial data
