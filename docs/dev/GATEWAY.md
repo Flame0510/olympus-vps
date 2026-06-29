@@ -1,6 +1,6 @@
 # Gateway Page
 
-> **Last updated:** 2026-06-29
+> **Last updated:** 2026-06-30
 
 The Gateway page (`/gateway`) is the central control panel for managing provider
 configurations and agent model assignments across all Docker containers.
@@ -90,8 +90,9 @@ OpenClaw defaults to merging config models with auto-discovered models.
 
 ### Model Catalogue
 
-The model catalogue lives in `models.config.json` at the project root. It defines
-all known models across all providers:
+The model catalogue lives in [`models.config.json`](../models.config.json) at the project root.
+This file is **tracked in the repository** and serves as the default model configuration
+for anyone cloning the project. It defines all known models across all providers:
 
 ```json
 {

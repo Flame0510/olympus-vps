@@ -1,7 +1,7 @@
 # Olympus Architecture — Design & Vision
 
 > **Status:** Active — `main` branch
-> **Last updated:** 2026-06-24
+> **Last updated:** 2026-06-30
 > **Goal:** Transform Olympus from a monitoring dashboard into a central orchestrator for a distributed multi-container agency.
 
 ---

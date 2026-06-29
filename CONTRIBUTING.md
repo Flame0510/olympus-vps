@@ -24,6 +24,7 @@ If you are an AI agent working on this repo: read this file before closing any t
 | `scripts/**` | `docs/ARCHITECTURE.md` |
 | DB schema (migrations, new tables/columns) | `docs/dev/DATABASE.md` — schema section |
 | Environment variables | `README.md` — Configuration table |
+| Model catalogue change (new/removed models) | `models.config.json` — add/remove/rename models; `docs/dev/GATEWAY.md` — Model Catalogue section |
 | New feature (any) | `docs/rag/OLYMPUS-OVERVIEW.md` and `docs/rag/WHAT-I-CAN-ANSWER.md` if PYTHIA should know about it |
 | Auth / middleware | `docs/ARCHITECTURE.md` — security/auth section |
 

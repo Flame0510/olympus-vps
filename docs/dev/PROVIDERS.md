@@ -1,6 +1,6 @@
 # Providers & Key Management
 
-> **Last updated:** 2026-06-29
+> **Last updated:** 2026-06-30
 
 This document covers the Providers UI, the Olympus Provider Gateway (proxy),
 the vault key endpoint, and how agent containers authenticate against the
@@ -55,8 +55,10 @@ upstream credentials by the proxy, not as client tokens.
 
 #### `GET /api/provider/v1/models`
 
-Returns all enabled models from `models.config.json` in OpenAI-compatible format.
-Models are filtered by the `models.config.json` catalogue, not by auto-discovery.
+Returns all enabled models from `models.config.json` at the project root in
+OpenAI-compatible format.
+Models are filtered by the `models.config.json` catalogue (tracked in the repo),
+not by auto-discovery.
 
 **Response:**
 ```json

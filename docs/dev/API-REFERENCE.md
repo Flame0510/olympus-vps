@@ -1,6 +1,6 @@
 # Olympus API Reference
 
-> **Last updated:** 2026-06-29
+> **Last updated:** 2026-06-30
 
 All routes are under `/api/`. Authentication is required on every endpoint
 unless otherwise noted.
@@ -46,7 +46,9 @@ Sets `Set-Cookie: olympus_token=<jwt>; HttpOnly; SameSite=Strict`.
 
 ## Gateway
 
-Full documentation at [GATEWAY.md](GATEWAY.md) and [PROVIDERS.md](PROVIDERS.md).
+The Gateway API reads the model catalogue from [`models.config.json`](../models.config.json)
+(tracked in the repository). Full documentation at [GATEWAY.md](GATEWAY.md) and
+[PROVIDERS.md](PROVIDERS.md).
 
 ### `GET /api/gateway`
 Returns live gateway status from all agent containers.
