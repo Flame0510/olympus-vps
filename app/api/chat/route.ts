@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 90;
 
 const DB_PATH = '/data/olympus/events.db';
+const OPENCLAW_BIN = process.env.OPENCLAW_BIN || '/usr/bin/openclaw';
 
 const AGENT_KEY_PREFIX: Record<string, string> = {
   ops: 'agent:ops',
@@ -39,7 +40,7 @@ function saveMessages(sessionKey: string, agentId: string, userMsg: string, agen
 function callAgent(agentId: string, sessionKey: string, msg: string, model?: string): string {
   const escapedKey = sessionKey.replace(/'/g, "'\\''");
   const escapedMsg = msg.replace(/'/g, "'\\''");
-  let cmd = `/usr/local/bin/openclaw agent --agent ${agentId} --session-key '${escapedKey}' --message '${escapedMsg}' --timeout 60`;
+  let cmd = `${OPENCLAW_BIN} agent --agent ${agentId} --session-key '${escapedKey}' --message '${escapedMsg}' --timeout 60`;
   if (model?.trim()) {
     cmd += ` --model '${model.replace(/'/g, "'\\''")}'`;
   }

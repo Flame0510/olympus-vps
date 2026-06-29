@@ -4,43 +4,43 @@
  * OpenAI-compatible chat completions endpoint.
  * POST /api/provider/v1/chat/completions
  *
- * Fully independent from OpenClaw provider config.
- * API keys managed via Olympus .env, not models.json.
+ * Acts like OpenRouter: single API key + many models aggregated.
+ *
+ * Authentication:
+ *   Authorization: Bearer <OLYMPUS_API_KEY>
+ *
+ * Models are prefixed olympus/ (e.g. olympus/deepseek-v4-flash).
+ * The provider is extracted from the model prefix and routed to the upstream.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { readProviderKeys } from '@/app/api/gateway/provider/keys';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const PROVIDER_ENVS: Record<string, { baseUrl: string; envKey: string; authHeader: string }> = {
+const PROVIDER_ENVS: Record<string, { baseUrl: string; authHeader: string }> = {
   deepseek: {
     baseUrl: 'https://api.deepseek.com',
-    envKey: 'PROVIDER_DEEPSEEK_API_KEY',
     authHeader: 'Authorization',
   },
   'openai-codex': {
     baseUrl: 'https://api.openai.com',
-    envKey: 'PROVIDER_OPENAI_CODEX_API_KEY',
     authHeader: 'Authorization',
   },
   openai: {
     baseUrl: 'https://api.openai.com',
-    envKey: 'PROVIDER_OPENAI_API_KEY',
     authHeader: 'Authorization',
   },
   anthropic: {
     baseUrl: 'https://api.anthropic.com',
-    envKey: 'PROVIDER_ANTHROPIC_API_KEY',
     authHeader: 'x-api-key',
   },
   openrouter: {
     baseUrl: 'https://openrouter.ai/api',
-    envKey: 'PROVIDER_OPENROUTER_API_KEY',
     authHeader: 'Authorization',
   },
   groq: {
     baseUrl: 'https://api.groq.com/openai',
-    envKey: 'PROVIDER_GROQ_API_KEY',
     authHeader: 'Authorization',
   },
 };
@@ -55,22 +55,35 @@ interface ProviderV1Request {
   [key: string]: unknown;
 }
 
+/** Map olympus/ model aliases to upstream provider/model pairs. */
+const MODEL_ALIASES: Record<string, { provider: string; model: string }> = {
+  'olympus/deepseek-v4-flash': { provider: 'deepseek', model: 'deepseek-v4-flash' },
+  'olympus/deepseek-v4-pro': { provider: 'deepseek', model: 'deepseek-v4-pro' },
+};
+
 function extractProviderAndModel(request: ProviderV1Request): { provider: string; model: string } {
   const modelStr = request.model || '';
   if (request.provider) {
     return { provider: request.provider, model: modelStr };
   }
+  // Check aliases first (olympus/deepseek-v4-flash -> deepseek/deepseek-v4-flash)
+  if (modelStr && MODEL_ALIASES[modelStr]) {
+    return { ...MODEL_ALIASES[modelStr] };
+  }
   const parts = modelStr.split('/');
   if (parts.length >= 2 && PROVIDER_ENVS[parts[0]]) {
     return { provider: parts[0], model: parts.slice(1).join('/') };
   }
-  return { provider: 'deepseek', model: modelStr || 'deepseek-v4-flash' };
+  // Default fallback: assume the model is a raw upstream model ID
+  if (parts.length >= 3 && PROVIDER_ENVS[parts[1]]) {
+    return { provider: parts[1], model: parts.slice(2).join('/') };
+  }
+  return { provider: 'deepseek', model: modelStr || 'deepseek-chat' };
 }
 
 function getApiKey(provider: string): string | null {
-  const config = PROVIDER_ENVS[provider];
-  if (!config) return null;
-  return process.env[config.envKey] || null;
+  const providerKeys = readProviderKeys();
+  return providerKeys[provider] || null;
 }
 
 /** Serialize to JSON and return a Response with explicit Content-Length to avoid Traefik HTTP/2 issues. */
@@ -94,6 +107,20 @@ export async function POST(request: NextRequest) {
   const start = Date.now();
 
   try {
+    // --- Olympus auth check ---
+    const authHeader = request.headers.get('Authorization') || '';
+    const olympusApiKey = process.env.OLYMPUS_API_KEY;
+    if (olympusApiKey) {
+      const provided = authHeader.replace(/^Bearer\s+/i, '').trim();
+      if (!provided || provided !== olympusApiKey) {
+        return errorResponse(
+          'Invalid API key. Provide your Olympus API key via Authorization: Bearer <key>.',
+          'authentication_error',
+          401,
+        );
+      }
+    }
+
     const body: ProviderV1Request = await request.json();
     const { provider, model } = extractProviderAndModel(body);
 
@@ -105,7 +132,7 @@ export async function POST(request: NextRequest) {
     const apiKey = getApiKey(provider);
     if (!apiKey) {
       return errorResponse(
-        `API key not configured for provider '${provider}'. Set ${envConfig.envKey} in .env.`,
+        `API key not configured for provider '${provider}'. Add it from the Gateway page.`,
         'configuration_error',
         401,
       );

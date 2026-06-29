@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 const DB_PATH = '/data/olympus/events.db';
+const OPENCLAW_BIN = process.env.OPENCLAW_BIN || '/usr/bin/openclaw';
 
 function getSourceLabel(key: string): string {
   if (!key) return 'unknown';
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const cmd = `/usr/local/bin/openclaw sessions --json --limit 60${agentId ? ` --agent ${agentId}` : ''} 2>/dev/null`;
+    const cmd = `${OPENCLAW_BIN} sessions --json --limit 60${agentId ? ` --agent ${agentId}` : ''} 2>/dev/null`;
     const raw = execSync(cmd, { encoding: 'utf-8', timeout: 8000, maxBuffer: 1024 * 1024 });
 
     const jsonStart = raw.indexOf('[');
