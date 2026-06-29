@@ -18,20 +18,20 @@ Real-time monitoring dashboard for AI agent systems.
 - **Mobile-optimized layout** — 3 breakpoint: phone (<768px), tablet (768-1023px), desktop (≥1024px)
 - **In-browser PDF preview** — PDFs rendered inside the web UI, including Android/mobile browsers
 
-## Installazione
+## Installation
 
 ```bash
-# Globale — usa il comando 'olympus' ovunque
+# Global — use the 'olympus' command anywhere
 npm i -g @flame0510/olympus
 olympus start
 
-# Oppure via npx (senza install)
+# Alternatively via npx (no install)
 npx @flame0510/olympus start
 ```
 
 Dashboard available at: `http://localhost:3720`
 
-## Quick Start (da sorgente)
+## Quick Start (from source)
 
 ```bash
 git clone https://github.com/Flame0510/olympus
@@ -41,7 +41,7 @@ PORT=3720 npm run build
 PORT=3720 npm start
 ```
 
-## Aggiornamenti
+## Updates
 
 ```bash
 npm update -g @flame0510/olympus

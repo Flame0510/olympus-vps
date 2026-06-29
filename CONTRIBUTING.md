@@ -13,16 +13,19 @@ If you are an AI agent working on this repo: read this file before closing any t
 
 | What you changed | What you must update |
 |---|---|
-| `app/api/**` | `docs/dev/api-reference.md` — add/update endpoint description, params, response shape |
-| `daemon.js` | `docs/dev/daemon.md` — polling logic, cost estimation, model pricing table |
-| `lib/**` | `docs/dev/architecture.md` and/or `docs/frontend-architecture.md` |
-| `app/**/page.tsx` or `app/**/components` | `docs/frontend-architecture.md` — component tree, layout changes |
-| `scripts/**` | `docs/dev/deployment.md` or `docs/dev/architecture.md` |
-| DB schema (migrations, new tables/columns) | `docs/dev/database.md` — schema section |
+| `app/api/gateway/**` | `docs/dev/GATEWAY.md` — Gateway provider sync, agent model config |
+| `app/api/provider/v1/**` | `docs/dev/PROVIDERS.md` — proxy auth, model list, completions |
+| `app/api/vault/**` | `docs/dev/PROVIDERS.md` — key management section |
+| `app/gateway/**` | `docs/dev/GATEWAY.md` — Gateway UI, overlay, polling |
+| `app/api/**` (other) | `docs/dev/API-REFERENCE.md` — add/update endpoint description, params, response shape |
+| `daemon.js` | (no dedicated doc — update `docs/ARCHITECTURE.md` if needed) |
+| `lib/**` | `docs/ARCHITECTURE.md` and/or `docs/FRONTEND-ARCHITECTURE.md` |
+| `app/**/page.tsx` or `app/**/components` | `docs/FRONTEND-ARCHITECTURE.md` — component tree, layout changes |
+| `scripts/**` | `docs/ARCHITECTURE.md` |
+| DB schema (migrations, new tables/columns) | `docs/dev/DATABASE.md` — schema section |
 | Environment variables | `README.md` — Configuration table |
-| New feature (any) | `docs/rag/olympus-overview.md` and `docs/rag/what-i-can-answer.md` if PYTHIA should know about it |
-| Deployment / container changes | `docs/container-setup.md` and/or `docs/vps-setup.md` |
-| Auth / middleware | `docs/dev/architecture.md` — security/auth section |
+| New feature (any) | `docs/rag/OLYMPUS-OVERVIEW.md` and `docs/rag/WHAT-I-CAN-ANSWER.md` if PYTHIA should know about it |
+| Auth / middleware | `docs/ARCHITECTURE.md` — security/auth section |
 
 ---
 
@@ -31,20 +34,22 @@ If you are an AI agent working on this repo: read this file before closing any t
 ```
 docs/
 ├── dev/                     # Developer reference (technical depth)
-│   ├── api-reference.md     # All /api/* endpoints
-│   ├── architecture.md      # Stack, data flow, DB schema overview
-│   ├── daemon.md            # daemon.js logic and cost model
-│   ├── database.md          # SQLite schema, WAL, backup
-│   └── deployment.md        # Container + VPS setup
+│   ├── API-REFERENCE.md     # All /api/* endpoints
+│   ├── GATEWAY.md           # Gateway page: provider sync, agent model config
+│   ├── PROVIDERS.md         # Provider key management, proxy auth
+│   ├── WORKSPACE.md         # Workspace API file explorer
+│   ├── DATABASE.md          # SQLite schema, WAL, backup
 ├── rag/                     # PYTHIA knowledge base (plain language)
-│   ├── olympus-overview.md  # What Olympus is and does
-│   ├── glossary.md          # Key terms
-│   ├── what-i-can-answer.md # PYTHIA capability scope
-│   └── data-freshness.md    # Update intervals and data latency
-├── architecture.md          # High-level architecture diagram/summary
-├── frontend-architecture.md # Component layers and design system
-├── container-setup.md       # OpenClaw container specifics
-└── vps-setup.md             # Bare VPS with systemd
+│   ├── OLYMPUS-OVERVIEW.md  # What Olympus is and does
+│   ├── GLOSSARY.md          # Key terms
+│   ├── WHAT-I-CAN-ANSWER.md # PYTHIA capability scope
+│   └── DATA-FRESHNESS.md    # Update intervals and data latency
+├── ARCHITECTURE.md          # High-level architecture diagram/summary
+├── CONTAINER-TERMINAL.md    # Terminal WebSocket PTY implementation
+├── DESIGN-SYSTEM.md         # Design tokens, colors, typography
+├── FRONTEND-ARCHITECTURE.md # Component layers and design system
+├── OLYMPUS.md               # Operational docs
+└── README.md               # Project overview, setup, configuration
 ```
 
 ---
