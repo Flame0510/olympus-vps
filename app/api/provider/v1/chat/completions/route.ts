@@ -103,46 +103,29 @@ export async function POST(request: NextRequest) {
   const start = Date.now();
 
   try {
-    // --- Resolve provider from Authorization token ---
+    // Resolve provider from Authorization token
     const authHeader = request.headers.get('Authorization') || '';
     const token = authHeader.replace(/^Bearer\s+/i, '').trim();
     const providerKeys = readProviderKeys();
 
-    // Find which provider this token belongs to
-    let authorizedProvider: string | null = null;
-    for (const [provider, key] of Object.entries(providerKeys)) {
-      if (token === key) {
-        // olympus is an aggregator — treat as 'all'
-        authorizedProvider = provider === 'olympus' ? 'all' : provider;
-        break;
-      }
-    }
+    // Check if token matches any stored key
+    const isAuthenticated = Object.values(providerKeys).some((key) => token === key);
 
     // Also accept the olympus master API key env var
     const olympusMasterKey = process.env.OLYMPUS_API_KEY;
-    if (!authorizedProvider && olympusMasterKey && token === olympusMasterKey) {
-      authorizedProvider = 'all';
-    }
+    const isMasterAuth = !!olympusMasterKey && token === olympusMasterKey;
 
-    if (!authorizedProvider) {
+    if (!isAuthenticated && !isMasterAuth) {
       return errorResponse(
-        'Invalid API key. Use your provider key from the Gateway page via Authorization: Bearer <key>.',
+        'Invalid API key. Use your Olympus API key from the Gateway page via Authorization: Bearer <key>.',
         'authentication_error',
         401,
       );
     }
 
+    
     const body: ProviderV1Request = await request.json();
     const { provider, model } = extractProviderAndModel(body);
-
-    // If the token is for a specific provider, the requested provider must match
-    if (authorizedProvider !== 'all' && provider !== authorizedProvider && provider !== 'olympus') {
-      return errorResponse(
-        `Token is configured for '${authorizedProvider}', but request uses provider '${provider}'.`,
-        'authorization_error',
-        403,
-      );
-    }
 
     const envConfig = PROVIDER_ENVS[provider];
     if (!envConfig) {

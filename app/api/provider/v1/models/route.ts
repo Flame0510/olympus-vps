@@ -102,12 +102,8 @@ function resolveProviderFromToken(authHeader: string): string | null {
   const providerKeys = readProviderKeys();
 
   // Match the token value against stored provider keys
-  for (const [provider, key] of Object.entries(providerKeys)) {
-    if (token === key) {
-      // olympus is an aggregator — treat as 'all'
-      if (provider === 'olympus') return 'all';
-      return provider;
-    }
+  for (const [, key] of Object.entries(providerKeys)) {
+    if (token === key) return 'authenticated';
   }
 
   // Also try matching the olympus API key env var (legacy compat)
@@ -134,13 +130,8 @@ export async function GET(request: NextRequest) {
 
   let activeModels: ModelsConfigEntry[];
 
-  if (provider === 'all') {
-    // Olympus master token — return all enabled models
-    activeModels = allModels.filter((m) => m.enabled);
-  } else {
-    // Token matches a specific provider — return only enabled models for that provider
-    activeModels = allModels.filter((m) => m.enabled && m.provider === provider);
-  }
+  // Token authenticated — return all enabled models
+  activeModels = allModels.filter((m) => m.enabled);
 
   return NextResponse.json({
     object: 'list',

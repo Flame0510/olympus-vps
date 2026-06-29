@@ -219,7 +219,6 @@ function syncAllAgents(models: ModelConfigEntry[]): string[] {
     baseUrl: 'https://olympus.srv1490011.hstgr.cloud/api/provider/v1',
     apiKey: olympusApiKey,
     api: 'openai-completions',
-    mode: 'replace',
     models: activeModels,
   };
 
