@@ -2,10 +2,17 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { SignJWT } from 'jose';
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.OLYMPUS_JWT_SECRET ?? 'olympus-jwt-secret-change-in-prod',
+  process.env.OLYMPUS_JWT_SECRET,
 );
 const OLYMPUS_PASSWORD =
-  process.env.OLYMPUS_PASSWORD ?? process.env.OLYMPUS_TOKEN ?? 'olympus2026';
+  process.env.OLYMPUS_PASSWORD;
+
+if (!OLYMPUS_PASSWORD) {
+  console.error('[auth] Fatal: OLYMPUS_PASSWORD not set in environment. Server will reject all logins.');
+}
+if (!process.env.OLYMPUS_JWT_SECRET) {
+  console.error('[auth] Fatal: OLYMPUS_JWT_SECRET not set in environment.');
+}
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
