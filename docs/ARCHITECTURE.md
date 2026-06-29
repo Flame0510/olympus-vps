@@ -141,19 +141,22 @@ OLYMPUS_GATEWAY_URL=http://olympus-control:3721
 OLYMPUS_GATEWAY_TOKEN=*** internal>
 ```
 
-### 3.3 AI Provider Gateway
+### 3.3 AI Provider Gateway (implemented)
 
-Instead of giving API keys to agents, they point to the Olympus gateway.
+The Provider Gateway is fully implemented and operational. Agent containers
+point to the Olympus provider proxy instead of using direct API keys.
 
 **Flow:**
+
 ```
-Agent Container          Olympus Gateway              Provider
+Agent Container          Olympus Gateway              Provider API
      │                         │                         │
-     │ POST /v1/chat/completions│                         │
-     │ X-Gateway-Token: xxx    │                         │
+     │ Authorization: Bearer <gateway-token>             │
+     │ POST /api/provider/v1/chat/completions            │
+     │ model: olympus/deepseek-v4-flash                  │
      │────────────────────────>│                         │
      │                         │ POST /v1/chat/completions│
-     │                         │ Authorization: Bearer ***> │
+     │                         │ Authorization: Bearer <real-key>
      │                         │────────────────────────>│
      │                         │       response          │
      │                         │<────────────────────────│
@@ -161,11 +164,22 @@ Agent Container          Olympus Gateway              Provider
      │<────────────────────────│                         │
 ```
 
-**Benefits:**
-- API keys live only in Olympus, never in agent containers
-- Centralized billing (single place to track costs)
-- Intelligent rate limiting per agent
-- Transparent provider switching (change keys in one place)
+**Key characteristics:**
+
+- The Olympus server in `app/api/provider/v1/` acts as an OpenAI-compatible proxy
+- Authentication uses `data/provider-keys.json` — the Bearer token must match
+  the `olympus` entry
+- Model lists (`GET /api/provider/v1/models`) return an empty list on invalid
+  or missing token, preventing information leakage
+- Chat requests (`POST /api/provider/v1/chat/completions`) return 401 on
+  invalid or missing token
+- API keys live only on the Olympus server (in `data/provider-keys.json`),
+  never inside agent containers
+- The Gateway page (`/gateway`) provides a UI to manage provider keys and
+  sync them to agent containers via `PUT /api/gateway/provider`
+
+See [GATEWAY.md](dev/GATEWAY.md) and [PROVIDERS.md](dev/PROVIDERS.md) for
+detailed documentation.
 
 ---
 
@@ -417,9 +431,13 @@ ALTER TABLE sessions ADD COLUMN ended_at INTEGER;
 - [ ] Test cross-container communication
 
 ### Phase 2 — Provider Gateway
-- [ ] Implement proxy API on Olympus
-- [ ] Configure agents to use gateway instead of direct API keys
-- [ ] Test provider routing
+- [x] Implement proxy API on Olympus (`/api/provider/v1/`)
+- [x] Gateway Page (`/gateway`) for provider key management
+- [x] Agent model configuration via Gateway Agents tab
+- [x] Provider sync to agent containers (`PUT /api/gateway/provider`)
+- [x] Auth via olympus token in `data/provider-keys.json`
+- [ ] Rate limiting per agent
+- [ ] Transparent provider switching (change keys in one place)
 
 ### Phase 3 — Full agent extraction
 - [ ] Move Prometheus to its own container

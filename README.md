@@ -99,8 +99,10 @@ Current rule highlights:
 ## Documentation
 
 ### Developer docs (`docs/dev/`)
+- [docs/dev/API-REFERENCE.md](./docs/dev/API-REFERENCE.md) — all API endpoints
+- [docs/dev/GATEWAY.md](./docs/dev/GATEWAY.md) — Gateway page: provider sync, agent model config, UI
+- [docs/dev/PROVIDERS.md](./docs/dev/PROVIDERS.md) — Providers & key management, Olympus Provider Gateway
 - [docs/dev/architecture.md](./docs/dev/architecture.md) — stack, data flow, DB schema
-- [docs/dev/api-reference.md](./docs/dev/api-reference.md) — all 23 `/api/*` endpoints
 - [docs/dev/daemon.md](./docs/dev/daemon.md) — polling logic, cost estimation, model pricing
 - [docs/dev/database.md](./docs/dev/database.md) — SQLite schema, WAL, queries, backup
 - [docs/dev/deployment.md](./docs/dev/deployment.md) — container + VPS setup guide

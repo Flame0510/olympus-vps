@@ -1,6 +1,11 @@
 # Olympus API Reference
 
-All routes are under `/api/`. Authentication is required on every endpoint.
+> **Last updated:** 2026-06-29
+
+All routes are under `/api/`. Authentication is required on every endpoint
+unless otherwise noted.
+
+---
 
 ## Authentication
 
@@ -11,16 +16,23 @@ Authorization: Bearer <OLYMPUS_TOKEN>
 Default token: `olympus2026`. Set `OLYMPUS_TOKEN` env var to override.
 
 ### Browser cookie (UI)
-After a successful `POST /api/auth`, the server sets an `olympus_token` cookie (signed JWT). All subsequent UI requests use this cookie automatically.
+After a successful `POST /api/auth/login`, the server sets an `olympus_token`
+cookie (signed JWT, 7-day expiry). All subsequent UI requests use this cookie
+automatically.
+
+### API-only fallbacks (in order of precedence)
+1. `Authorization: Bearer <token>`
+2. `?token=<token>` query param
+3. `x-agent-token` header
 
 ---
 
 ## Auth
 
-### `POST /api/auth`
-Login — exchange the static token for a signed JWT cookie.
+### `POST /api/auth/login`
+Login — exchange the static password for a signed JWT cookie.
 
-**Body:** `{ "token": "olympus2026" }`
+**Body:** `{ "password": "***" }`
 
 **Response:**
 ```json
@@ -28,7 +40,177 @@ Login — exchange the static token for a signed JWT cookie.
 ```
 Sets `Set-Cookie: olympus_token=<jwt>; HttpOnly; SameSite=Strict`.
 
-**Error:** `401` if token is wrong.
+**Error:** `401` if password is wrong.
+
+---
+
+## Gateway
+
+Full documentation at [GATEWAY.md](GATEWAY.md) and [PROVIDERS.md](PROVIDERS.md).
+
+### `GET /api/gateway`
+Returns live gateway status from all agent containers.
+
+**Auth:** any auth method
+
+**Response:**
+```json
+{
+  "agents": {
+    "total": 1,
+    "list": [
+      {
+        "containerName": "openclaw-atlas",
+        "agentId": "atlas",
+        "agentName": "Atlas",
+        "defaultModel": "olympus/deepseek/deepseek-v4-flash",
+        "fallbacks": ["olympus/deepseek/deepseek-v4-pro"],
+        "configured": true
+      }
+    ]
+  }
+}
+```
+
+### `PUT /api/gateway/provider`
+Trigger a full provider sync to all agent containers.
+
+**Auth:** any auth method
+
+**Body:** none (reads current provider state from store)
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "activeModels": 2,
+  "results": ["Active models: 2 across 1 agent(s)"]
+}
+```
+
+**Side effects:**
+- Writes `models.providers.olympus` to each agent container's `openclaw.json`
+- Aligns `agents.defaults.model` and `agents.list[].model` if needed
+- Cleans up stale `models.json` and `auth-profiles.json` inside containers
+- Restarts the gateway inside each container
+
+### `PUT /api/gateway/agent`
+Update model config for a single agent container.
+
+**Auth:** any auth method
+
+**Body:**
+```json
+{
+  "containerName": "openclaw-atlas",
+  "model": "deepseek/deepseek-v4-flash",
+  "fallbacks": ["deepseek/deepseek-v4-pro"]
+}
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "agent": "openclaw-atlas",
+  "model": {
+    "primary": "olympus/deepseek/deepseek-v4-flash",
+    "fallbacks": ["olympus/deepseek/deepseek-v4-pro"]
+  },
+  "verify": { "ok": true, "bytes": 2058 }
+}
+```
+
+**Behaviour:**
+- Prepends `olympus/` to model IDs if missing
+- Deduplicates fallbacks
+- Removes primary model from fallbacks
+- Restarts gateway inside the container
+
+### `GET /api/gateway/provider`
+Returns current provider configuration state.
+
+**Auth:** any auth method
+
+**Response:**
+```json
+{
+  "providers": [
+    {
+      "provider": "deepseek",
+      "label": "DeepSeek",
+      "configured": true,
+      "baseUrl": "https://api.deepseek.com",
+      "docsUrl": "https://platform.deepseek.com/api_keys",
+      "models": [
+        { "id": "deepseek/deepseek-v4-flash", "name": "DeepSeek V4 Flash", "enabled": true },
+        { "id": "deepseek/deepseek-v4-pro", "name": "DeepSeek V4 Pro", "enabled": true }
+      ]
+    }
+  ]
+}
+```
+
+### `GET /api/provider/v1/models`
+
+Olympus Provider Gateway — returns available models filtered by auth token.
+
+**Auth:** Bearer token (must match `olympus` key in `data/provider-keys.json`)
+
+**Response (authenticated):**
+```json
+{
+  "object": "list",
+  "total": 9,
+  "data": [
+    { "id": "deepseek/deepseek-v4-flash", "object": "model", "created": 1700000000, "owned_by": "deepseek", "permission": [], "root": "deepseek/deepseek-v4-flash" }
+  ]
+}
+```
+
+**Response (unauthenticated):**
+```json
+{ "object": "list", "total": 0, "data": [] }
+```
+
+### `POST /api/provider/v1/chat/completions`
+
+Olympus Provider Gateway — proxy chat completions to the correct upstream.
+
+**Auth:** Bearer token (must match `olympus` key in `data/provider-keys.json`)
+
+**Body:**
+```json
+{
+  "model": "olympus/deepseek-v4-flash",
+  "messages": [{"role": "user", "content": "Hello"}]
+}
+```
+
+**Error (401):**
+```json
+{ "error": { "message": "Invalid API key...", "type": "authentication_error" } }
+```
+
+---
+
+## Config
+
+### `PUT /api/config/env`
+Update environment variables on the VPS host.
+
+**Auth:** browser cookie
+
+**Body:** `{ "OLYMPUS_PASSWORD": "newpass", ... }`
+
+**Response:** `{ "ok": true }`
+
+### `POST /api/config/restart`
+Restart the Olympus server (via systemd).
+
+**Auth:** browser cookie
+
+**Response:** `{ "ok": true }`
 
 ---
 
@@ -231,7 +413,8 @@ List of distinct agent IDs derived from session keys.
 ---
 
 ### `GET /api/agents-active`
-Configured agents (from `openclaw.json`) enriched with recent session activity and workspace files.
+Configured agents (from `openclaw.json`) enriched with recent session activity
+and workspace files.
 
 **Auth:** browser cookie
 
@@ -390,14 +573,12 @@ Memory context snapshot for the current agent workspace.
 
 ---
 
-## Workspace (V2 — multi-workspace)
+## Workspace
 
-Olympus supports multiple workspaces: the VPS host and any Docker container with an `AGENT_ID` label.
-
-Full design, decisions, and usage guide at [docs/dev/workspace.md](workspace.md).
+Full design, decisions, and usage guide at [WORKSPACE.md](WORKSPACE.md).
 
 ### `GET /api/workspace?action=list`
-List available workspaces.
+List available workspaces (VPS host + Docker containers with `AGENT_ID` label).
 
 **Auth:** Bearer, query param, x-agent-token, or browser cookie
 
@@ -412,11 +593,11 @@ List available workspaces.
 ```
 
 ### `GET /api/workspace?workspace=<id>`
-List files in a workspace, read a file, or return a recursive tree payload for the editor UI.
+List files in a workspace, read a file, or return a recursive tree payload.
 
 **Auth:** any auth method
 
-**Query params:** `workspace` (optional, defaults to `vps`), `path` (optional — directory or file), `tree=1` (optional — recursive tree payload)
+**Query params:** `workspace` (optional, defaults to `vps`), `path` (optional), `tree=1` (optional)
 
 **Response (directory):**
 ```json
@@ -429,31 +610,6 @@ List files in a workspace, read a file, or return a recursive tree payload for t
     { "name": "config", "isDirectory": true, "isFile": false, "path": "..." },
     { "name": "SOUL.md", "isDirectory": false, "isFile": true, "path": "..." }
   ]
-}
-```
-
-**Response (`tree=1`):**
-```json
-{
-  "workspace": "vps",
-  "label": "VPS Host (Nexus)",
-  "path": "/home/nexus/.openclaw/workspace",
-  "root": "/home/nexus/.openclaw/workspace",
-  "type": "host",
-  "entries": [
-    {
-      "name": "olympus-vps",
-      "path": "/home/nexus/.openclaw/workspace/olympus-vps",
-      "relPath": "olympus-vps",
-      "type": "directory",
-      "size": 0,
-      "mtimeMs": 1750000000000,
-      "isDirectory": true,
-      "isFile": false
-    }
-  ],
-  "tree": [ "...same items as entries..." ],
-  "files": [ "...same items as entries..." ]
 }
 ```
 
@@ -472,7 +628,7 @@ Write content to a workspace file.
 
 ## Vault
 
-Full key management documentation at [docs/dev/providers.md](providers.md).
+Full key management documentation at [PROVIDERS.md](PROVIDERS.md).
 
 ### `GET /api/vault`
 List all stored credentials (keys masked).
@@ -483,7 +639,7 @@ List all stored credentials (keys masked).
 ```json
 {
   "providers": {
-    "openai-codex": { "keyStatus": "present", "scoped": ["atlas"] }
+    "deepseek": { "keyStatus": "present", "scoped": ["atlas"] }
   },
   "services": {
     "github": { "tokenStatus": "present", "user": "Flame0510", "scoped": ["argus", "atlas"] }
@@ -492,41 +648,41 @@ List all stored credentials (keys masked).
 ```
 
 ### `GET /api/vault/provider/key`
-Return the full API key for a provider. Used by the Providers page SHOW KEY flow.
+Return the full API key for a provider.
 
 **Auth:** browser cookie
 
-**Query params:** `provider` (required), `agent` (optional — container name)
+**Query params:** `provider` (required), `agent` (optional)
 
 **Response (200):**
 ```json
 {
-  "provider": "openai",
+  "provider": "deepseek",
   "apiKey": "sk-...full-key...",
-  "masked": "sk-...ast4",
+  "masked": "sk-...be03",
   "source": "local"
 }
 ```
 
 **Error:** `400` if `provider` missing; `404` if key not found.
 
-See [docs/dev/providers.md](providers.md#get-apivaultproviderkey) for full detail.
+See [PROVIDERS.md](PROVIDERS.md#get-apivaultproviderkey) for full detail.
 
 ### `POST /api/vault/provider`
 Add or update a provider API key.
 
 **Auth:** browser cookie
 
-**Body:** `{ "provider": "openai", "apiKey": "sk-...", "baseUrl": "https://api.openai.com/v1" }`
+**Body:** `{ "provider": "deepseek", "apiKey": "sk-...", "baseUrl": "https://api.deepseek.com" }`
 
-**Response:** `{ "status": "ok", "provider": "openai", "masked": "sk-...ast4", "updatedAt": 1749200000000 }`
+**Response:** `{ "status": "ok", "provider": "deepseek", "masked": "sk-...be03", "updatedAt": 1749200000000 }`
 
 ### `DELETE /api/vault/provider`
 Remove a provider and all its keys.
 
 **Auth:** browser cookie
 
-**Body:** `{ "provider": "openai" }`
+**Body:** `{ "provider": "deepseek" }`
 
 **Response:** `{ "status": "removed" }`
 
@@ -551,7 +707,7 @@ Remove a service.
 ### `PUT /api/vault/permissions`
 Update agent permissions for a credential.
 
-**Body:** `{ "type": "provider" | "service", "id": "openai-codex", "scopes": ["atlas", "argus"] }`
+**Body:** `{ "type": "provider" | "service", "id": "deepseek", "scopes": ["atlas", "argus"] }`
 
 **Response:** `{ "ok": true }`
 
@@ -630,8 +786,7 @@ Update audio or timezone config in `openclaw.json`.
 
 ## Providers
 
-Full UI documentation, key management controls (SHOW/HIDE KEY, ADD/CHANGE API KEY,
-REMOVE KEY), and the reveal endpoint at [docs/dev/providers.md](providers.md).
+Full UI documentation at [PROVIDERS.md](PROVIDERS.md).
 
 ### `GET /api/providers`
 AI provider configurations (keys masked — full keys never exposed here).
@@ -642,7 +797,7 @@ AI provider configurations (keys masked — full keys never exposed here).
 ```json
 {
   "providers": [
-    { "id": "anthropic", "name": "Anthropic", "keyStatus": "present", "models": ["claude-sonnet-4-6"] }
+    { "id": "deepseek", "name": "DeepSeek", "keyStatus": "present", "models": ["deepseek/deepseek-v4-flash"] }
   ]
 }
 ```
@@ -681,7 +836,7 @@ List available agent skills in the workspace.
 ## Assistant (PYTHIA)
 
 ### `POST /api/assistant`
-Chat with the built-in AI assistant (PYTHIA). Supports page context for context-aware responses.
+Chat with the built-in AI assistant (PYTHIA).
 
 **Auth:** browser cookie
 
@@ -698,10 +853,6 @@ Chat with the built-in AI assistant (PYTHIA). Supports page context for context-
 ```json
 { "reply": "The total cost this month is $6.40 across 47 sessions." }
 ```
-
-The assistant has access to page context (current page description + navigation hints) and is backed by the model defined in `ASSISTANT_MODEL` env var (default: `llama-3.1-8b-instant` via Groq).
-
-**Error:** `400` if message missing; upstream model errors forward the provider's status code.
 
 ---
 

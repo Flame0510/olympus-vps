@@ -74,7 +74,9 @@ A Next.js 16 dashboard for monitoring and managing the OpenClaw ecosystem on thi
 | `/plugins-skills` | Plugin skills |
 | `/skills` | Skill registry |
 | `/tools` | Tool configuration |
-| `/vault` | Credential storage (per-agent permissions) |
+| `/gateway` | LLM provider and agent model configuration — see [GATEWAY.md](dev/GATEWAY.md) |
+| `/config` | Environment management and server restart |
+| `/vault` | Credential storage (per-agent permissions) — see [PROVIDERS.md](dev/PROVIDERS.md) |
 | `/login` | Authentication page |
 
 ---
