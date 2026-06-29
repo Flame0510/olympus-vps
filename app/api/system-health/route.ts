@@ -102,9 +102,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       health: runtimeFreshnessHealth,
       value: hasSystemMetrics ? (latestMetricTs ? 'fresh' : 'missing') : 'n/d',
       details: !hasSystemMetrics
-        ? 'Heartbeat metrics non disponibili in questo DB'
+        ? 'Heartbeat metrics unavailable in this DB'
         : latestMetricAgeSeconds === null
-          ? 'Nessun heartbeat metrics rilevato'
+          ? 'No heartbeat metrics detected'
           : `ultimo heartbeat metrics ${latestMetricAgeSeconds}s fa`,
       source: 'runtime',
     });
@@ -114,10 +114,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         id: 'runtime.check-freshness',
         severity: 'warning',
         source: 'runtime',
-        title: 'Verificare heartbeat runtime Olympus',
+        title: 'Check Olympus runtime heartbeat',
         details: latestMetricAgeSeconds === null
-          ? 'Nessun heartbeat metrics disponibile dal runtime.'
-          : `Heartbeat metrics fermo da ${latestMetricAgeSeconds}s (soglia ${staleThresholdSeconds}s).`,
+          ? 'No heartbeat metrics available from runtime.'
+          : `Heartbeat metrics stuck for ${latestMetricAgeSeconds}s (soglia ${staleThresholdSeconds}s).`,
         actionHref: '/lineage',
         dismissible: false,
         createdAt,
@@ -129,10 +129,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       kind: 'db-freshness',
       title: 'Olympus DB freshness',
       message: !hasSystemMetrics
-        ? 'Tabella system_metrics non disponibile: freshness runtime non verificabile.'
+        ? 'system_metrics table unavailable: freshness runtime non verificabile.'
         : latestMetricAgeSeconds === null
-          ? 'Nessun heartbeat metrics rilevato.'
-          : `Ultimo heartbeat metrics ${latestMetricAgeSeconds}s fa (soglia ${staleThresholdSeconds}s).`,
+          ? 'No heartbeat metrics detected.'
+          : `Last heartbeat metrics ${latestMetricAgeSeconds}s fa (soglia ${staleThresholdSeconds}s).`,
       resolvedMessage: 'DB Olympus tornato fresco.',
       stale: hasSystemMetrics ? (latestMetricAgeSeconds === null ? true : latestMetricAgeSeconds > staleThresholdSeconds) : false,
     });
@@ -145,7 +145,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       : 0;
     checks.push({
       id: 'runtime.errors24h',
-      label: 'Errori ultimi 24h',
+      label: 'Errors last 24h',
       health: eventErrorCount > 0 ? 'warning' : 'ok',
       value: eventErrorCount,
       source: 'runtime',
@@ -155,8 +155,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         id: 'runtime.review-errors',
         severity: 'warning',
         source: 'runtime',
-        title: 'Rivedere errori recenti',
-        details: `${eventErrorCount} eventi errore nelle ultime 24h.`,
+        title: 'Review recent errors',
+        details: `${eventErrorCount} error events nelle ultime 24h.`,
         actionHref: '/lineage',
         dismissible: true,
         createdAt,
@@ -177,7 +177,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const billing = summarizeBilling(todayModels);
     checks.push({
       id: 'cost.usageBasedToday',
-      label: 'Costo a consumo oggi',
+      label: 'Usage-based cost today',
       health: billing.usageBasedCost > 10 ? 'warning' : 'ok',
       value: `$${billing.usageBasedCost.toFixed(2)}`,
       details: `DB estimate $${billing.dbEstimatedCost.toFixed(2)}; fixed ${billing.buckets.fixed.sessions} sessioni; credits ${billing.buckets.credits.sessions} sessioni`,
@@ -188,8 +188,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         id: 'cost.review-usage-based',
         severity: 'warning',
         source: 'cost',
-        title: 'Costo a consumo alto',
-        details: `Provider usage-based oggi: $${billing.usageBasedCost.toFixed(2)}. Include OpenRouter e altri provider pay-per-use, non i piani fissi.`,
+        title: 'High usage-based cost',
+        details: `Provider usage-based today: $${billing.usageBasedCost.toFixed(2)}. Include OpenRouter e altri provider pay-per-use, non i piani fissi.`,
         actionHref: '/providers',
         dismissible: true,
         createdAt,
@@ -200,7 +200,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         id: 'cost.classify-unknown-models',
         severity: 'warning',
         source: 'cost',
-        title: 'Modelli non classificati nel billing',
+        title: 'Unclassified models in billing',
         details: `${billing.unknownModels.length} modelli non classificati hanno DB estimate $${billing.buckets.unknown.cost_usd.toFixed(2)}.`,
         actionHref: '/providers',
         dismissible: true,
@@ -210,7 +210,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     db.close();
   } catch (error) {
     checks.push({ id: 'runtime.db', label: 'Olympus DB', health: 'error', value: 'error', details: (error as Error).message, source: 'runtime' });
-    recommendations.push({ id: 'runtime.db-error', severity: 'critical', source: 'runtime', title: 'DB Olympus non leggibile', details: (error as Error).message, dismissible: false, createdAt });
+    recommendations.push({ id: 'runtime.db-error', severity: 'critical', source: 'runtime', title: 'Olympus DB unreadable', details: (error as Error).message, dismissible: false, createdAt });
   }
 
   try {
@@ -228,8 +228,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         id: 'memory.fix-context',
         severity: memory.strategy.health === 'error' ? 'critical' : 'warning',
         source: 'memory',
-        title: 'Allineare shared-context',
-        details: memory.strategy.warnings[0] ?? 'Memory/context presenta warning.',
+        title: 'Align shared context',
+        details: memory.strategy.warnings[0] ?? 'Memory/context has warnings.',
         actionHref: '/memory',
         dismissible: false,
         createdAt,
@@ -243,20 +243,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const cron = await listOpenClawCronJobs();
     if (!cron.ok) {
       const details = cron.unavailableReason === 'scope-upgrade-pending'
-        ? 'Lettura cron diretta da OpenClaw bloccata: scope upgrade pending approval.'
-        : 'Olympus non riesce a leggere i cron direttamente da OpenClaw.';
+        ? 'Direct OpenClaw cron read blocked: scope upgrade pending approval.'
+        : 'Olympus cannot read cron jobs direttamente da OpenClaw.';
       checks.push({ id: 'cron.openclaw', label: 'Cron jobs', health: 'warning', value: 'unavailable', details, source: 'cron' });
-      recommendations.push({ id: 'cron.openclaw-unavailable', severity: 'warning', source: 'cron', title: 'Lista cron OpenClaw non disponibile', details, actionHref: '/crons', dismissible: false, createdAt });
+      recommendations.push({ id: 'cron.openclaw-unavailable', severity: 'warning', source: 'cron', title: 'OpenClaw cron list unavailable', details, actionHref: '/crons', dismissible: false, createdAt });
     } else {
       const enabled = cron.jobs.filter((job) => job.enabled !== false).length;
       checks.push({ id: 'cron.jobs', label: 'Cron jobs', health: enabled > 0 ? 'ok' : 'warning', value: enabled, details: `${cron.total} totali · source ${cron.source}`, source: 'cron' });
       if (enabled === 0) {
-        recommendations.push({ id: 'cron.enable-watchdog', severity: 'warning', source: 'cron', title: 'Nessun cron abilitato rilevato', details: 'OpenClaw non riporta cron abilitati.', actionHref: '/crons', dismissible: false, createdAt });
+        recommendations.push({ id: 'cron.enable-watchdog', severity: 'warning', source: 'cron', title: 'No enabled cron detected', details: 'OpenClaw non riporta cron abilitati.', actionHref: '/crons', dismissible: false, createdAt });
       }
     }
   } catch (error) {
     checks.push({ id: 'cron.openclaw', label: 'Cron jobs', health: 'warning', value: 'warning', details: (error as Error).message, source: 'cron' });
-    recommendations.push({ id: 'cron.openclaw-unavailable', severity: 'warning', source: 'cron', title: 'Lista cron OpenClaw non disponibile', details: 'Olympus non riesce a leggere i cron direttamente da OpenClaw.', actionHref: '/crons', dismissible: false, createdAt });
+    recommendations.push({ id: 'cron.openclaw-unavailable', severity: 'warning', source: 'cron', title: 'OpenClaw cron list unavailable', details: 'Olympus cannot read cron jobs direttamente da OpenClaw.', actionHref: '/crons', dismissible: false, createdAt });
   }
 
   const health = topHealth(checks.map((check) => check.health));

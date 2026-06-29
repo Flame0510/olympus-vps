@@ -199,7 +199,7 @@ function FallbackSelector({
           })}
           {availableModels.length === 0 && (
             <div style={{ padding: '12px', color: 'var(--text-dim)', fontSize: 12, textAlign: 'center' }}>
-              Nessun modello disponibile
+              No models available
             </div>
           )}
         </div>
@@ -248,7 +248,7 @@ function AgentEditForm({
   return (
     <div style={{ display: 'grid', gap: 10, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
       <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-        Aggiorna modello per <strong>{agentId}</strong>.
+        Update model for <strong>{agentId}</strong>.
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -279,7 +279,7 @@ function AgentEditForm({
               transition: 'border-color 0.15s',
             }}
           >
-            <option value="" disabled>Seleziona modello…</option>
+            <option value="" disabled>Select model…</option>
             {allModels.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name} — {m.providerLabel}
@@ -302,9 +302,9 @@ function AgentEditForm({
             background: 'var(--surface)',
           }}>
             {fallbackCandidates.length === 0 ? (
-              <span style={{ color: 'var(--text-dim)', fontSize: 11, padding: '6px 4px' }}>Nessun modello disponibile</span>
+              <span style={{ color: 'var(--text-dim)', fontSize: 11, padding: '6px 4px' }}>No models available</span>
             ) : fallbacks.length === 0 ? (
-              <span style={{ color: 'var(--text-dim)', fontSize: 11, padding: '6px 4px' }}>Clicca un modello per aggiungerlo come fallback</span>
+              <span style={{ color: 'var(--text-dim)', fontSize: 11, padding: '6px 4px' }}>Click a model to add as fallback</span>
             ) : null}
             {fallbackCandidates.map((m) => {
               const isSelected = fallbacks.includes(m.id);
@@ -465,7 +465,7 @@ export default function GatewayPageClient() {
           setMessages((prev) => ({ ...prev, [provider]: { type: 'error', text: json.error || 'Errore' } }));
         }
       } catch (e: unknown) {
-        setMessages((prev) => ({ ...prev, [provider]: { type: 'error', text: e instanceof Error ? e.message : 'Errore di rete' } }));
+        setMessages((prev) => ({ ...prev, [provider]: { type: 'error', text: e instanceof Error ? e.message : 'Network error' } }));
       }
     });
   }
@@ -489,7 +489,7 @@ export default function GatewayPageClient() {
           setMessages((prev) => ({ ...prev, [provider]: { type: 'error', text: json.error || 'Errore' } }));
         }
       } catch (e: unknown) {
-        setMessages((prev) => ({ ...prev, [provider]: { type: 'error', text: e instanceof Error ? e.message : 'Errore di rete' } }));
+        setMessages((prev) => ({ ...prev, [provider]: { type: 'error', text: e instanceof Error ? e.message : 'Network error' } }));
       }
     });
   }
@@ -515,14 +515,14 @@ export default function GatewayPageClient() {
           setMessages((prev) => ({ ...prev, olympus: { type: 'error', text: json.error || 'Errore' } }));
         }
       } catch (e: unknown) {
-        setMessages((prev) => ({ ...prev, olympus: { type: 'error', text: e instanceof Error ? e.message : 'Errore di rete' } }));
+        setMessages((prev) => ({ ...prev, olympus: { type: 'error', text: e instanceof Error ? e.message : 'Network error' } }));
       }
     });
   }
 
   /* ---- Toggle model ---- */
   async function handleToggleModel(modelId: string, enabled: boolean) {
-    await withOverlay(`${enabled ? 'Attivazione' : 'Disattivazione'} modello…`, async () => {
+    await withOverlay(`${enabled ? 'Activate' : 'Deactivate'} modello…`, async () => {
       setMessages((prev) => ({ ...prev, [`model-${modelId}`]: null }));
       try {
         const res = await fetch('/api/gateway/provider', {
@@ -545,7 +545,7 @@ export default function GatewayPageClient() {
           setMessages((prev) => ({ ...prev, [`model-${modelId}`]: { type: 'error', text: json.error || 'Errore' } }));
         }
       } catch (e: unknown) {
-        setMessages((prev) => ({ ...prev, [`model-${modelId}`]: { type: 'error', text: e instanceof Error ? e.message : 'Errore di rete' } }));
+        setMessages((prev) => ({ ...prev, [`model-${modelId}`]: { type: 'error', text: e instanceof Error ? e.message : 'Network error' } }));
       }
     });
   }
@@ -559,7 +559,7 @@ export default function GatewayPageClient() {
       : []);
 
     // Overlay: solo durante la chiamata PUT
-    setOverlay({ active: true, message: 'Aggiornamento modello…' });
+    setOverlay({ active: true, message: 'Updating model…' });
     try {
       const res = await fetch('/api/gateway/agent', {
         method: 'PUT',
@@ -593,7 +593,7 @@ export default function GatewayPageClient() {
       }
     } catch (e: unknown) {
       setOverlay({ active: false, message: '' });
-      setMessages((prev) => ({ ...prev, [`agent-${containerName}`]: { type: 'error', text: e instanceof Error ? e.message : 'Errore di rete' } }));
+      setMessages((prev) => ({ ...prev, [`agent-${containerName}`]: { type: 'error', text: e instanceof Error ? e.message : 'Network error' } }));
     }
   }
 
@@ -643,13 +643,13 @@ export default function GatewayPageClient() {
       <PageHeader
         eyebrow="Olympus"
         title="Gateway"
-        description="Provider, modelli e agenti. Le API key sono salvate in .env."
+        description="Provider, models and agents. Le API key sono salvate in .env."
       />
 
       {/* Metrics */}
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
-        <Metric title="Provider configurati" value={`${configuredCount} / ${providers.filter((p) => p.provider !== 'olympus').length}`} subtitle="DeepSeek, OpenRouter, Codex, …" tone={configuredCount > 0 ? 'success' : 'warning'} />
-        <Metric title="Modelli attivi" value={allEnabledModels.length} subtitle="per tutti i provider configurati" tone={allEnabledModels.length > 0 ? 'success' : 'warning'} />
+        <Metric title="Configured providers" value={`${configuredCount} / ${providers.filter((p) => p.provider !== 'olympus').length}`} subtitle="DeepSeek, OpenRouter, Codex, …" tone={configuredCount > 0 ? 'success' : 'warning'} />
+        <Metric title="Active models" value={allEnabledModels.length} subtitle="for all configured providers" tone={allEnabledModels.length > 0 ? 'success' : 'warning'} />
         <Metric title="Agenti" value={agentCount} subtitle="con label AGENT_ID" tone={agentCount > 0 ? 'success' : 'warning'} />
       </section>
 
@@ -811,7 +811,7 @@ export default function GatewayPageClient() {
                     {p.configured && (
                       <button onClick={() => handleRemove(p.provider)} disabled={overlay.active}
                         style={{ padding: '10px 16px', borderRadius: 6, border: '1px solid #EF4444', background: 'transparent', color: '#EF4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: overlay.active ? 0.5 : 1 }}>
-                        Rimuovi
+                        Remove
                       </button>
                     )}
                   </div>
@@ -876,7 +876,7 @@ export default function GatewayPageClient() {
             <div style={{ marginBottom: 16 }}><Surface variant="panel">
               <div style={{ padding: '12px 16px' }}>
                 <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  Modelli disponibili per gli agenti ({allEnabledModels.length})
+                  Models available for agents ({allEnabledModels.length})
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {allEnabledModels.map((m) => {
@@ -927,7 +927,7 @@ export default function GatewayPageClient() {
                       ) : (
                         <button onClick={() => { setEditingAgent(agent.containerName); setAgentModelInput(agent.defaultModel || ''); setAgentFallbackInput(agent.fallbacks.join(', ')); }}
                           style={{ padding: '8px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--copper)', fontSize: 12, cursor: 'pointer', alignSelf: 'flex-start' }}>
-                          ✏️ Cambia modello
+                          ✏️ Change model
                         </button>
                       )}
                       {msg && (

@@ -98,7 +98,7 @@ export async function PUT(request: NextRequest) {
     if (mainAgent) {
       const primary = ensureOlympusPrefix(body.model);
       let fallbacks = dedupe(ensureOlympusPrefixes(body.fallbacks || []));
-      // Rimuovi il modello primario dai fallback
+      // Remove the primary model dai fallback
       fallbacks = fallbacks.filter((fb) => fb !== primary);
       mainAgent.model = {
         primary,

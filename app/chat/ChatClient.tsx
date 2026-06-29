@@ -169,7 +169,7 @@ const MODEL_PROVIDERS: ProviderEntry[] = [
   {
     provider: 'OpenRouter', emoji: '🌐',
     models: [
-      { id: 'openrouter/auto', label: 'Auto (miglior modello)' },
+      { id: 'openrouter/auto', label: 'Auto (best model)' },
       { id: 'openrouter/anthropic/claude-opus-4.7', label: 'Claude Opus 4.7' },
       { id: 'openrouter/anthropic/claude-sonnet-4.6', label: 'Claude Sonnet 4.6' },
       { id: 'openrouter/deepseek/deepseek-r1-0528', label: 'DeepSeek R1' },
@@ -659,7 +659,7 @@ export default function ChatClient() {
   return (
     <div className="chat-layout" onDragOver={handleDragOver} onDrop={handleDrop}>
       {/* Hamburger */}
-      <button className="chat-layout__hamburger" onClick={() => setSidebarOpen(true)} aria-label="Menu agenti">
+      <button className="chat-layout__hamburger" onClick={() => setSidebarOpen(true)} aria-label="Agent menu">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
           <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
         </svg>
@@ -794,7 +794,7 @@ export default function ChatClient() {
           </div>
           <div className="chat-layout__header-actions">
             <div className="chat-layout__model-selector">
-              <button className="chat-layout__model-btn" onClick={() => setModelSelectorOpen(v => !v)} title="Cambia modello">
+              <button className="chat-layout__model-btn" onClick={() => setModelSelectorOpen(v => !v)} title="Change model">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <circle cx="12" cy="12" r="3"/>
                   <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -807,7 +807,7 @@ export default function ChatClient() {
             <button onClick={() => setShowDebug(v => !v)} style={{
               background: 'none', border: '1px solid #555', color: '#888',
               fontSize: 10, padding: '2px 6px', borderRadius: 4, cursor: 'pointer'
-            }} title="Debug stato chat">
+            }} title="Debug chat state">
               🐛
             </button>
             <button className="chat-layout__new-btn" onClick={newSession} title="Nuova chat">
@@ -895,7 +895,7 @@ export default function ChatClient() {
               onChange={e => setInput(e.target.value)}
               onKeyDown={onKeyDown}
               onPaste={handlePaste}
-              placeholder={pastedFiles.length > 0 ? 'Aggiungi un messaggio...' : `Messaggio per ${currentAgent?.name || selectedAgent}... (Enter per inviare)`}
+              placeholder={pastedFiles.length > 0 ? 'Type a message...' : `Message for ${currentAgent?.name || selectedAgent}... (Enter per inviare)`}
               rows={1}
               disabled={streaming}
             />

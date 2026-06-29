@@ -1,12 +1,12 @@
 'use client';
 
 /**
- * VaultPanel — UI per gestire le credenziali centralizzate nel vault di Olympus.
- * 
- * Permette di:
- * - Vedere lo stato di tutti i provider/servizi configurati
- * - Aggiungere/rimuovere API key
- * - Assegnare permessi agli agenti
+ * VaultPanel — UI for managing centralized credentials in the Olympus vault.
+ *
+ * Allows:
+ * - Viewing the status of all configured providers/services
+ * - Adding/removing API keys
+ * - Assigning permissions to agents
  */
 
 import { useEffect, useState } from 'react';

@@ -96,7 +96,7 @@ export default function LineageGraphPage({ initialCosts }: LineageGraphPageProps
           <article className="panel graph-panel" style={isMobile ? { height: '100%', borderRight: 'none', padding: 16 } : { padding: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 12 }}>
               <div style={{ color: 'var(--text-dim)', fontSize: 11 }}>
-                Mappa lineage sessioni, sub-agenti e relazioni operative.
+                Lineage map of sessions, sub-agents and operational relationships.
               </div>
               <button
                 type="button"

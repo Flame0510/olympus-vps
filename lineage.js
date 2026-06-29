@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
- * Olympus Lineage — dichiara la gerarchia parent→child e il nome dell'agente
- * Uso: node /data/olympus/lineage.js <childSessionKey> <parentSessionKey> [nome]
- * 
- * Esempio (Forge dopo aver spawnato Atlas):
+ * Olympus Lineage — declare the parent→child hierarchy and agent name
+ * Usage: node /data/olympus/lineage.js <childSessionKey> <parentSessionKey> [name]
+ *
+ * Example (Forge after spawning Atlas):
  *   node /data/olympus/lineage.js \
  *     "agent:website:subagent:atlas-uuid" \
  *     "agent:website:main" \
  *     "Atlas 🗺️"
- * 
- * Esempio (Atlas dopo aver spawnato Developer):
+ *
+ * Example (Atlas after spawning Developer):
  *   node /data/olympus/lineage.js \
  *     "agent:website:subagent:dev-uuid" \
  *     "agent:website:subagent:atlas-uuid" \
@@ -24,7 +24,7 @@ const DB_PATH = '/data/olympus/events.db';
 const [,, childId, parentId, agentName] = process.argv;
 
 if (!childId || !parentId) {
-  console.error('Uso: node lineage.js <childSessionKey> <parentSessionKey> [nome]');
+  console.error('Usage: node lineage.js <childSessionKey> <parentSessionKey> [name]');
   process.exit(1);
 }
 
@@ -37,7 +37,7 @@ db.prepare(`CREATE TABLE IF NOT EXISTS lineage (
   declared_at INTEGER NOT NULL
 )`).run();
 
-// Aggiungi colonna agent_name se non esiste (migration safe)
+// Add agent_name column if it doesn't exist (migration safe)
 try {
   db.prepare('ALTER TABLE lineage ADD COLUMN agent_name TEXT').run();
 } catch (e) { /* already exists */ }
@@ -45,11 +45,11 @@ try {
 db.prepare('INSERT OR REPLACE INTO lineage (child_id, parent_id, agent_name, declared_at) VALUES (?, ?, ?, ?)')
   .run(childId, parentId, agentName || null, Date.now());
 
-// Aggiorna sessions: parent_id e label (se nome fornito)
+// Update sessions: set parent_id and label (if name provided)
 db.prepare('UPDATE sessions SET parent_id = ? WHERE session_id = ?').run(parentId, childId);
 if (agentName) {
-  db.prepare('UPDATE sessions SET label = ? WHERE session_id = ?').run(agentName, childId);
+  db.prepare("UPDATE sessions SET label = COALESCE(label, ?) WHERE session_id = ?").run(agentName, childId);
 }
 
+console.log(`Lineage declared: ${childId} → ${parentId}${agentName ? ` (${agentName})` : ''}`);
 db.close();
-console.log(`✅ Lineage: ${agentName || childId} → parent: ${parentId}`);

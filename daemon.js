@@ -651,12 +651,12 @@ function pollSessions() {
   }
 
   // ── Timeout Detection ────────────────────────────────────────────────────
-  // Trova subagenti che erano 'working' nell'ultimo snapshot ma ora non sono
+  // Find sub-agents that were 'working' in the last snapshot but are no longer
   // present in the current output and have been missing for more than 10 minutes.
   // Questi vengono marcati come 'timeout' nella tabella events.
   const TIMEOUT_THRESHOLD_MS = 10 * 60 * 1000; // 10 minuti
   for (const [session_id, snap] of knownSessions) {
-    // Solo subagenti (contengono 'subagent' nel key)
+    // Only sub-agents (contain 'subagent' in the key)
     if (!session_id.includes('subagent')) continue;
     // Solo se erano working nell'ultimo poll
     if (snap.status !== 'working') continue;
@@ -679,21 +679,21 @@ function pollSessions() {
       data: JSON.stringify({
         missing_for_ms: missingFor,
         last_status: snap.status,
-        message: `Subagente sparito dopo ${Math.round(missingFor / 60000)}min senza completare`,
+        message: `Subagente missing dopo ${Math.round(missingFor / 60000)}min senza completare`,
       }),
     });
-    log(`[TIMEOUT] ${session_id} sparito da ${Math.round(missingFor / 60000)}min`);
+    log(`[TIMEOUT] ${session_id} missing da ${Math.round(missingFor / 60000)}min`);
 
-    // Notifica Telegram Michele via openclaw message
+    // Notify Michele via openclaw message
     try {
       spawnSync('openclaw', [
         'message', 'send',
         '--account', 'ops',
         '--target', '297086793',
-        '--text', `⚠️ Olympus: agente timeout\n\`${session_id.slice(-36)}\`\nSparito da ${Math.round(missingFor / 60000)} min senza completare.`,
+        '--text', `⚠️ Olympus: agent timeout\n\`${session_id.slice(-36)}\`\nMissing for ${Math.round(missingFor / 60000)} min senza completare.`,
       ], { encoding: 'utf8', timeout: 10_000, killSignal: 'SIGKILL' });
     } catch (e) {
-      log(`[TIMEOUT] Notifica Telegram fallita: ${e.message}`);
+      log(`[TIMEOUT] Telegram notification failed: ${e.message}`);
     }
   }
 
@@ -723,7 +723,7 @@ function pollSessions() {
     log(`Retention cleanup: ${r1.changes} cron sessions, ${r2.changes} cron events deleted`);
   }
 
-  // Prune knownSessions — cancella sessioni completate da >30 giorni
+  // Prune knownSessions — delete completed sessions da >30 giorni
   const cutoff = Date.now() - (30 * 24 * 60 * 60 * 1000);
   for (const [id, snap] of knownSessions) {
     if (snap.status === 'completed' && snap.updatedAt && snap.updatedAt < cutoff) {
@@ -735,7 +735,7 @@ function pollSessions() {
   pollCount = (pollCount || 0) + 1;
   if (pollCount % 10 === 0) {
     db.pragma('wal_checkpoint(FULL)');
-    log(`WAL checkpoint FULL eseguito (poll #${pollCount})`);
+    log(`WAL checkpoint FULL executed (poll #${pollCount})`);
   }
 }
 

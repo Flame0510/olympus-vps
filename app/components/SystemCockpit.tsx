@@ -145,7 +145,7 @@ export default function SystemCockpit({ sessions, events, costs, loading = false
               ))}
             </ul>
           ) : (
-            <div style={{ color: 'var(--green)', fontSize: 13 }}>Nessun warning immediato. Sistema in stato operativo.</div>
+            <div style={{ color: 'var(--green)', fontSize: 13 }}>No immediate warnings. System in operational state.</div>
           )}
           <div className="cockpit__quick-links">
             <Link className="agent-btn" href="/memory">Memory</Link>

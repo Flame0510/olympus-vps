@@ -64,7 +64,7 @@ export default function AgentsPageClient() {
       setAgents(data);
       setError('');
     } catch (e: any) {
-      setError(e.message || 'Errore di caricamento');
+      setError(e.message || 'Loading error');
     } finally {
       setLoading(false);
     }
@@ -188,7 +188,7 @@ export default function AgentsPageClient() {
       <div style={{ height: 48, padding: '0 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontFamily: 'var(--font-serif-stack)', fontSize: '20px', letterSpacing: '4px', color: 'var(--copper)' }}>AGENTS</span>
-          <span style={{ fontSize: 11, color: '#888' }}>{agents.length} agenti · {agents.filter((a) => a.state === 'running').length} running</span>
+          <span style={{ fontSize: 11, color: '#888' }}>{agents.length} agents · {agents.filter((a) => a.state === 'running').length} running</span>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {(['all', 'running', 'exited'] as const).map((f) => (
@@ -235,7 +235,7 @@ export default function AgentsPageClient() {
         </div>
         <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg2)', padding: 16 }}>
           {!selected ? (
-            <div style={{ color: '#666', fontSize: 12, padding: 20 }}>Seleziona un agente per i dettagli</div>
+            <div style={{ color: '#666', fontSize: 12, padding: 20 }}>Select an agent for details</div>
           ) : (
             <DetailPanel agent={selected} />
           )}

@@ -90,9 +90,9 @@ function draw(
       tooltipEl.style.top = `${Math.min(ty, window.innerHeight - th - 8)}px`;
       tooltipEl.innerHTML = [
         `<div><strong>${nodeLabel(d.data)}</strong></div>`,
-        `<div>modello: ${d.data.model ?? '-'}</div>`,
-        `<div>costo: ${formatCost(d.data.cost_usd)}</div>`,
-        `<div>stato: ${d.data.status ?? 'idle'}</div>`,
+                `<div>model: ${d.data.model ?? '-'}</div>`,
+        `<div>cost: ${formatCost(d.data.cost_usd)}</div>`,
+        `<div>status: ${d.data.status ?? 'idle'}</div>`,
       ].join('');
     })
     .on('mouseleave', () => {

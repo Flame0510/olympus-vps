@@ -1,7 +1,7 @@
 /**
- * API Vault — Gestione credenziali centralizzate
+ * API Vault — Centralized credential management
  * 
- * GET  /api/vault              — lista tutto (provider mascherati, servizi, permessi)
+ * GET  /api/vault              — list everything (masked providers, services, permissions)
  * GET  /api/vault/provider/{p} — dettaglio provider (key mascherata)
  * POST /api/vault/provider     — save provider
  * DEL  /api/vault/provider/{p} — remove provider

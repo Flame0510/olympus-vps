@@ -81,7 +81,7 @@ export default function ConfigPageClient() {
       }
     } catch (e: unknown) {
       setStatus('error');
-      setStatusMsg(e instanceof Error ? e.message : 'Errore di rete');
+      setStatusMsg(e instanceof Error ? e.message : 'Network error');
     }
   };
 
@@ -240,7 +240,7 @@ export default function ConfigPageClient() {
                   const saveData = await saveRes.json();
                   if (saveData.status !== 'ok') {
                     setStatus('error');
-                    setStatusMsg(saveData.error || 'Errore salvataggio');
+                    setStatusMsg(saveData.error || 'Save error');
                     setRestarting(false);
                     return;
                   }
@@ -250,7 +250,7 @@ export default function ConfigPageClient() {
                   setTimeout(() => { setRestarting(false); setStatus('idle'); setStatusMsg(''); }, 4000);
                 } catch {
                   setStatus('error');
-                  setStatusMsg('Errore di rete');
+                  setStatusMsg('Network error');
                   setRestarting(false);
                 }
               }}

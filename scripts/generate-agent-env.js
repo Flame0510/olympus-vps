@@ -2,15 +2,15 @@
 /**
  * Olympus Agent Env Generator
  * 
- * Genera le variabili d'ambiente per un container agente
- * basandosi sul vault di Olympus.
+ * Generate environment variables for an agent container
+ * based on the Olympus vault.
  * 
- * Uso:
+ * Usage:
  *   node scripts/generate-agent-env.js <agent_id>
  *   node scripts/generate-agent-env.js <agent_id> --docker  (formato docker run)
  *   node scripts/generate-agent-env.js <agent_id> --json    (formato JSON)
  * 
- * Esempio output (default):
+ * Example output (default):
  *   OPENAI_API_KEY=sk-...
  *   ANTHROPIC_API_KEY=sk-ant-...
  *   GITHUB_TOKEN=ghp_...
@@ -24,7 +24,7 @@ const VAULT_PATH = process.env.OLYMPUS_VAULT_PATH || path.join(__dirname, '..', 
 function loadVault() {
   try {
     if (!fs.existsSync(VAULT_PATH)) {
-      console.error('[env-gen] Vault non trovato:', VAULT_PATH);
+      console.error('[env-gen] Vault not found:', VAULT_PATH);
       process.exit(1);
     }
     return JSON.parse(fs.readFileSync(VAULT_PATH, 'utf-8'));
@@ -64,7 +64,7 @@ function main() {
   const format = args.includes('--docker') ? 'docker' : args.includes('--json') ? 'json' : 'env';
 
   if (!agentId) {
-    console.error('Uso: node scripts/generate-agent-env.js <agent_id> [--docker|--json]');
+    console.error('Usage: node scripts/generate-agent-env.js <agent_id> [--docker|--json]');
     process.exit(1);
   }
 
@@ -72,8 +72,8 @@ function main() {
   const perm = (vault.permissions || []).find(p => p.agentId === agentId);
 
   if (!perm) {
-    console.error(`[env-gen] Nessun permesso trovato per agente '${agentId}'.`);
-    console.error(`          Usa la dashboard (Providers → Vault) per configurare i permessi.`);
+    console.error(`[env-gen] No permissions found for agent '${agentId}'.`);
+    console.error(`          Use the dashboard (Providers → Vault) to configure permissions.`);
     process.exit(1);
   }
 

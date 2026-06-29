@@ -21,7 +21,7 @@ const FALLBACK_PROVIDERS: ProviderEntry[] = [
   { provider: 'Default', emoji: '🔧', models: [{ id: '', label: 'Default' }] },
 ];
 
-export default function ModelPickerModal({ open, value = '', title = 'Seleziona modello', onClose, onSelect }: ModelPickerModalProps) {
+export default function ModelPickerModal({ open, value = '', title = 'Select model', onClose, onSelect }: ModelPickerModalProps) {
   const { providers: contextProviders, loaded } = useModels();
   const [expanded, setExpanded] = useState<Record<number, boolean>>({ 0: true });
   const providers = loaded && contextProviders.length ? contextProviders : FALLBACK_PROVIDERS;

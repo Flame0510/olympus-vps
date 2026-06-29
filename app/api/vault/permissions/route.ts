@@ -1,7 +1,7 @@
 /**
- * POST /api/vault/permissions  — imposta permessi agente
+ * POST /api/vault/permissions  — set agent permissions
  * DEL  /api/vault/permissions  — remove agent permissions (body: { agentId })
- * GET  /api/vault/permissions  — risolvi env vars per agente (query: agentId)
+ * GET  /api/vault/permissions  — resolve env vars for agent (query: agentId)
  */
 
 import { NextRequest, NextResponse } from 'next/server';

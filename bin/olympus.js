@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * Olympus CLI — Dashboard per il monitoraggio di agenti OpenClaw
+ * Olympus CLI — Dashboard for monitoring OpenClaw agents
  *
- * Utilizzo:
- *   olympus start             Avvia il server (build automatica se necessario)
- *   olympus start --port 3720 Avvia su porta specifica
- *   olympus build             Build manuale
+ * Usage:
+ *   olympus start             Start the server (auto-build if needed)
+ *   olympus start --port 3720 Start on specific port
+ *   olympus build             Manual build
  *   olympus --help            Show help
  */
 

@@ -58,7 +58,7 @@ function statusLabel(status: string): string {
 }
 
 function statusHint(status: string): string {
-  if (status === 'idle') return 'Sessione creata ma senza stato finale: non è un errore';
+  if (status === 'idle') return 'Session created without final state: not an error';
   return status;
 }
 
