@@ -4,14 +4,16 @@
  * GET /api/provider/v1/models
  *
  * Returns models available through the Olympus Gateway
- * in OpenAI-compatible format.
+ * in OpenAI-compatible format, filtered by the provider
+ * identified from the Authorization token.
  *
  * The model list is read from models.config.json in the project root.
  * If the file doesn't exist, falls back to provider env config + static defaults.
  */
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import * as fs from 'fs';
 import * as path from 'path';
+import { readProviderKeys } from '@/app/api/gateway/provider/keys';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -33,18 +35,6 @@ interface ModelsConfigEntry {
 }
 
 const CONFIG_PATH = path.resolve(process.cwd(), 'models.config.json');
-
-/** Get the list of providers that have an API key configured */
-function getConfiguredProviders(): string[] {
-  const configured: string[] = [];
-  if (process.env.PROVIDER_DEEPSEEK_API_KEY) configured.push('deepseek');
-  if (process.env.PROVIDER_OPENROUTER_API_KEY) configured.push('openrouter');
-  if (process.env.PROVIDER_OPENAI_CODEX_API_KEY) configured.push('openai-codex');
-  if (process.env.PROVIDER_OPENAI_API_KEY) configured.push('openai');
-  if (process.env.PROVIDER_ANTHROPIC_API_KEY) configured.push('anthropic');
-  if (process.env.PROVIDER_GROQ_API_KEY) configured.push('groq');
-  return configured;
-}
 
 /** Default model catalogue (known models for each provider) */
 const DEFAULT_CATALOGUE: ModelsConfigEntry[] = [
@@ -104,18 +94,53 @@ function loadConfig(): ModelsConfigEntry[] {
   }
 }
 
-export async function GET() {
-  const allModels = loadConfig();
-  const configuredProviders = getConfiguredProviders();
+/** Resolve the provider from the Authorization token by matching against provider-keys.json */
+function resolveProviderFromToken(authHeader: string): string | null {
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (!token) return null;
 
-  // Only return enabled models for providers that have an API key configured
-  const activeModels = allModels.filter((m) => {
-    if (m.provider === 'olympus') {
-      // Olympus aliases available if at least one provider is configured
-      return m.enabled && configuredProviders.length > 0;
+  const providerKeys = readProviderKeys();
+
+  // Match the token value against stored provider keys
+  for (const [provider, key] of Object.entries(providerKeys)) {
+    if (token === key) {
+      // olympus is an aggregator — treat as 'all'
+      if (provider === 'olympus') return 'all';
+      return provider;
     }
-    return m.enabled && configuredProviders.includes(m.provider);
-  });
+  }
+
+  // Also try matching the olympus API key env var (legacy compat)
+  if (token === process.env.OLYMPUS_API_KEY) return 'all';
+
+  return null;
+}
+
+export async function GET(request: NextRequest) {
+  const allModels = loadConfig();
+
+  // Determine provider from Authorization token
+  const authHeader = request.headers.get('Authorization') || '';
+  const provider = resolveProviderFromToken(authHeader);
+
+  if (!provider) {
+    // No valid token — return empty list to avoid leaking model info
+    return NextResponse.json({
+      object: 'list',
+      total: 0,
+      data: [],
+    });
+  }
+
+  let activeModels: ModelsConfigEntry[];
+
+  if (provider === 'all') {
+    // Olympus master token — return all enabled models
+    activeModels = allModels.filter((m) => m.enabled);
+  } else {
+    // Token matches a specific provider — return only enabled models for that provider
+    activeModels = allModels.filter((m) => m.enabled && m.provider === provider);
+  }
 
   return NextResponse.json({
     object: 'list',

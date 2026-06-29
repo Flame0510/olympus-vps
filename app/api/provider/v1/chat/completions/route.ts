@@ -4,13 +4,9 @@
  * OpenAI-compatible chat completions endpoint.
  * POST /api/provider/v1/chat/completions
  *
- * Acts like OpenRouter: single API key + many models aggregated.
- *
- * Authentication:
- *   Authorization: Bearer <OLYMPUS_API_KEY>
- *
- * Models are prefixed olympus/ (e.g. olympus/deepseek-v4-flash).
- * The provider is extracted from the model prefix and routed to the upstream.
+ * Authentication uses provider keys stored in data/provider-keys.json.
+ * The Authorization Bearer token must match a configured provider key.
+ * The olympus master key (OLYMPUS_API_KEY env var) unlocks all providers.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { readProviderKeys } from '@/app/api/gateway/provider/keys';
@@ -107,22 +103,46 @@ export async function POST(request: NextRequest) {
   const start = Date.now();
 
   try {
-    // --- Olympus auth check ---
+    // --- Resolve provider from Authorization token ---
     const authHeader = request.headers.get('Authorization') || '';
-    const olympusApiKey = process.env.OLYMPUS_API_KEY;
-    if (olympusApiKey) {
-      const provided = authHeader.replace(/^Bearer\s+/i, '').trim();
-      if (!provided || provided !== olympusApiKey) {
-        return errorResponse(
-          'Invalid API key. Provide your Olympus API key via Authorization: Bearer <key>.',
-          'authentication_error',
-          401,
-        );
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    const providerKeys = readProviderKeys();
+
+    // Find which provider this token belongs to
+    let authorizedProvider: string | null = null;
+    for (const [provider, key] of Object.entries(providerKeys)) {
+      if (token === key) {
+        // olympus is an aggregator — treat as 'all'
+        authorizedProvider = provider === 'olympus' ? 'all' : provider;
+        break;
       }
+    }
+
+    // Also accept the olympus master API key env var
+    const olympusMasterKey = process.env.OLYMPUS_API_KEY;
+    if (!authorizedProvider && olympusMasterKey && token === olympusMasterKey) {
+      authorizedProvider = 'all';
+    }
+
+    if (!authorizedProvider) {
+      return errorResponse(
+        'Invalid API key. Use your provider key from the Gateway page via Authorization: Bearer <key>.',
+        'authentication_error',
+        401,
+      );
     }
 
     const body: ProviderV1Request = await request.json();
     const { provider, model } = extractProviderAndModel(body);
+
+    // If the token is for a specific provider, the requested provider must match
+    if (authorizedProvider !== 'all' && provider !== authorizedProvider && provider !== 'olympus') {
+      return errorResponse(
+        `Token is configured for '${authorizedProvider}', but request uses provider '${provider}'.`,
+        'authorization_error',
+        403,
+      );
+    }
 
     const envConfig = PROVIDER_ENVS[provider];
     if (!envConfig) {
