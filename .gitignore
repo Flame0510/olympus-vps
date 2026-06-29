@@ -25,3 +25,8 @@ SOUL.md
 TOOLS.md
 USER.md
 test-results/
+
+# Local config and state (not committed)
+.env.removed
+models.config.json
+data/
