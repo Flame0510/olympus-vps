@@ -3,6 +3,8 @@ import { execFileSync } from 'child_process';
 
 export const dynamic = 'force-dynamic';
 
+const OPENCLAW_BIN = process.env.OPENCLAW_BIN || '/usr/bin/openclaw';
+
 interface ModelListItem {
   key: string;
   name?: string;
@@ -46,7 +48,7 @@ function labelForModel(model: ModelListItem): string {
 export async function GET(): Promise<NextResponse> {
   try {
     // Fonte ufficiale: OpenClaw risolve config globale + agent models.json + auth/profile.
-    const raw = execFileSync('/usr/local/bin/openclaw', ['models', 'list', '--json'], {
+    const raw = execFileSync(OPENCLAW_BIN, ['models', 'list', '--json'], {
       encoding: 'utf-8',
       timeout: 20_000,
       env: { ...process.env, HOME: process.env.HOME || '/data' },
