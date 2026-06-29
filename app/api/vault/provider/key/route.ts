@@ -21,21 +21,9 @@ function parseJson(raw: string): Record<string, unknown> {
   }
 }
 
-function readLocalJson(fileName: string): Record<string, unknown> {
+function readLocalProviderKeys(): Record<string, unknown> {
   try {
-    return parseJson(fs.readFileSync(path.join(LOCAL_AGENT_DIR, fileName), 'utf-8'));
-  } catch {
-    return {};
-  }
-}
-
-function readContainerJson(container: string, fileName: string): Record<string, unknown> {
-  try {
-    const raw = execFileSync(
-      'docker',
-      ['exec', safeContainerName(container), 'cat', `${CONTAINER_AGENT_DIR}/${fileName}`],
-      { timeout: 5000, encoding: 'utf-8', maxBuffer: 512 * 1024 },
-    );
+    const raw = fs.readFileSync(path.resolve(process.cwd(), 'data', 'provider-keys.json'), 'utf-8');
     return parseJson(raw);
   } catch {
     return {};
@@ -46,29 +34,10 @@ function stringField(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
-function findProviderKey(provider: string, models: Record<string, unknown>, profiles: Record<string, unknown>): string | null {
-  const profileEntries = profiles.profiles && typeof profiles.profiles === 'object'
-    ? profiles.profiles as Record<string, unknown>
-    : {};
-  for (const profile of Object.values(profileEntries)) {
-    if (!profile || typeof profile !== 'object') continue;
-    const entry = profile as Record<string, unknown>;
-    if (entry.provider !== provider) continue;
-    const type = String(entry.type || '').replace('-', '_');
-    if (type !== 'token' && type !== 'api_key' && type !== 'api-key') continue;
-    const token = stringField(entry.token) || stringField(entry.apiKey) || stringField(entry.key);
-    if (token) return token;
-  }
-
-  const modelProviders = models.providers && typeof models.providers === 'object'
-    ? models.providers as Record<string, unknown>
-    : {};
-  const modelEntry = modelProviders[provider];
-  if (modelEntry && typeof modelEntry === 'object') {
-    const apiKey = stringField((modelEntry as Record<string, unknown>).apiKey);
-    if (apiKey) return apiKey;
-  }
-
+function findProviderKeyFromKeys(provider: string): string | null {
+  const allKeys = readLocalProviderKeys();
+  const val = allKeys[provider];
+  if (typeof val === 'string' && val.length > 0) return val;
   return null;
 }
 
@@ -87,13 +56,7 @@ export async function GET(request: NextRequest) {
     }
 
     const agent = searchParams.get('agent');
-    const models = agent
-      ? readContainerJson(agent, 'models.json')
-      : readLocalJson('models.json');
-    const profiles = agent
-      ? readContainerJson(agent, 'auth-profiles.json')
-      : readLocalJson('auth-profiles.json');
-    const apiKey = findProviderKey(provider, models, profiles);
+    const apiKey = findProviderKeyFromKeys(provider);
 
     if (!apiKey) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
