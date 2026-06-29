@@ -28,5 +28,4 @@ test-results/
 
 # Local config and state (not committed)
 .env.removed
-models.config.json
 data/
