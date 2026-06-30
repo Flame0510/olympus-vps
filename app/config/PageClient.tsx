@@ -12,21 +12,21 @@ const ENV_METADATA: Record<
   { label: string; description: string; placeholder: string; sensitive?: boolean }
 > = {
   OLYMPUS_PASSWORD: {
-    label: 'Password di login',
-    description: 'Password per accedere alla dashboard Olympus',
-    placeholder: 'Password di accesso',
+    label: 'Login password',
+    description: 'Password used to access the Olympus dashboard',
+    placeholder: 'Dashboard password',
     sensitive: true,
   },
   OLYMPUS_JWT_SECRET: {
     label: 'JWT Secret',
-    description: 'Segreto per firmare i token JWT delle sessioni',
-    placeholder: 'Almeno 32 caratteri',
+    description: 'Secret used to sign session JWT tokens',
+    placeholder: 'At least 32 characters',
     sensitive: true,
   },
   OLYMPUS_TOKEN: {
     label: 'Olympus Token',
-    description: 'Token per autenticare richieste interne',
-    placeholder: 'Token interno',
+    description: 'Token used to authenticate internal requests',
+    placeholder: 'Internal token',
     sensitive: true,
   },
 };
@@ -74,10 +74,10 @@ export default function ConfigPageClient() {
       const data = await res.json();
       if (data.status === 'ok') {
         setStatus('ok');
-        setStatusMsg('Env salvate. Riavvia Olympus per applicare.');
+        setStatusMsg('Environment variables saved. Restart Olympus to apply them.');
       } else {
         setStatus('error');
-        setStatusMsg(data.error || 'Errore');
+        setStatusMsg(data.error || 'Error');
       }
     } catch (e: unknown) {
       setStatus('error');
@@ -105,8 +105,8 @@ export default function ConfigPageClient() {
     <Page maxWidth={900}>
       <PageHeader
         eyebrow="Olympus"
-        title="Configurazione"
-        description="Variabili d'ambiente. I valori sono visibili solo a te."
+        title="Configuration"
+        description="Environment variables. Values are visible only to you."
       />
 
       {loading ? (
@@ -158,7 +158,7 @@ export default function ConfigPageClient() {
                       >
                         {meta.label}
                       </label>
-                      {meta.sensitive && <Pill tone="warning">Chiave segreta</Pill>}
+                      {meta.sensitive && <Pill tone="warning">Secret key</Pill>}
                       <code
                         style={{
                           fontSize: 10,
@@ -208,7 +208,7 @@ export default function ConfigPageClient() {
                             flexShrink: 0,
                           }}
                         >
-                          {isRevealed ? 'NASCONDI' : 'MOSTRA'}
+                          {isRevealed ? 'HIDE' : 'SHOW'}
                         </button>
                       )}
                     </div>
@@ -228,7 +228,7 @@ export default function ConfigPageClient() {
           >
             <button
               onClick={async () => {
-                if (!confirm('Stai per riavviare il server Olympus. Continuare?')) return;
+                if (!confirm('You are about to restart the Olympus server. Continue?')) return;
                 setRestarting(true);
                 setStatus('saving');
                 try {
@@ -245,7 +245,7 @@ export default function ConfigPageClient() {
                     return;
                   }
                   setStatus('ok');
-                  setStatusMsg('Env salvate.');
+                  setStatusMsg('Environment variables saved.');
                   await fetch('/api/config/restart', { method: 'POST' });
                   setTimeout(() => { setRestarting(false); setStatus('idle'); setStatusMsg(''); }, 4000);
                 } catch {
@@ -267,7 +267,7 @@ export default function ConfigPageClient() {
                 opacity: restarting ? 0.5 : 1,
               }}
             >
-              {restarting ? 'Riavvio in corso...' : 'Salva tutto e riavvia Olympus'}
+              {restarting ? 'Restarting...' : 'Save everything and restart Olympus'}
             </button>
           </div>
         </>

@@ -1,7 +1,7 @@
 {
   "name": "@flame0510/olympus",
   "version": "1.0.0",
-  "description": "Olympus — OpenClaw Agency Monitor Dashboard. Monitor workspaces, config, agents, lineage, cron, e costi.",
+  "description": "Olympus dashboard for monitoring OpenClaw workspaces, agents, lineage, configuration, cron activity, and costs.",
   "keywords": [
     "openclaw",
     "olympus",
@@ -13,12 +13,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Flame0510/olympus.git"
+    "url": "git+https://github.com/Flame0510/olympus-vps.git"
   },
   "bugs": {
-    "url": "https://github.com/Flame0510/olympus/issues"
+    "url": "https://github.com/Flame0510/olympus-vps/issues"
   },
-  "homepage": "https://github.com/Flame0510/olympus#readme",
+  "homepage": "https://github.com/Flame0510/olympus-vps#readme",
   "bin": {
     "olympus": "./bin/olympus.js"
   },
@@ -37,7 +37,7 @@
     "lineage.js",
     "start-daemon.sh",
     "package.json",
-    "middleware.ts",
+    "proxy.ts",
     "next.config.mjs",
     "tsconfig.json",
     "next-env.d.ts",

@@ -38,9 +38,31 @@ Login — exchange the static password for a signed JWT cookie.
 ```json
 { "ok": true }
 ```
-Sets `Set-Cookie: olympus_token=<jwt>; HttpOnly; SameSite=Strict`.
+Sets `Set-Cookie: olympus_token=<jwt>; HttpOnly; SameSite=Lax`.
 
 **Error:** `401` if password is wrong.
+
+### `GET /api/auth/check`
+Validate the current browser cookie and report whether the user is authenticated.
+
+**Auth:** browser cookie
+
+**Response:**
+```json
+{ "authenticated": true }
+```
+
+**Error:** `401` with `{ "authenticated": false }` if the cookie is missing or invalid.
+
+### `POST /api/auth/logout`
+Delete the `olympus_token` cookie.
+
+**Auth:** browser cookie
+
+**Response:**
+```json
+{ "ok": true }
+```
 
 ---
 
@@ -212,7 +234,132 @@ Restart the Olympus server (via systemd).
 
 **Auth:** browser cookie
 
-**Response:** `{ "ok": true }`
+**Response:** `{ "status": "ok", "message": "Service restarted" }`
+
+---
+
+## Chat
+
+### `POST /api/chat`
+Send a message to an agent session and receive the reply as Server-Sent Events.
+
+**Auth:** browser cookie
+
+**Body:**
+```json
+{
+  "message": "Summarize the latest failures",
+  "agentId": "ops",
+  "sessionKey": "agent:ops:chat:web:existing-session",
+  "model": "openai/gpt-5.4"
+}
+```
+
+**Notes:**
+- `message` is required.
+- If `sessionKey` is omitted or set to `"new"`, the server creates a new key.
+- The backend invokes `openclaw agent ...` and stores both sides of the conversation in `chat_messages`.
+
+**Response:** `text/event-stream`
+
+The first event contains session metadata:
+```json
+{ "sessionKey": "agent:ops:chat:web:..." }
+```
+
+Subsequent events stream OpenAI-style chunks:
+```json
+{ "choices": [{ "delta": { "content": "Hello" } }] }
+```
+
+The stream ends with:
+```text
+data: [DONE]
+```
+
+**Error:** `400` if the JSON body is invalid or `message` is missing.
+
+### `GET /api/chat/history?sessionKey=<key>&limit=100`
+Return stored chat messages for one session.
+
+**Auth:** browser cookie
+
+**Query params:**
+- `sessionKey` (required)
+- `limit` (optional, default `100`, max `500`)
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "ts": 1751270000000,
+    "user_id": "user",
+    "role": "user",
+    "content": "Hello",
+    "openclaw_session_id": "agent:ops:chat:web:...",
+    "model": "openai/gpt-5.4"
+  }
+]
+```
+
+**Error:** `400` if `sessionKey` is missing.
+
+### `GET /api/chat/sessions?agentId=<id>&limit=30`
+List recent chat-capable OpenClaw sessions, enriched with message counts and source labels.
+
+**Auth:** browser cookie
+
+**Query params:**
+- `agentId` (optional)
+- `limit` (optional, default `30`, max `100`)
+
+**Response:**
+```json
+[
+  {
+    "sessionId": "session_123",
+    "key": "agent:ops:chat:web:...",
+    "label": "Chat Jun 30",
+    "msgCount": 8,
+    "preview": "Summarize the latest failures",
+    "lastTs": 1751270000000,
+    "source": "web",
+    "model": "openai/gpt-5.4",
+    "kind": "direct",
+    "inputTokens": 1200,
+    "outputTokens": 320
+  }
+]
+```
+
+**Notes:**
+- Results are cached in memory for 10 seconds.
+- On upstream failure, the route returns stale cached data if available.
+
+### `POST /api/chat/delete-session`
+Mark a session as archived from the UI perspective.
+
+**Auth:** browser cookie
+
+**Body:**
+```json
+{ "sessionKey": "agent:ops:chat:web:..." }
+```
+
+**Response:**
+```json
+{
+  "ok": true,
+  "message": "Session archived. OpenClaw manages session lifecycle automatically."
+}
+```
+
+**Notes:**
+- This route does not delete data from OpenClaw or SQLite.
+- It acknowledges the request because session lifecycle is managed upstream.
+
+**Error:** `400` if `sessionKey` is missing.
 
 ---
 
@@ -382,6 +529,53 @@ data: {"events":[...],"sessions":[...],"costs":{"today":0.12},"lineage":[...]}
 ```
 
 Use `EventSource` in the browser or `curl -N` for testing.
+
+### `GET /api/workspace/stream`
+Workspace filesystem change stream for the editor.
+
+**Auth:** browser cookie
+
+**Response:** `text/event-stream`
+
+**Event types:**
+- `workspace_ready` — initial snapshot metadata
+- `workspace_changed` — added, modified, or removed files/directories
+- `heartbeat` — emitted when no changes are detected
+- `workspace_error` — emitted if a scan cycle fails
+
+**Initial payload example:**
+```json
+{
+  "type": "workspace_ready",
+  "ts": 1751270000000,
+  "root": "/home/nexus/.openclaw/workspace",
+  "count": 42
+}
+```
+
+**Change payload example:**
+```json
+{
+  "type": "workspace_changed",
+  "ts": 1751270003000,
+  "changed": [
+    {
+      "path": "/home/nexus/.openclaw/workspace/olympus-vps/README.md",
+      "rel_path": "olympus-vps/README.md",
+      "type": "file",
+      "size": 2048,
+      "mtimeMs": 1751270002999,
+      "change": "modified"
+    }
+  ],
+  "truncated": false
+}
+```
+
+**Notes:**
+- The stream polls every 3 seconds.
+- Hidden paths and directories such as `.trash` and `node_modules` are ignored.
+- Only a fixed allowlist of file extensions is included.
 
 ---
 
@@ -803,6 +997,182 @@ AI provider configurations (keys masked — full keys never exposed here).
   ]
 }
 ```
+
+### `POST /api/providers/login`
+Start, refresh, save, or disconnect provider authentication for the host or a target container.
+
+**Auth:** browser cookie
+
+**Body:**
+```json
+{
+  "provider": "openai-codex",
+  "agent": "openclaw-atlas",
+  "method": "oauth",
+  "apiKey": "...",
+  "disconnect": false,
+  "force": false
+}
+```
+
+**Supported modes:**
+- OAuth or refresh flow: `method: "oauth"` or `method: "refresh"`
+- API key / setup token save: `method: "api-key"` with `apiKey`
+- Disconnect: `disconnect: true`
+
+**Response examples:**
+```json
+{ "status": "pending", "verificationUri": "https://auth.openai.com/codex/device", "userCode": "ABCD-1234" }
+```
+
+```json
+{ "status": "already_connected" }
+```
+
+```json
+{ "status": "tty_required", "message": "This provider OAuth requires a terminal. Run this command manually:", "command": "docker exec -it openclaw-atlas openclaw models auth login --provider openai-codex" }
+```
+
+```json
+{ "status": "ok", "provider": "anthropic", "method": "setup-token" }
+```
+
+```json
+{ "status": "disconnected", "method": "force-remove" }
+```
+
+**Notes:**
+- If `agent` is omitted, the route updates the host's `~/.openclaw/agents/main/agent` files directly.
+- For container-scoped operations it uses `docker exec`.
+- Disconnect attempts also remove matching entries from `auth-profiles.json`, `models.json`, and the local SQLite profile store when possible.
+
+### `POST /api/providers/device-code`
+Start a device-code login flow for a supported provider.
+
+**Auth:** browser cookie
+
+**Body:**
+```json
+{ "provider": "openai-codex", "agent": "openclaw-atlas" }
+```
+
+**Response example:**
+```json
+{
+  "status": "pending",
+  "provider": "openai-codex",
+  "agent": "openclaw-atlas",
+  "deviceAuthId": "device_auth_id",
+  "userCode": "ABCD-1234",
+  "verificationUri": "https://auth.openai.com/codex/device",
+  "intervalMs": 5000,
+  "expiresAt": 1751270900000
+}
+```
+
+**Notes:**
+- Built-in device-code support currently exists for `openai-codex` and `github-copilot`.
+- Unsupported providers fall back to `openclaw models auth login --device-code`; if that still cannot produce a code, the route returns `tty_required`.
+
+### `GET /api/providers/device-code?provider=<id>&deviceAuthId=<id>&userCode=<code>&expiresAt=<unix_ms>`
+Poll the device-code flow until authorization completes or expires.
+
+**Auth:** browser cookie
+
+**Response examples:**
+```json
+{ "status": "pending" }
+```
+
+```json
+{ "status": "pending", "delayMs": 10000 }
+```
+
+```json
+{
+  "status": "completed",
+  "provider": "openai-codex",
+  "accessToken": "...",
+  "refreshToken": "...",
+  "expiresMs": 1751274500000
+}
+```
+
+```json
+{ "status": "timeout" }
+```
+
+**Notes:**
+- Returns `missing_params` if required query parameters are absent.
+- Returns `unsupported` for providers without built-in polling support.
+- `openai-codex` performs a second token exchange step internally when the poll API returns `authorization_code` and `code_verifier`.
+
+### `POST /api/providers/device-code/save`
+Persist OAuth tokens obtained from the device-code flow.
+
+**Auth:** browser cookie
+
+**Body:**
+```json
+{
+  "provider": "openai-codex",
+  "accessToken": "...",
+  "refreshToken": "...",
+  "expiresMs": 1751274500000,
+  "agent": "openclaw-atlas"
+}
+```
+
+**Response examples:**
+```json
+{ "status": "ok", "profileId": "openai-codex:device", "method": "paste-token" }
+```
+
+```json
+{ "status": "ok", "profileId": "openai-codex:device", "method": "files" }
+```
+
+**Notes:**
+- If CLI token import fails, the route falls back to direct file writes.
+- It updates both `auth-profiles.json` and `models.json`, then restarts the gateway process when possible.
+
+---
+
+## Version & WebSocket
+
+### `GET /api/version`
+Return the installed OpenClaw CLI version.
+
+**Auth:** browser cookie
+
+**Response:**
+```json
+{ "version": "openclaw x.y.z" }
+```
+
+**Fallback:** `{ "version": "unknown" }` if the command fails.
+
+### `GET /api/ws`
+Documentation placeholder for WebSocket access.
+
+**Auth:** browser cookie
+
+**Response:** plain text with HTTP `426 Upgrade Required`
+
+Example body:
+```text
+WebSocket endpoint available at ws://HOST/ws. This route is a documentation placeholder and does not upgrade connections.
+```
+
+### `GET /ws`
+Live WebSocket endpoint exposed by the custom server.
+
+**Auth:** same browser session as the dashboard
+
+**Protocol notes:**
+- Hosted on the main HTTP port, not under `/api/`
+- Accepts JSON messages such as `chat.send` and `chat.history`
+- Intended for the dashboard client rather than generic REST consumers
 
 ---
 

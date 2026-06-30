@@ -2,21 +2,21 @@
 
 ## Base Image: `nexus-agent-base`
 
-L'immagine base per tutti i container agente nell'ecosistema Olympus.
+The base image for all agent containers in the Olympus ecosystem.
 
 ### Traefik Integration
 
-L'immagine contiene le label statiche minime per Traefik:
+The image includes the minimum static labels required by Traefik:
 - `traefik.enable=true`
 - `traefik.http.services.agent.loadbalancer.server.port=3000`
 
-Le label dinamiche (router rule, hostname, certresolver) devono essere
-passate al momento del `docker run`. Lo script `scripts/spawn-agent.sh`
-le genera automaticamente.
+Dynamic labels (router rule, hostname, certresolver) must be passed at
+`docker run` time. The `scripts/spawn-agent.sh` script generates them
+automatically.
 
-### Traefik Labels richieste
+### Required Traefik Labels
 
-Quando crei un agente manualmente con `docker run`, aggiungi queste label:
+When creating an agent manually with `docker run`, add these labels:
 
 ```bash
 docker run -d \
@@ -35,17 +35,17 @@ docker run -d \
 
 ### `scripts/spawn-agent.sh`
 
-Usa lo script per creare un agente con tutte le label già pronte:
+Use the script to create an agent with all labels preconfigured:
 
 ```bash
 bash scripts/spawn-agent.sh <agent_id>
 ```
 
-Esempio:
+Example:
 ```bash
 bash scripts/spawn-agent.sh argus
 ```
 
-Dopo la creazione:
-- L'agente è raggiungibile su `https://<agent_id>.srv1490011.hstgr.cloud`
-- La pagina Agents di Olympus lo mostra con link Traefik + token copiabile
+After creation:
+- The agent is reachable at `https://<agent_id>.srv1490011.hstgr.cloud`
+- The Olympus Agents page shows it with the Traefik link and a copyable token

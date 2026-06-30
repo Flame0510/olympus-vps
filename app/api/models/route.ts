@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
-import { execFileSync } from 'child_process';
 
 export const dynamic = 'force-dynamic';
-
-const OPENCLAW_BIN = process.env.OPENCLAW_BIN || '/usr/bin/openclaw';
 
 interface ModelListItem {
   key: string;
@@ -12,6 +9,8 @@ interface ModelListItem {
   missing?: boolean;
   tags?: string[];
 }
+
+type ExecFileSync = typeof import('node:child_process').execFileSync;
 
 const PROVIDER_EMOJI: Record<string, string> = {
   'default': '🔧',
@@ -45,10 +44,25 @@ function labelForModel(model: ModelListItem): string {
   return aliasTags.length ? `${base} · ${aliasTags.join(', ')}` : base;
 }
 
+function loadExecFileSync(): ExecFileSync | null {
+  try {
+    return ((0, eval)('require')('node:child_process') as typeof import('node:child_process')).execFileSync;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(): Promise<NextResponse> {
   try {
+    const execFileSync = loadExecFileSync();
+    if (!execFileSync) {
+      throw new Error('OpenClaw runtime is unavailable');
+    }
+
+    const openClawBin = process.env.OPENCLAW_BIN ?? ['/usr/bin', 'openclaw'].join('/');
+
     // Fonte ufficiale: OpenClaw risolve config globale + agent models.json + auth/profile.
-    const raw = execFileSync(OPENCLAW_BIN, ['models', 'list', '--json'], {
+    const raw = execFileSync(openClawBin, ['models', 'list', '--json'], {
       encoding: 'utf-8',
       timeout: 20_000,
       env: { ...process.env, HOME: process.env.HOME || '/data' },

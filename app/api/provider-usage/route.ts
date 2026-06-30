@@ -1,5 +1,3 @@
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
 import { NextResponse, type NextRequest } from 'next/server';
 import { openDb } from '@/lib/db';
 
@@ -83,6 +81,8 @@ type LoadProviderUsageSummary = (opts?: {
   timeoutMs?: number;
 }) => Promise<OpenClawUsageSummary>;
 
+type FsPromisesModule = typeof import('node:fs/promises');
+
 const LABEL: Record<string, string> = {
   anthropic: 'Anthropic',
   'claude-cli': 'Claude CLI',
@@ -97,6 +97,14 @@ function parseNumber(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function loadFsPromises(): FsPromisesModule | null {
+  try {
+    return (0, eval)('require')('node:fs/promises') as FsPromisesModule;
+  } catch {
+    return null;
+  }
 }
 
 function parseOptionalNumber(value: string | undefined): number | null {
@@ -197,13 +205,14 @@ function getModelWhereClause(providerKey: string): string {
 }
 
 let openClawUsageLoaderPromise: Promise<LoadProviderUsageSummary | null> | null = null;
+const OPENCLAW_PROVIDER_USAGE_MODULE =
+  '/usr/local/lib/node_modules/openclaw/dist/provider-usage-Ccwl6xqF.js';
 
 async function loadOpenClawUsageLoader(): Promise<LoadProviderUsageSummary | null> {
   if (!openClawUsageLoaderPromise) {
-    openClawUsageLoaderPromise = new Function(
-      'modulePath',
-      'return import(modulePath);',
-    )('/usr/local/lib/node_modules/openclaw/dist/provider-usage-Ccwl6xqF.js')
+    openClawUsageLoaderPromise = import(
+      /* webpackIgnore: true */ OPENCLAW_PROVIDER_USAGE_MODULE
+    )
       .then((mod: unknown) => {
         const runtime = mod as { t?: LoadProviderUsageSummary };
         return typeof runtime.t === 'function' ? runtime.t : null;
@@ -406,15 +415,18 @@ function parseCodexRuntimeStatus(statusText: string): QuotaMetric[] | null {
 
 async function findLatestCodexRuntimeStatus(): Promise<QuotaMetric[] | null> {
   try {
+    const runtimeFs = loadFsPromises();
+    if (!runtimeFs) return null;
+
     const files = (
       await Promise.all(
         SESSION_STATUS_DIRS.map(async (dir) => {
-          const entries = await fs.readdir(dir, { withFileTypes: true });
+          const entries = await runtimeFs.readdir(dir, { withFileTypes: true });
           const stats = await Promise.all(entries
             .filter((entry) => entry.isFile() && entry.name.endsWith('.jsonl'))
             .map(async (entry) => {
-              const filePath = path.join(dir, entry.name);
-              const stat = await fs.stat(filePath);
+              const filePath = `${dir}/${entry.name}`;
+              const stat = await runtimeFs.stat(filePath);
               return { filePath, mtimeMs: stat.mtimeMs };
             }));
           return stats;
@@ -426,7 +438,7 @@ async function findLatestCodexRuntimeStatus(): Promise<QuotaMetric[] | null> {
       .slice(0, SESSION_STATUS_FILE_LIMIT);
 
     for (const file of files) {
-      const content = await fs.readFile(file.filePath, 'utf8');
+      const content = await runtimeFs.readFile(file.filePath, 'utf8');
       const lines = content.split('\n');
       for (let index = lines.length - 1, seen = 0; index >= 0 && seen < SESSION_STATUS_LINE_LIMIT; index -= 1, seen += 1) {
         const line = lines[index]?.trim();
