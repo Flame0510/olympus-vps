@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { SkeletonLines } from '../components/Skeleton';
 
 interface Agent {
@@ -40,6 +41,7 @@ function fmtCreated(created: string | null): string {
 }
 
 export default function AgentsPageClient() {
+  const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -47,6 +49,7 @@ export default function AgentsPageClient() {
   const [selected, setSelected] = useState<Agent | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [showList, setShowList] = useState(true);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -141,6 +144,17 @@ export default function AgentsPageClient() {
         <div style={{ height: 48, padding: '0 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <span style={{ fontFamily: 'var(--font-serif-stack)', fontSize: '20px', letterSpacing: '4px', color: 'var(--copper)' }}>AGENTS</span>
           <span style={{ fontSize: 11, color: '#888' }}>{agents.length}</span>
+          <button
+            onClick={() => router.push('/agents/create')}
+            style={{
+              border: '1px solid var(--copper)', borderRadius: 4,
+              background: 'rgba(212,155,53,0.12)', color: 'var(--copper)',
+              fontSize: 10, padding: '4px 10px', cursor: 'pointer',
+              textTransform: 'uppercase',
+            }}
+          >
+            + NEW
+          </button>
         </div>
         <div style={{ padding: '8px 14px', display: 'flex', gap: 6, borderBottom: '1px solid var(--border)' }}>
           {(['all', 'running', 'exited'] as const).map((f) => (
@@ -189,8 +203,17 @@ export default function AgentsPageClient() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontFamily: 'var(--font-serif-stack)', fontSize: '20px', letterSpacing: '4px', color: 'var(--copper)' }}>AGENTS</span>
           <span style={{ fontSize: 11, color: '#888' }}>{agents.length} agents · {agents.filter((a) => a.state === 'running').length} running</span>
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            onClick={() => router.push('/agents/create')}
+            style={{
+              border: '1px solid var(--copper)', borderRadius: 4,
+              background: 'rgba(212,155,53,0.12)', color: 'var(--copper)',
+              fontSize: 10, padding: '4px 10px', cursor: 'pointer',
+              textTransform: 'uppercase', marginRight: 8,
+            }}
+          >
+            + NEW
+          </button>
           {(['all', 'running', 'exited'] as const).map((f) => (
             <button key={f} onClick={() => setFilter(f)}
               style={{
@@ -247,6 +270,28 @@ export default function AgentsPageClient() {
 
 // ─── Detail panel (shared between mobile & desktop) ───
 function DetailPanel({ agent }: { agent: Agent }) {
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleDelete = async () => {
+    if (!confirm(`Delete agent "${agent.name}"? This will stop and remove the container.`)) return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      const res = await fetch(`/api/agents/${agent.name}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setDeleteError(data.error || 'Delete failed');
+        setDeleting(false);
+        return;
+      }
+      window.location.reload();
+    } catch (e: unknown) {
+      setDeleteError((e as Error).message || 'Network error');
+      setDeleting(false);
+    }
+  };
+
   return (
     <div style={{ display: 'grid', gap: 12, maxWidth: 600, margin: '16px auto' }}>
       {/* Status */}
@@ -298,6 +343,30 @@ function DetailPanel({ agent }: { agent: Agent }) {
           </div>
         </div>
       )}
+
+      {/* Delete */}
+      <div style={{ border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, background: 'rgba(239,68,68,0.04)', overflow: 'hidden' }}>
+        <div style={{ padding: '8px 14px', borderBottom: '1px solid rgba(239,68,68,0.15)', color: '#ef4444', fontSize: 10, letterSpacing: '0.08em' }}>DANGER ZONE</div>
+        <div style={{ padding: '12px 14px' }}>
+          <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>
+            Delete this agent. This will stop and remove the Docker container. This action cannot be undone.
+          </div>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            style={{
+              padding: '6px 16px', borderRadius: 4, border: '1px solid #ef4444',
+              background: deleting ? 'rgba(239,68,68,0.1)' : 'transparent',
+              color: deleting ? '#666' : '#ef4444', fontSize: 11, cursor: deleting ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {deleting ? 'Deleting...' : 'Delete Agent'}
+          </button>
+          {deleteError && (
+            <div style={{ fontSize: 11, color: '#ef4444', marginTop: 6 }}>{deleteError}</div>
+          )}
+        </div>
+      </div>
 
       {/* Env */}
       {agent.env.length > 0 && (
