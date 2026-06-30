@@ -14,15 +14,21 @@ If you are an AI agent arriving on this repo for the first time:
 
 1. Read this file completely.
 2. Read `README.md` for project overview and feature set.
-3. Read `CONTRIBUTING.md` for contribution workflow.
-4. Read `docs/ARCHITECTURE.md` for system architecture and vision.
-5. Read `docs/CONTAINER-TERMINAL.md` for terminal implementation details.
-6. Read `docs/FRONTEND-ARCHITECTURE.md` for frontend structure and decisions.
+3. Read `docs/ARCHITECTURE.md` for system architecture and vision.
+4. Read `docs/CONTAINER-TERMINAL.md` for terminal implementation details.
+5. Read `docs/FRONTEND-ARCHITECTURE.md` for frontend structure and decisions.
+6. Read `docs/OLYMPUS.md` for app-level features, pages, and navigation.
 7. Read `docs/dev/API-REFERENCE.md` for API endpoints.
 8. Read `docs/dev/DATABASE.md` for database schema.
 9. Read `docs/dev/GATEWAY.md` for provider sync and agent model configuration.
 10. Read `docs/dev/PROVIDERS.md` for key management and the Olympus provider proxy.
+11. Read `docs/dev/WORKSPACE.md` for workspace file explorer and editor.
+12. Read `docs/DESIGN-SYSTEM.md` for design tokens and standards.
 
+> **Additional resources:**
+> - `docs/rag/` — LLM-facing knowledge base for RAG-powered responses
+> - `agent-templates/` — reusable agent protocols for Atlas, Argus, Prometheus
+>
 > **Rule:** After reading, if a file is stale (wrong dates, missing info), update it.
 > Do not assume docs are authoritative — verify against code.
 
@@ -59,15 +65,17 @@ No Italian, no other languages in code or docs.
 - [ ] Does `docs/CONTAINER-TERMINAL.md` need updating? (Terminal-related changes.)
 - [ ] Does `docs/FRONTEND-ARCHITECTURE.md` need updating? (Frontend changes.)
 - [ ] Does `docs/DESIGN-SYSTEM.md` need updating? (Design token changes.)
+- [ ] Does `docs/OLYMPUS.md` need updating? (App-level features, pages, navigation.)
 - [ ] Does `docs/dev/API-REFERENCE.md` need updating? (New/modified API routes.)
 - [ ] Does `docs/dev/DATABASE.md` need updating? (Schema changes.)
 - [ ] Does `docs/dev/GATEWAY.md` need updating? (Provider/agent config changes.)
 - [ ] Does `docs/dev/PROVIDERS.md` need updating? (Auth or proxy changes.)
 - [ ] Does `docs/dev/WORKSPACE.md` need updating? (Workspace API changes.)
+- [ ] Does `docs/rag/` need updating? (RAG knowledge base changes.)
+- [ ] Does `agent-templates/README.md` need updating? (New/updated agent protocols.)
 - [ ] Does `AGENTS.md` need updating? (New rules or conventions.)
 - [ ] Are there new dependencies? Add them to the relevant docs.
 - [ ] Does `README.md` need updating? (New features, changed setup.)
-- [ ] Does `CONTRIBUTING.md` need updating? (Changed workflow.)
 
 **Guideline:** Write docs while you implement, not after. A change without
 documentation is incomplete.
@@ -105,12 +113,14 @@ language:    100% English
 | `docs/ARCHITECTURE.md` | System architecture, multi-container vision, component design |
 | `docs/CONTAINER-TERMINAL.md` | Terminal WebSocket PTY, custom DOM terminal, design decisions |
 | `docs/FRONTEND-ARCHITECTURE.md` | Frontend structure, component tree, mobile breakpoints |
+| `docs/OLYMPUS.md` | App-level features, pages, navigation |
 | `docs/DESIGN-SYSTEM.md` | Design tokens, colors, typography |
 | `docs/dev/API-REFERENCE.md` | API route documentation |
 | `docs/dev/DATABASE.md` | SQLite schema, tables, relations |
 | `docs/dev/GATEWAY.md` | Gateway page: provider sync, agent model config, UI |
 | `docs/dev/PROVIDERS.md` | Provider key management and Olympus proxy gateway |
 | `docs/dev/WORKSPACE.md` | Workspace API file explorer and editor |
+| `docs/rag/` | LLM-facing knowledge base for RAG-powered responses |
 
 ---
 
