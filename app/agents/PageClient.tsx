@@ -61,9 +61,9 @@ export default function AgentsPageClient() {
   const load = useCallback(async () => {
     try {
       const res = await fetch('/api/agents');
-      if (!res.ok) throw new Error(`Errore ${res.status}`);
+      if (!res.ok) throw new Error(`Error ${res.status}`);
       const data = await res.json();
-      if (!Array.isArray(data)) throw new Error('Risposta non valida');
+      if (!Array.isArray(data)) throw new Error('Invalid response');
       setAgents(data);
       setError('');
     } catch (e: any) {
@@ -114,7 +114,7 @@ export default function AgentsPageClient() {
             color: 'var(--copper)', fontSize: 12, padding: '8px 16px', cursor: 'pointer',
           }}
         >
-          RIPROVA
+          RETRY
         </button>
       </div>
     );
@@ -129,7 +129,7 @@ export default function AgentsPageClient() {
           <div style={{ height: 48, padding: '0 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <button onClick={backToList} style={{ background: 'transparent', border: 'none', color: '#888', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M9 2L4 7l5 5"/></svg>
-              INDIETRO
+              BACK
             </button>
             <span style={{ fontSize: 12, color: 'var(--copper)' }}>{selected.name}</span>
           </div>
@@ -169,7 +169,7 @@ export default function AgentsPageClient() {
           ))}
         </div>
         <div style={{ flex: 1, overflow: 'auto' }}>
-          {filtered.length === 0 && <div style={{ padding: 14, color: '#888', fontSize: 12 }}>Nessun agente trovato</div>}
+          {filtered.length === 0 && <div style={{ padding: 14, color: '#888', fontSize: 12 }}>No agents found</div>}
           {filtered.map((agent) => (
             <button key={agent.id} onClick={() => selectAgent(agent)}
               style={{
@@ -228,7 +228,7 @@ export default function AgentsPageClient() {
       </div>
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <div style={{ width: '38%', minWidth: 300, borderRight: '1px solid var(--border)', overflow: 'auto' }}>
-          {filtered.length === 0 && <div style={{ padding: 14, color: '#888', fontSize: 12 }}>Nessun agente trovato</div>}
+          {filtered.length === 0 && <div style={{ padding: 14, color: '#888', fontSize: 12 }}>No agents found</div>}
           {filtered.map((agent) => {
             const isSelected = selected?.id === agent.id;
             return (
@@ -312,17 +312,17 @@ function DetailPanel({ agent }: { agent: Agent }) {
 
       {/* Properties */}
       <div style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', overflow: 'hidden' }}>
-        <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', color: 'var(--copper)', fontSize: 10, letterSpacing: '0.08em' }}>PROPRIETÀ</div>
+        <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', color: 'var(--copper)', fontSize: 10, letterSpacing: '0.08em' }}>PROPERTIES</div>
         {([
           ['Agent ID', agent.agentId],
           ['Container ID', agent.id],
-          ['Immagine', agent.image],
+          ['Image', agent.image],
           ['Tag', agent.imageTag],
           ['Template', agent.template || '—'],
-          ['Stato', agent.state],
-          ['Porte', agent.ports || '—'],
-          ['IP interno', agent.ip || '—'],
-          ['Creato', fmtCreated(agent.created)],
+          ['State', agent.state],
+          ['Ports', agent.ports || '—'],
+          ['Internal IP', agent.ip || '—'],
+          ['Created', fmtCreated(agent.created)],
         ] as const).map(([label, value]) => (
           <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 14px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
             <span style={{ color: '#888' }}>{label}</span>

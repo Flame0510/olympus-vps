@@ -94,7 +94,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         );
       }
       const portInUse = execSync(
-        `docker ps --format '{{.Ports}}' | grep -E "(:|,)${port}->" || true`,
+        `docker ps --format '{{.Ports}}' | grep -oP '\d+(?=->)' | grep -Fx '${port}' || true`,
         { encoding: 'utf-8', timeout: 5000 },
       ).trim();
       if (portInUse) {
