@@ -1,5 +1,7 @@
 # Olympus — VPS Dashboard
 
+> **Last updated:** 2026-06-30
+
 A Next.js 16 dashboard for monitoring and managing the OpenClaw ecosystem on this VPS.
 
 **URL:** `https://olympus.srv1490011.hstgr.cloud`
@@ -343,7 +345,7 @@ curl -b /tmp/cookies.txt -X PUT http://localhost:3740/api/workspace \
 ├── scripts/                 # Utility scripts (spawn-agent, generate-env)
 ├── .env                     # Local env vars (gitignored)
 ├── ecosystem.config.js      # PM2 config
-├── middleware.ts             # Auth middleware
+├── proxy.ts                  # Auth proxy (replaced middleware.ts)
 ├── vault.json               # Credential storage (gitignored)
 ├── next.config.mjs
 └── package.json

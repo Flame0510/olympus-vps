@@ -1,5 +1,7 @@
 # Data Freshness in Olympus
 
+> **Last updated:** 2026-06-30
+
 Understanding how current the data in Olympus is — and what is truly real-time vs. periodically updated.
 
 ---

@@ -2,6 +2,8 @@
 
 Source of truth: `app/design-system.ts` + CSS tokens in `app/globals.css`.
 
+> **Last updated:** 2026-06-30
+
 ---
 
 ## Responsive breakpoints

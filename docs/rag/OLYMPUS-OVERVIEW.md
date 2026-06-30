@@ -1,5 +1,7 @@
 # What is Olympus?
 
+> **Last updated:** 2026-06-30
+
 Olympus is the monitoring dashboard for the AI agent infrastructure managed by Michele Tornello. It is the central control panel that shows what all the AI agents are doing, how much they cost, and whether the system is healthy.
 
 ## What does Olympus monitor?

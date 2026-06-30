@@ -1,5 +1,7 @@
 # What PYTHIA Can Answer
 
+> **Last updated:** 2026-06-30
+
 PYTHIA is the AI assistant inside Olympus. This document lists the questions PYTHIA can answer reliably, and what it cannot answer.
 
 ---

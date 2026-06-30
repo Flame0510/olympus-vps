@@ -1,5 +1,7 @@
 # Olympus Glossary
 
+> **Last updated:** 2026-06-30
+
 ## session_id
 A unique identifier for one agent work session. Format: `agent:<agent_name>:<role>` for persistent agents (e.g. `agent:ops:main`) or `agent:<agent_name>:subagent:<uuid>` for temporary child agents spawned for a specific task.
 

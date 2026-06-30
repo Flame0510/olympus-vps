@@ -1,7 +1,7 @@
 # Container Terminal — WebSocket PTY
 
 > **Status:** Active — `main` branch
-> **Last updated:** 2026-06-25
+> **Last updated:** 2026-06-30
 
 ---
 

@@ -1,5 +1,7 @@
 # Olympus Frontend Architecture
 
+> **Last updated:** 2026-06-30
+
 ## Layering
 
 Olympus UI should follow a layered architecture:

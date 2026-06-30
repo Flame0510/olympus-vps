@@ -1,5 +1,7 @@
 # Olympus — Database Reference
 
+> **Last updated:** 2026-06-30
+
 Olympus uses a single SQLite file (`events.db`) in WAL mode.
 
 ## Location
