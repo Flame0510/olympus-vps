@@ -10,6 +10,7 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { readProviderKeys, writeProviderKeys } from './keys';
+import { syncAllAgents } from '../sync';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -160,129 +161,7 @@ function restartService(): { stdout: string; stderr: string } {
 /*  Agent sync — update openclaw.json in agent containers             */
 /* ------------------------------------------------------------------ */
 
-function getAgentContainers(): string[] {
-  try {
-    const raw = execSync(`docker ps --filter "label=AGENT_ID" --format '{{.Names}}'`, { timeout: 5000, maxBuffer: 64 * 1024, encoding: 'utf-8' }).trim();
-    if (!raw) return [];
-    return raw.split('\n');
-  } catch { return []; }
-}
-
-function getActiveOlympusModels(models: ModelConfigEntry[]): { id: string; name: string }[] {
-  const providerKeys = readProviderKeys();
-  const configuredProviders = Object.keys(providerKeys);
-
-  return models
-    .filter((m) => m.enabled && configuredProviders.includes(m.provider))
-    .map((m) => ({ id: m.id, name: m.name }));
-}
-
-function readContainerJson(container: string, remotePath: string): Record<string, unknown> {
-  try {
-    const raw = execSync(
-      `docker exec ${container} cat ${remotePath}`,
-      { timeout: 8000, maxBuffer: 512 * 1024, encoding: 'utf-8' },
-    );
-    return JSON.parse(raw);
-  } catch {
-    return {};
-  }
-}
-
-function writeContainerJson(container: string, remotePath: string, data: Record<string, unknown>): void {
-  const jsonStr = JSON.stringify(data, null, 2);
-  execSync(
-    `docker exec -i ${container} sh -c 'cat > ${remotePath}'`,
-    { timeout: 10000, maxBuffer: 1024 * 1024, input: jsonStr },
-  );
-}
-
-function restartContainerGateway(container: string): string | null {
-  try {
-    execSync(`docker exec ${container} openclaw gateway restart`, { timeout: 15000, maxBuffer: 64 * 1024 });
-    return null;
-  } catch (e: unknown) {
-    const err = e as { stdout?: string; stderr?: string; message?: string };
-    return err.stderr?.toString().trim() || err.message || 'unknown error';
-  }
-}
-
-function syncAllAgents(models: ModelConfigEntry[]): string[] {
-  const providerKeys = readProviderKeys();
-  const olympusApiKey = providerKeys['olympus'] || '';
-  if (!olympusApiKey) {
-    return ['ERROR: OLYMPUS_API_KEY not found in provider-keys.json (add "olympus" key)'];
-  }
-
-  const activeModels = getActiveOlympusModels(models);
-  const olympusProviderConfig = {
-    baseUrl: 'https://olympus.srv1490011.hstgr.cloud/api/provider/v1',
-    apiKey: olympusApiKey,
-    api: 'openai-completions',
-    models: activeModels,
-  };
-
-  const containers = getAgentContainers();
-  const results: string[] = [`Active models: ${activeModels.length} across ${containers.length} agent(s)`];
-
-  for (const container of containers) {
-    try {
-      const remotePath = '/root/.openclaw/openclaw.json';
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const config = readContainerJson(container, remotePath) as any;
-
-      // Pulisci eventuali file ridondanti ereditati da vecchie versioni
-      execSync(`docker exec ${container} sh -c 'rm -f /root/.openclaw/agents/main/agent/models.json /root/.openclaw/agents/main/agent/auth-profiles.json'`, { timeout: 5000 });
-
-      if (!config.models) config.models = {};
-      if (!config.models.providers) config.models.providers = {};
-      config.models.providers['olympus'] = olympusProviderConfig;
-
-      // Allinea agents.defaults.model e agents.list[0].model se il ref vecchio non matcha
-            // olympusModelIds per match: OpenClaw prefixa con olympus/ i modelli scoperti,
-      // e references in agents.defaults.model usano olympus/ prefisso.
-      const olympusModelIds = activeModels.map((m) => `olympus/${m.id}`);
-      if (config.agents) {
-        const agentsConfig = config.agents as any;
-        const targets = [agentsConfig.defaults?.model, ...(agentsConfig.list || []).map((a: any) => a.model)].filter(Boolean);
-        for (const t of targets) {
-          if (!t.primary) continue;
-          if (!olympusModelIds.includes(t.primary)) {
-            // Cerca un match: togli il prefisso vecchio e prova con olympus/<provider>/<model>
-            const stripped = t.primary.replace('olympus/', '');
-            const candidate = `olympus/${stripped}`;
-            if (olympusModelIds.includes(candidate)) {
-              t.primary = candidate;
-            }
-            // Allinea anche fallback
-            if (t.fallbacks && Array.isArray(t.fallbacks)) {
-              t.fallbacks = t.fallbacks.map((fb: string) => {
-                if (olympusModelIds.includes(fb)) return fb;
-                const strippedFb = fb.replace('olympus/', '');
-                const candidateFb = `olympus/${strippedFb}`;
-                return olympusModelIds.includes(candidateFb) ? candidateFb : fb;
-              });
-            }
-          }
-        }
-      }
-
-      writeContainerJson(container, remotePath, config);
-
-      const gwError = restartContainerGateway(container);
-      if (gwError) {
-        results.push(`${container}: file updated but gateway restart failed: ${gwError}`);
-      } else {
-        results.push(`${container}: synced + restarted OK`);
-      }
-    } catch (e: unknown) {
-      const err = e as { stderr?: string; message?: string };
-      results.push(`${container}: ERROR ${err.stderr || err.message || 'unknown'}`);
-    }
-  }
-  if (containers.length === 0) results.push('No agent containers found');
-  return results;
-}
+// Agent sync moved to ../sync.ts — imported as syncAllAgents
 
 /* ------------------------------------------------------------------ */
 /*  Routes                                                             */
@@ -314,8 +193,7 @@ export async function POST(request: NextRequest) {
     setProviderApiKey(providerName, isRemove ? null : apiKeyValue!.trim());
     let syncResults: string[] = [];
     try {
-      const allModels = loadModelsConfig();
-      syncResults = syncAllAgents(allModels);
+      syncResults = syncAllAgents();
     } catch (se) {
       syncResults = [`Sync error: ${se instanceof Error ? se.message : String(se)}`];
     }
@@ -339,7 +217,7 @@ export async function PUT(request: NextRequest) {
     if (idx === -1) return NextResponse.json({ status: 'error', error: `Model not found: ${modelId}` }, { status: 404 });
     models[idx].enabled = enabled;
     writeModelsConfig(models);
-    const syncResults = syncAllAgents(models);
+    const syncResults = syncAllAgents();
     return NextResponse.json({ status: 'ok', modelId, enabled, provider: models[idx].provider, sync: syncResults });
   } catch (e: unknown) {
     return NextResponse.json({ status: 'error', error: e instanceof Error ? e.message : String(e) }, { status: 500 });
