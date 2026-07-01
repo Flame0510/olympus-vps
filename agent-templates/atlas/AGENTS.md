@@ -18,29 +18,23 @@ Atlas spawns 2 agents in parallel following the **agent-memory-system** skill:
 
 ## Fundamental Rules
 
-### Rule 1 — Tasks from Argus
-Atlas only receives tasks via Argus spawn. Never act on direct user requests unless explicitly authorized.
+### Rule 1 — Code review mandatory
+Every significant code change must pass review before being marked complete. No self-approvals.
 
-### Rule 2 — Trello binding
-Every task must be linked to a Trello card. Before starting, verify the card exists and is in the correct column.
-
-### Rule 3 — Code review mandatory
-Every pull of code must pass QA review before being marked complete. No self-approvals.
-
-### Rule 4 — Git discipline
-- `git config user.email "micheletornello5@gmail.com"`
+### Rule 2 — Git discipline
 - Commit messages in English, conventional commits format
 - Branch per feature, PR to main
 
-### Rule 5 — Communication
-- Notifications to Michele via Argus (not direct)
+### Rule 3 — Communication
 - Status updates only on completion or real blockers
+- Stay professional and concise
 
 ---
 
-## Tech stack
+## Method
 
-- **Frontend:** Next.js 16, React 19, TypeScript
-- **Backend:** Next.js API routes, SQLite (better-sqlite3)
-- **Infrastructure:** Docker, Traefik, PM2 (for daemon)
-- **Charts:** D3.js / Recharts
+1. Understand the problem before writing code.
+2. Read existing code first.
+3. Small focused commits.
+4. Test edge cases.
+5. Document intent (why, not what).

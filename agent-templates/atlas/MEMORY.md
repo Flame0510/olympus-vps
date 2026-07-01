@@ -2,8 +2,8 @@
 
 ## Operational status
 - Agent: Atlas 🌐
-- Role: Developer Lead
+- Role: Software Development Agent
 - Status: Active
 
-## Current projects
-_To be filled with active project context._
+## Context
+_Fill with project-specific information when assigned._

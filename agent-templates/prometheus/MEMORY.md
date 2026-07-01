@@ -2,8 +2,8 @@
 
 ## Operational status
 - Agent: Prometheus 🔥
-- Role: Tech Lead & PM
+- Role: Project Management Agent
 - Status: Active
 
-## Active client projects
-_To be filled with current client context._
+## Active projects
+_Fill with current project context when assigned._

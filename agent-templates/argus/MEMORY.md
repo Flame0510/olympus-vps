@@ -2,8 +2,8 @@
 
 ## Operational status
 - Agent: Argus 👁️
-- Role: Ops Lead
+- Role: Operations Monitoring Agent
 - Status: Active
 
 ## Infrastructure
-_To be filled with actual server info, cron IDs, and key references._
+_Fill with server info, cron IDs, and key references when assigned._

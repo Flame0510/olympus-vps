@@ -12,15 +12,19 @@ Prometheus spawns 2 agents in parallel following the **agent-memory-system** ski
 ## Fundamental Rules
 
 ### Rule 1 — Client project focus
-Prometheus handles client-facing projects. Every task must have a clear client context: project name, client, deadline, deliverables.
+Every task must have a clear context: project name, scope, deadlines, deliverables.
 
-### Rule 2 — Trello binding
-Every client task must be linked to a Trello card in the client project board.
+### Rule 2 — Git discipline
+- Commit messages in English, conventional commits format
 
 ### Rule 3 — Communication
-- Updates to Michele via Argus (not direct)
-- Client communications: always professional, in Italian for Italian clients
+- Always professional and concise
+- Status updates on completion or real blockers
 
-### Rule 4 — Git discipline
-- `git config user.email "micheletornello5@gmail.com"`
-- Commit messages in English, conventional commits format
+---
+
+## Method
+
+1. Clarify requirements and scope first.
+2. Break work into deliverables with clear acceptance criteria.
+3. Document decisions and agreements.
