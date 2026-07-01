@@ -2,11 +2,13 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import { syncAgent } from '../../gateway/sync';
 
 export const dynamic = 'force-dynamic';
 
 const TEMPLATES_DIR = path.join(process.cwd(), 'agent-templates');
 const MODELS_CONFIG = path.join(process.cwd(), 'models.config.json');
+const AGENTS_TOKEN_PATH = path.join(process.cwd(), 'data', 'agents-token.json');
 const DEFAULT_NETWORK = 'openclaw-core_default';
 
 function isDockerCompatibleName(name: string): boolean {
@@ -28,6 +30,20 @@ interface CreateBody {
   port?: number;
   model?: string;
   fallbacks?: string[];
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function readAgentsToken(): string {
+  try {
+    const tokenRaw = fs.readFileSync(AGENTS_TOKEN_PATH, 'utf-8');
+    const tokenData = JSON.parse(tokenRaw);
+    return typeof tokenData.token === 'string' ? tokenData.token.trim() : '';
+  } catch {
+    return '';
+  }
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -109,46 +125,62 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const image = 'nexus-agent-base:latest';
     const network = getNetwork();
 
+    // Read agents token for new containers
+    const agentsToken = readAgentsToken();
+    if (!agentsToken) {
+      return NextResponse.json(
+        { success: false, error: 'Agents gateway token is missing. Set it from /agents before creating agents.' },
+        { status: 400 },
+      );
+    }
+
     const labels = [
       `AGENT_ID=${name}`,
       `traefik.enable=true`,
       `traefik.http.routers.agent-${name}.entrypoints=websecure`,
       `traefik.http.routers.agent-${name}.rule=Host(\`${name}.srv1490011.hstgr.cloud\`)`,
       `traefik.http.routers.agent-${name}.tls.certresolver=letsencrypt`,
+      `traefik.http.routers.agent-${name}.service=agent-${name}`,
       `traefik.http.services.agent-${name}.loadbalancer.server.port=3000`,
     ];
 
     const envVars = [
       `AGENT_ID=${name}`,
       `AGENT_NAME=${name}`,
-      `MODEL_PRIMARY=${model || 'olympus/deepseek-v4-flash'}`,
-      `MODEL_FALLBACK=${fallbacks?.join(',') || 'olympus/deepseek-v4-pro'}`,
-      `OPENCLAW_GATEWAY_URL=https://olympus.srv1490011.hstgr.cloud/gateway`,
+      `OPENCLAW_GATEWAY_TOKEN=${agentsToken}`,
+      `AGENT_HOSTNAME=${name}.srv1490011.hstgr.cloud`,
       `TZ=Europe/Rome`,
     ];
 
-    const labelOpts = labels.map((l) => `-l "${l}"`).join(' ');
-    const envOpts = envVars.map((e) => `-e "${e}"`).join(' ');
+    // Pass the selected model to the entrypoint so it writes it at first boot
+    if (model) {
+      envVars.push(`OPENCLAW_MODEL_PRIMARY=${model}`);
+    }
+
+    const labelOpts = labels.map((l) => `-l ${shellQuote(l)}`).join(' ');
+    const envOpts = envVars.map((e) => `-e ${shellQuote(e)}`).join(' ');
     const portOpt = port ? `-p ${port}:${port}` : '';
 
-    let cmd = `docker run -d \
+    // Attach template files as volume mounts if they exist
+    let volumeOpts = '';
+    const templateFiles = ['AGENTS.md', 'SOUL.md', 'IDENTITY.md', 'MEMORY.md', 'TOOLS.md', 'HEARTBEAT.md'];
+    for (const tf of templateFiles) {
+      const src = path.join(templateDir, tf);
+      if (fs.existsSync(src) && fs.statSync(src).isFile()) {
+        volumeOpts += ` -v ${shellQuote(`${src}:/root/.openclaw/${tf}`)}`;
+      }
+    }
+
+    const cmd = `docker run -d \
       --name "${name}" \
       --network "${network}" \
       --restart unless-stopped \
       --add-host host.docker.internal:host-gateway \
       ${labelOpts} \
       ${envOpts} \
+      ${volumeOpts} \
       ${portOpt} \
       "${image}"`;
-
-    // Attach template files as volume mounts if they exist
-    const templateFiles = ['AGENTS.md', 'SOUL.md', 'IDENTITY.md', 'MEMORY.md', 'TOOLS.md', 'HEARTBEAT.md'];
-    for (const tf of templateFiles) {
-      const src = path.join(templateDir, tf);
-      if (fs.existsSync(src) && fs.statSync(src).isFile()) {
-        cmd += ` -v "${src}:/root/.openclaw/${tf}"`;
-      }
-    }
 
     const result = execSync(cmd, { encoding: 'utf-8', timeout: 60000 });
     const containerId = result.trim();
@@ -177,13 +209,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // DB logging is optional, ignore failures
     }
 
+    // Sync provider models to the new container (no restart — file is live)
+    try {
+      syncAgent(name);
+    } catch {
+      // sync failure is non-fatal; models can be synced manually from Gateway page
+    }
+
     return NextResponse.json({
       success: true,
       containerId,
       name,
       image,
       network,
-      traefikUrl: `https://${name}.srv1490011.hstgr.cloud`,
+      traefikUrl: `https://${name}.srv1490011.hstgr.cloud#token=${encodeURIComponent(agentsToken)}`,
     });
   } catch (e: unknown) {
     const err = e as Error;

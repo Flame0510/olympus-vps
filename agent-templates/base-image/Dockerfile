@@ -6,8 +6,8 @@
 # on-demand by Olympus or directly by the user from the dashboard.
 #
 # Traefik integration:
-#   - Static labels (enable, service port) are baked into the image.
-#   - Dynamic labels (router rule with agent hostname) are provided
+#   - Static enablement is baked into the image.
+#   - Dynamic router/service labels are provided
 #     at container creation time via `docker run -l ...`.
 #   - See agent-templates/README.md for the full label set.
 #
@@ -25,7 +25,7 @@
 #     -l "AGENT_ID=<id>" \
 #     -l "traefik.enable=true" \
 #     -l "traefik.http.routers.agent-<id>.entrypoints=websecure" \
-#     -l "traefik.http.routers.agent-<id>.rule=Host(\`<id>.srv1490011.hstgr.cloud\`)" \
+#     -l "traefik.http.routers.agent-<id>.rule=Host(`<id>.srv1490011.hstgr.cloud`)" \
 #     -l "traefik.http.routers.agent-<id>.tls.certresolver=letsencrypt" \
 #     -l "traefik.http.services.agent-<id>.loadbalancer.server.port=3000" \
 #     -e AGENT_ID=<id> \
@@ -38,9 +38,7 @@ LABEL maintainer="Olympus Agency"
 
 # Traefik static labels — enable proxy support by default.
 # Dynamic router/service labels must be provided at container creation.
-# These ensure basic Traefik awareness even if --labels are omitted.
 LABEL traefik.enable="true"
-LABEL traefik.http.services.agent.loadbalancer.server.port="3000"
 
 # Avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
@@ -50,6 +48,7 @@ ENV NODE_ENV=production
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
+    openssl \
     && rm -rf /var/lib/apt/lists/*
 
 # OpenClaw only — no PM2, no gh, no git
@@ -69,4 +68,4 @@ WORKDIR /data
 EXPOSE 3000
 
 ENTRYPOINT ["/agent-entrypoint.sh"]
-CMD ["openclaw", "gateway", "--bind", "lan"]
+CMD ["openclaw", "gateway", "--bind", "lan", "--port", "3000"]
