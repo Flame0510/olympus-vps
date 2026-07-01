@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import * as http from 'http';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const DOCKER_SOCKET = '/var/run/docker.sock';
 
@@ -62,26 +64,33 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
             e.startsWith('AGENT_') || e.startsWith('MODEL_')
           );
 
-          // Read auth token — read from fixed config or openclaw.json
+          // Read auth token — always prefer the shared agents-token.json (user-managed)
           const cName = (c.Names?.[0] || '').replace(/^\//, '');
           try {
-            const { execSync } = require('child_process');
-            // Try the fixed config file first (gateway.auth.token in openclaw-fixed.json)
-            let token = execSync(
-              `docker exec ${cName} node -e "const j=require('/root/.openclaw/openclaw.json'); console.log(j.gateway?.auth?.token || '')" 2>/dev/null || echo ''`,
-              { timeout: 5000, encoding: 'utf-8' }
-            ).toString().trim();
-            if (token && token !== 'undefined') authToken = token;
-            else {
-              // Fallback: try .env
-              token = execSync(
-                `docker exec ${cName} sh -c 'grep ^OPENCLAW_GATEWAY_TOKEN= /root/.openclaw/.env 2>/dev/null | cut -d= -f2- | tr -d "\"\""' 2>/dev/null || echo ''`,
+            const tokenRaw = fs.readFileSync(
+              path.join(process.cwd(), 'data', 'agents-token.json'),
+              'utf-8'
+            );
+            const tokenData = JSON.parse(tokenRaw);
+            if (tokenData.token) {
+              authToken = tokenData.token;
+            }
+          } catch {
+            // agents-token.json unavailable
+          }
+
+          // Fallback only if shared token is missing: try the container's own gateway token
+          if (!authToken) {
+            try {
+              const { execSync } = require('child_process');
+              let token = execSync(
+                `docker exec ${cName} sh -c 'grep ^OPENCLAW_GATEWAY_TOKEN= /root/….env 2>/dev/null | cut -d= -f2- | tr -d "\"\""' 2>/dev/null || echo ''`,
                 { timeout: 5000, encoding: 'utf-8' }
               ).toString().trim();
               if (token && token !== 'undefined') authToken = token;
+            } catch {
+              // token unavailable for this container
             }
-          } catch {
-            // token unavailable for this container
           }
 
           // Build Traefik URL from the traefik router rule label, fallback to container name
@@ -94,9 +103,9 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
               const hostMatch = rule.match(/Host\([`'"]([^`'"]+)[`'"]\)/);
               if (hostMatch) {
                 let baseUrl = `https://${hostMatch[1]}`;
-                // Append token as query param if available
+                // Control UI expects shared-secret bootstrap in the hash fragment.
                 if (authToken) {
-                  baseUrl += `?token=${encodeURIComponent(authToken)}`;
+                  baseUrl += `#token=${encodeURIComponent(authToken)}`;
                 }
                 traefikUrl = baseUrl;
               }
@@ -105,7 +114,7 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
               // Fallback: use AGENT_ID as subdomain
               traefikUrl = `https://${agentId}.srv1490011.hstgr.cloud`;
               if (authToken) {
-                traefikUrl += `?token=${encodeURIComponent(authToken)}`;
+                traefikUrl += `#token=${encodeURIComponent(authToken)}`;
               }
             }
           }
