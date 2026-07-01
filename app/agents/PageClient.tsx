@@ -49,7 +49,10 @@ export default function AgentsPageClient() {
   const [selected, setSelected] = useState<Agent | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [showList, setShowList] = useState(true);
-  const [deleting, setDeleting] = useState(false);
+  const [token, setToken] = useState('');
+  const [tokenLoading, setTokenLoading] = useState(true);
+  const [tokenSaving, setTokenSaving] = useState(false);
+  const [tokenStatus, setTokenStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -75,6 +78,29 @@ export default function AgentsPageClient() {
 
   useEffect(() => { load(); const i = setInterval(load, 15000); return () => clearInterval(i); }, [load]);
 
+  const loadToken = useCallback(async () => {
+    try {
+      const res = await fetch('/api/agents/token');
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data = await res.json();
+      setToken(typeof data.token === 'string' ? data.token : '');
+    } catch (e: any) {
+      setTokenStatus({ type: 'error', message: e.message || 'Token loading error' });
+    } finally {
+      setTokenLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadToken();
+  }, [loadToken]);
+
+  useEffect(() => {
+    if (!tokenStatus) return;
+    const timeoutId = window.setTimeout(() => setTokenStatus(null), 4000);
+    return () => window.clearTimeout(timeoutId);
+  }, [tokenStatus]);
+
   const filtered = useMemo(() => {
     let list = [...agents];
     if (filter === 'running') list = list.filter((a) => a.state === 'running');
@@ -90,6 +116,78 @@ export default function AgentsPageClient() {
   function backToList() {
     setShowList(true);
   }
+
+  async function saveToken() {
+    setTokenSaving(true);
+    setTokenStatus(null);
+    try {
+      const res = await fetch('/api/agents/token', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Save failed');
+      }
+      setTokenStatus({
+        type: 'success',
+        message: `✓ Token saved and synced to ${data.containersUpdated} containers`,
+      });
+      load();
+    } catch (e: any) {
+      setTokenStatus({ type: 'error', message: e.message || 'Save failed' });
+    } finally {
+      setTokenSaving(false);
+    }
+  }
+
+  const tokenSection = (
+    <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input
+          type="text"
+          placeholder="Agents Gateway Token"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          disabled={tokenSaving || tokenLoading}
+          style={{
+            flex: '1 1 320px',
+            minWidth: 220,
+            border: '1px solid var(--border)',
+            borderRadius: 4,
+            background: 'var(--bg)',
+            color: 'var(--text)',
+            fontSize: 12,
+            padding: '8px 10px',
+            fontFamily: 'var(--font-mono-stack)',
+            outline: 'none',
+          }}
+        />
+        <button
+          onClick={saveToken}
+          disabled={tokenSaving || tokenLoading}
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: 4,
+            background: 'var(--bg3)',
+            color: tokenSaving || tokenLoading ? '#666' : 'var(--copper)',
+            fontSize: 12,
+            padding: '8px 16px',
+            cursor: tokenSaving || tokenLoading ? 'not-allowed' : 'pointer',
+            textTransform: 'uppercase',
+          }}
+        >
+          {tokenSaving ? 'Saving...' : 'Save & Sync'}
+        </button>
+      </div>
+      {tokenStatus && (
+        <div style={{ marginTop: 8, fontSize: 11, color: tokenStatus.type === 'success' ? '#22c55e' : '#ef4444' }}>
+          {tokenStatus.message}
+        </div>
+      )}
+    </div>
+  );
 
   if (loading) {
     return (
@@ -156,6 +254,7 @@ export default function AgentsPageClient() {
             + NEW
           </button>
         </div>
+        {tokenSection}
         <div style={{ padding: '8px 14px', display: 'flex', gap: 6, borderBottom: '1px solid var(--border)' }}>
           {(['all', 'running', 'exited'] as const).map((f) => (
             <button key={f} onClick={() => setFilter(f)}
@@ -214,17 +313,20 @@ export default function AgentsPageClient() {
           >
             + NEW
           </button>
-          {(['all', 'running', 'exited'] as const).map((f) => (
-            <button key={f} onClick={() => setFilter(f)}
-              style={{
-                border: '1px solid var(--border)', borderRadius: 4,
-                background: filter === f ? 'rgba(212,155,53,0.15)' : 'transparent',
-                color: filter === f ? 'var(--copper)' : '#888', fontSize: 10,
-                padding: '4px 10px', cursor: 'pointer', textTransform: 'uppercase',
-              }}
-            >{f}</button>
-          ))}
         </div>
+      </div>
+      {tokenSection}
+      <div style={{ padding: '8px 14px', display: 'flex', gap: 6, borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        {(['all', 'running', 'exited'] as const).map((f) => (
+          <button key={f} onClick={() => setFilter(f)}
+            style={{
+              border: '1px solid var(--border)', borderRadius: 4,
+              background: filter === f ? 'rgba(212,155,53,0.15)' : 'transparent',
+              color: filter === f ? 'var(--copper)' : '#888', fontSize: 10,
+              padding: '4px 10px', cursor: 'pointer', textTransform: 'uppercase',
+            }}
+          >{f}</button>
+        ))}
       </div>
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <div style={{ width: '38%', minWidth: 300, borderRight: '1px solid var(--border)', overflow: 'auto' }}>
