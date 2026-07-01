@@ -4,7 +4,7 @@
 > on this repository. Read this first, then follow the docs it references.
 >
 > **Status:** Active — `main` branch
-> **Last updated:** 2026-06-25
+> **Last updated:** 2026-07-01
 
 ---
 
@@ -13,17 +13,17 @@
 If you are an AI agent arriving on this repo for the first time:
 
 1. Read this file completely.
-2. Read `README.md` for project overview and feature set.
-3. Read `docs/ARCHITECTURE.md` for system architecture and vision.
-4. Read `docs/CONTAINER-TERMINAL.md` for terminal implementation details.
-5. Read `docs/FRONTEND-ARCHITECTURE.md` for frontend structure and decisions.
-6. Read `docs/OLYMPUS.md` for app-level features, pages, and navigation.
-7. Read `docs/dev/API-REFERENCE.md` for API endpoints.
-8. Read `docs/dev/DATABASE.md` for database schema.
-9. Read `docs/dev/GATEWAY.md` for provider sync and agent model configuration.
-10. Read `docs/dev/PROVIDERS.md` for key management and the Olympus provider proxy.
+2. Read `README.md` for project overview, features, and quick start.
+3. Read `docs/OLYMPUS.md` for app-level features, pages, and navigation.
+4. Read `docs/ARCHITECTURE.md` for system architecture and component layout.
+5. Read `docs/dev/API-REFERENCE.md` for API endpoints.
+6. Read `docs/dev/GATEWAY.md` for provider sync and agent model configuration.
+7. Read `docs/dev/PROVIDERS.md` for key management and the Olympus provider proxy.
+8. Read `docs/FRONTEND-ARCHITECTURE.md` for frontend structure and decisions.
+9. Read `docs/CONTAINER-TERMINAL.md` for terminal WebSocket implementation.
+10. Read `docs/dev/DATABASE.md` for SQLite schema and storage notes.
 11. Read `docs/dev/WORKSPACE.md` for workspace file explorer and editor.
-12. Read `docs/DESIGN-SYSTEM.md` for design tokens and standards.
+12. Read `docs/DESIGN-SYSTEM.md` for design tokens and visual standards.
 
 > **Additional resources:**
 > - `docs/rag/` — LLM-facing knowledge base for RAG-powered responses
