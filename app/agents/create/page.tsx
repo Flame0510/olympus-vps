@@ -34,26 +34,17 @@ async function getTemplates(): Promise<TemplateInfo[]> {
 
 async function getModels(): Promise<ModelInfo[]> {
   const configPath = path.join(process.cwd(), 'models.config.json');
+  const keysPath = path.join(process.cwd(), 'data', 'provider-keys.json');
   try {
     const raw = fs.readFileSync(configPath, 'utf-8');
     const config = JSON.parse(raw);
     const allModels: ModelInfo[] = (config.models || []).filter((m: { enabled: boolean }) => m.enabled !== false);
 
-    // Fetch configured providers from openclaw-core
+    // Read configured provider keys from Olympus
     let configuredProviders: string[] = [];
     try {
-      const modelsRaw = execSync(
-        `docker exec openclaw-core cat /data/.openclaw/agents/main/agent/models.json 2>/dev/null || echo "{}"`,
-        { encoding: 'utf-8', timeout: 8000 },
-      ).trim();
-      const modelsJson = JSON.parse(modelsRaw);
-      const providers = modelsJson.providers ?? {};
-      configuredProviders = Object.entries(providers)
-        .filter(([, p]) => {
-          const cfg = p as Record<string, unknown>;
-          return !!cfg.apiKey && String(cfg.apiKey).length > 0;
-        })
-        .map(([name]) => name);
+      const keysRaw = fs.readFileSync(keysPath, 'utf-8');
+      configuredProviders = Object.keys(JSON.parse(keysRaw));
     } catch {
       // fallback: show all models
     }

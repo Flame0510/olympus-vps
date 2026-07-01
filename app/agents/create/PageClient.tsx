@@ -62,7 +62,9 @@ export default function CreatePageClient({ templates, models, usedNames, usedPor
   const [agentName, setAgentName] = useState('');
   const [port, setPort] = useState<string>('');
   const [portEnabled, setPortEnabled] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [selectedModel, setSelectedModel] = useState<string>(
+    models.length > 0 ? models[0].id : ''
+  );
   const [fallbacks] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
   const [result, setResult] = useState<{ name: string; containerId: string; traefikUrl: string } | null>(null);
@@ -299,7 +301,6 @@ export default function CreatePageClient({ templates, models, usedNames, usedPor
                 background: 'var(--bg)', color: 'var(--text)', fontSize: 14, outline: 'none',
               }}
             >
-              <option value="">Default (deepseek-v4-flash)</option>
               {models.map((m) => (
                 <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>
               ))}
