@@ -1,6 +1,6 @@
 # Olympus API Reference
 
-> **Last updated:** 2026-06-30
+> **Last updated:** 2026-07-01
 
 All routes are under `/api/`. Authentication is required on every endpoint
 unless otherwise noted.
@@ -24,6 +24,8 @@ automatically.
 1. `Authorization: Bearer <token>`
 2. `?token=<token>` query param
 3. `x-agent-token` header
+
+For Control UI deep links, prefer `#token=<token>` instead of `?token=<token>`. The hash fragment is consumed by the browser client before the WebSocket connects.
 
 ---
 
@@ -88,7 +90,6 @@ Returns live gateway status from all agent containers.
         "agentId": "atlas",
         "agentName": "Atlas",
         "defaultModel": "olympus/deepseek/deepseek-v4-flash",
-        "fallbacks": ["olympus/deepseek/deepseek-v4-pro"],
         "configured": true
       }
     ]
@@ -97,11 +98,11 @@ Returns live gateway status from all agent containers.
 ```
 
 ### `PUT /api/gateway/provider`
-Trigger a full provider sync to all agent containers.
+Trigger a full provider model sync to all agent containers.
 
 **Auth:** any auth method
 
-**Body:** none (reads current provider state from store)
+**Body:** none (reads current provider state from `models.config.json` and `data/provider-keys.json`)
 
 **Response:**
 ```json
@@ -114,9 +115,9 @@ Trigger a full provider sync to all agent containers.
 
 **Side effects:**
 - Writes `models.providers.olympus` to each agent container's `openclaw.json`
-- Aligns `agents.defaults.model` and `agents.list[].model` if needed
 - Cleans up stale `models.json` and `auth-profiles.json` inside containers
-- Restarts the gateway inside each container
+- **Does NOT touch `agents.defaults.model` or `agents.list[].model`** — model references are managed per-container via the Agents Tab (`PUT /api/gateway/agent`)
+- Does NOT restart the gateway (config is written live to the file)
 
 ### `PUT /api/gateway/agent`
 Update model config for a single agent container.
@@ -128,9 +129,10 @@ Update model config for a single agent container.
 {
   "containerName": "openclaw-atlas",
   "model": "deepseek/deepseek-v4-flash",
-  "fallbacks": ["deepseek/deepseek-v4-pro"]
+  "fallbacks": []
 }
 ```
+If `fallbacks` is omitted or empty, no fallback models are set.
 
 **Response:**
 ```json
@@ -138,18 +140,16 @@ Update model config for a single agent container.
   "status": "ok",
   "agent": "openclaw-atlas",
   "model": {
-    "primary": "olympus/deepseek/deepseek-v4-flash",
-    "fallbacks": ["olympus/deepseek/deepseek-v4-pro"]
+    "primary": "olympus/deepseek/deepseek-v4-flash"
   },
   "verify": { "ok": true, "bytes": 2058 }
 }
 ```
 
 **Behaviour:**
-- Prepends `olympus/` to model IDs if missing
-- Deduplicates fallbacks
-- Removes primary model from fallbacks
-- Restarts gateway inside the container
+- Writes `agents.defaults.model.primary` and `agents.list[0].model.primary` with format `olympus/<provider>/<model>`
+- No restart — writes are live via `docker exec node -e`
+- Does NOT set fallbacks unless explicitly provided
 
 ### `GET /api/gateway/provider`
 Returns current provider configuration state.
@@ -600,13 +600,125 @@ Tool call events for a session.
 ## Agents
 
 ### `GET /api/agents`
-List of distinct agent IDs derived from session keys.
+List running agent containers (Docker containers with `AGENT_ID` label) with full metadata.
 
 **Auth:** browser cookie
 
-**Response:** `["ops", "website", "forge"]`
+**Response:**
+```json
+[
+  {
+    "id": "abc123def456",
+    "agentId": "prometheus",
+    "name": "prometheus",
+    "image": "nexus-agent-base:latest",
+    "imageTag": "latest",
+    "template": "prometheus",
+    "status": "running",
+    "state": "running",
+    "ports": "",
+    "ip": "172.19.0.5",
+    "created": "2026-07-01T16:58:42.876829416Z",
+    "env": ["AGENT_ID=prometheus", "AGENT_HOSTNAME=prometheus.srv1490011.hstgr.cloud"],
+    "authToken": "asdfghjkl",
+    "traefikUrl": "https://prometheus.srv1490011.hstgr.cloud#token=asdfghjkl"
+  }
+]
+```
+
+**Notes:**
+- The `authToken` and `traefikUrl` use the shared gateway token from `data/agents-token.json` (source of truth), not the local gateway token inside the container
+- Containers are discovered via Docker API with label filter `AGENT_ID`
+- Template is inferred from the container image name + agent ID directory match in `agent-templates/`
 
 ---
+
+### `POST /api/agents/create`
+Create a new agent container from a template.
+
+**Auth:** browser cookie
+
+**Body:**
+```json
+{
+  "name": "my-agent",
+  "template": "prometheus",
+  "port": 3033,
+  "model": "deepseek/deepseek-v4-flash"
+}
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `name` | yes | Container name, also becomes `AGENT_ID` and subdomain |
+| `template` | yes | Template name (directory in `agent-templates/`) |
+| `port` | no | Optional port mapping |
+| `model` | no | Primary model ID from `models.config.json` |
+
+**Response (success):**
+```json
+{
+  "success": true,
+  "containerId": "00f5de1eb08d...",
+  "name": "my-agent",
+  "image": "nexus-agent-base:latest",
+  "network": "openclaw-core_default",
+  "traefikUrl": "https://my-agent.srv1490011.hstgr.cloud#token=asdfghjkl"
+}
+```
+
+**Post-creation:**
+1. Entrypoint generates `openclaw.json` — if `model` was provided, sets `agents.defaults.model.primary = olympus/<model>`
+2. The route calls `syncAgent(name)` to write `models.providers.olympus` into the container
+3. Gateway restarts automatically (the container is new — no stale PID)
+4. Traefik labels are set for HTTPS via Let's Encrypt
+
+**Side effects:**
+- Template files (`AGENTS.md`, `SOUL.md`, etc.) are volume-mounted from the template directory
+- The agent is registered in Traefik at `https://<name>.srv1490011.hstgr.cloud`
+- An event is logged to `data/events.db` if available
+
+**Error:** `400` for validation errors, `409` if name/port already in use
+
+---
+
+### `GET /api/agents/token`
+Read the shared agents gateway token.
+
+**Auth:** browser cookie
+
+**Response:**
+```json
+{ "token": "asdfghjkl", "updated_at": 1751270000000 }
+```
+
+The token is stored in `data/agents-token.json`.
+
+---
+
+### `PUT /api/agents/token`
+Update the shared agents gateway token and push it to all running agent containers.
+
+**Auth:** browser cookie
+
+**Body:**
+```json
+{ "token": "new-token-value" }
+```
+
+**Response:**
+```json
+{ "success": true, "containersUpdated": 2 }
+```
+
+**Side effects:**
+- Writes the new token to `data/agents-token.json`
+- Writes the token file (`/root/.agent-token`) into every running container with `AGENT_ID` label
+- Restarts each container so the entrypoint picks up the new token via `OPENCLAW_GATEWAY_TOKEN` env
+
+---
+
+### `GET /api/agents-active`
 
 ### `GET /api/agents-active`
 Configured agents (from `openclaw.json`) enriched with recent session activity
