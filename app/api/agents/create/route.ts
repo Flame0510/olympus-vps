@@ -167,7 +167,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     for (const tf of templateFiles) {
       const src = path.join(templateDir, tf);
       if (fs.existsSync(src) && fs.statSync(src).isFile()) {
-        volumeOpts += ` -v ${shellQuote(`${src}:/root/.openclaw/${tf}`)}`;
+        volumeOpts += ` -v ${shellQuote(`${src}:/root/.openclaw/workspace/${tf}`)}`;
       }
     }
 
