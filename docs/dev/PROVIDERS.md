@@ -1,6 +1,6 @@
 # Providers & Key Management
 
-> **Last updated:** 2026-06-30
+> **Last updated:** 2026-07-01
 
 This document covers the Providers UI, the Olympus Provider Gateway (proxy),
 the vault key endpoint, and how agent containers authenticate against the
@@ -188,18 +188,9 @@ Inside each agent container, the `openclaw.json` file has this structure for the
   "agents": {
     "defaults": {
       "model": {
-        "primary": "olympus/deepseek/deepseek-v4-flash",
-        "fallbacks": ["olympus/deepseek/deepseek-v4-pro"]
+        "primary": "olympus/deepseek/deepseek-v4-flash"
       }
-    },
-    "list": [{
-      "id": "main",
-      "name": "Atlas",
-      "model": {
-        "primary": "olympus/deepseek/deepseek-v4-flash",
-        "fallbacks": ["olympus/deepseek/deepseek-v4-pro"]
-      }
-    }]
+    }
   }
 }
 ```
@@ -207,8 +198,8 @@ Inside each agent container, the `openclaw.json` file has this structure for the
 Key points:
 
 - `models.providers.olympus.models` uses model IDs **without** the `olympus/` prefix
-- `agents.defaults.model.primary` and `agents.list[0].model.primary` use model IDs
-  **with** the `olympus/` prefix (as they would appear at runtime)
+- `agents.defaults.model.primary` uses the model ID **with** the `olympus/` 
+  prefix (as it would appear at runtime). No fallbacks are set by default.
 - The `apiKey` value must match the `olympus` entry in `data/provider-keys.json`
   for the container to successfully authenticate against the Gateway
 
