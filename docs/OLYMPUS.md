@@ -1,6 +1,6 @@
 # Olympus — VPS Dashboard
 
-> **Last updated:** 2026-06-30
+> **Last updated:** 2026-07-01
 
 A Next.js 16 dashboard for monitoring and managing the OpenClaw ecosystem on this VPS.
 
@@ -64,7 +64,7 @@ A Next.js 16 dashboard for monitoring and managing the OpenClaw ecosystem on thi
 | Route | Description |
 |---|---|
 | `/dashboard` | System overview — containers, resources, quick links |
-| `/agents` | Running agents (Docker containers with `AGENT_ID`), gateway token copy |
+| `/agents` | Running agents (Docker containers with `AGENT_ID`), gateway token management, agent creation wizard |
 | `/containers` | All Docker containers on the host |
 | `/workspace` | File explorer with tree view + editor — VPS host or container workspaces |
 | `/lineage` | Agent lineage / orchestration tree |
@@ -76,7 +76,7 @@ A Next.js 16 dashboard for monitoring and managing the OpenClaw ecosystem on thi
 | `/plugins-skills` | Plugin skills |
 | `/skills` | Skill registry |
 | `/tools` | Tool configuration |
-| `/gateway` | LLM provider and agent model configuration — see [GATEWAY.md](dev/GATEWAY.md) |
+| `/gateway` | LLM provider sync + agent model configuration — see [GATEWAY.md](dev/GATEWAY.md) |
 | `/config` | Environment management and server restart |
 | `/vault` | Credential storage (per-agent permissions) — see [PROVIDERS.md](dev/PROVIDERS.md) |
 | `/login` | Authentication page |
@@ -99,6 +99,7 @@ OLYMPUS_JWT_SECRET=***  # Secret for signing JWTs
 2. POST `/api/auth/login` validates password, returns a `olympus_token` cookie (JWT, 7-day expiry)
 3. All subsequent API calls use the cookie (`credentials: 'same-origin'`)
 4. API-only auth fallbacks: `Authorization: Bearer <token>`, `?token=<token>`, or `x-agent-token` header
+5. Control UI bootstrap links should use `#token=<token>` so the browser client can import the shared secret before opening the socket
 
 ---
 
@@ -209,9 +210,80 @@ View all running Docker containers with:
 - Quick links to agent control UIs
 
 ### Agent management (`/agents`)
-- Lists all agents from Docker containers with `AGENT_ID` label
-- Shows gateway token with copy-to-clipboard
-- Health status per agent
+Lists all agents (Docker containers with `AGENT_ID` label), with:
+- Name, image, template, status, ports, IP
+- **Shared gateway token** — text input with Save & Sync. Changing the token saves it to `data/agents-token.json` and pushes it to all running containers.
+- **Control UI link** — direct Traefik URL with `#token=<token>` hash, reads the token from `agents-token.json` (source of truth), not from the container's local config.
+- **Agent creation wizard** — multi-step form at `/agents/create`.
+
+### Agent Creation Wizard (`/agents/create`)
+
+**Step 1 — Template:** Select an agent template from `agent-templates/`. Each template is a directory with AGENTS.md, SOUL.md, MEMORY.md files.
+
+**Step 2 — Config:** Enter agent name, optional port, select a primary model from the available providers (pre-filtered by configured provider keys). The first model is pre-selected.
+
+**Step 3 — Deploy:** `POST /api/agents/create` creates the Docker container and returns the Traefik URL with the shared gateway token.
+
+**Post-creation:**
+1. The container boots with the **nexus-agent-base:latest** image — see [Agent Templates](#agent-templates) below.
+2. The entrypoint generates `openclaw.json` with `gateway.mode: local`, the gateway token, and the selected model primary ref (if provided via `OPENCLAW_MODEL_PRIMARY` env var).
+3. `POST /api/agents/create` calls `syncAgent(name)` to write `models.providers.olympus` into the container.
+4. The agent's control UI is immediately accessible at `https://<name>.srv1490011.hstgr.cloud#token=<gateway-token>`.
+
+---
+
+## Agent Templates
+
+### Base Image (`nexus-agent-base:latest`)
+
+**Dockerfile:** `agent-templates/base-image/Dockerfile`
+
+Built from `node:24-bookworm-slim`, includes:
+- OpenClaw CLI + DeepSeek provider plugin
+- `openssl` (for local token generation)
+- Custom entrypoint `/agent-entrypoint.sh`
+
+**Entrypoint behavior:**
+- On every boot, generates `/root/.openclaw/openclaw.json` with bootstrap keys:
+  - `gateway.mode: local`, `gateway.auth.token` (local random), `gateway.remote` pointing to Olympus
+  - `controlUi.dangerouslyDisableDeviceAuth: true`
+  - `agents.defaults.userTimezone: Europe/Rome`
+  - If `OPENCLAW_MODEL_PRIMARY` env var is set, writes `agents.defaults.model.primary = olympus/<model-id>`
+- Does NOT write `models.providers` — that is handled by the Gateway sync
+- Starts OpenClaw gateway in foreground: `openclaw gateway --bind lan --port 3000`
+
+**External persistence:** `models.providers.olympus` and `agents.*.model` are written by the sync module and the Gateway Agents Tab. The entrypoint always regenerates bootstrap keys, so external sync must run after creation.
+
+### Template directories
+Located in `agent-templates/`. Each subdirectory (e.g. `prometheus/`, `atlas/`) contains:
+- `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `MEMORY.md`, `TOOLS.md`, `HEARTBEAT.md`
+
+These are mounted as volumes at container creation time at `/root/.openclaw/`.
+
+---
+
+## Gateway Page (`/gateway`)
+
+Two panels:
+
+### Provider Sync
+- Reads active models from `models.config.json` (file-based model catalogue)
+- Scans providers with keys in `data/provider-keys.json`
+- `PUT /api/gateway/provider` runs `syncAllAgents()` which writes `models.providers.olympus` to every agent container
+- **Does NOT touch** `agents.defaults.model` or `agents.list[].model` — model references are managed per-container from the Agents Tab
+
+### Agent Model Config
+- Select a container and set its primary model
+- `PUT /api/gateway/agent` writes the model ref (`primary`, `fallbacks`) directly into the container's `openclaw.json`
+- Does NOT restart the gateway — writes are live via file write
+
+### Model Catalogue (`models.config.json`)
+File-based, tracked in git. Each entry:
+```json
+{ "id": "deepseek/deepseek-v4-flash", "name": "DeepSeek V4 Flash", "provider": "deepseek", "enabled": true }
+```
+Models with `enabled: false` are ignored.
+Only models whose provider has a key in `data/provider-keys.json` are synced.
 
 ---
 
@@ -229,6 +301,7 @@ View all running Docker containers with:
 | Auth mode | `token` |
 
 **Control UI:** `http://187.77.156.41:3731` — enter the gateway token to log in.
+Olympus-generated direct links should use `#token=<gateway-token>` for automatic Control UI sign-in.
 
 ### openclaw-core
 
