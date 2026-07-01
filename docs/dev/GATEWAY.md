@@ -1,6 +1,6 @@
 # Gateway Page
 
-> **Last updated:** 2026-06-30
+> **Last updated:** 2026-07-01
 
 The Gateway page (`/gateway`) is the central control panel for managing provider
 configurations and agent model assignments across all Docker containers.
@@ -12,7 +12,7 @@ configurations and agent model assignments across all Docker containers.
 ```
 Gateway Page
 ├── Provider Tab    → Manage provider API keys, enable/disable models, push sync
-└── Agents Tab      → Change primary model and fallbacks per agent container
+└── Agents Tab      → Change primary model per agent container
 ```
 
 The Gateway talks to each agent container directly via `docker exec`, reading and
@@ -55,11 +55,11 @@ When a provider key is saved or a model toggle is changed, the Gateway:
    on model IDs)
 4. **Writes** the block into `/root/.openclaw/openclaw.json` on every agent container
    (containers with `AGENT_ID` Docker label)
-5. **Aligns** `agents.defaults.model` and `agents.list[].model` if the old model
-   reference no longer matches any available model
-6. **Cleans up** stale `models.json` and `auth-profiles.json` files inside each
+5. **Cleans up** stale `models.json` and `auth-profiles.json` files inside each
    container
-7. **Restarts** the Gateway inside each container to pick up the new config
+6. **Writes** the block into `/root/.openclaw/openclaw.json` on every agent container
+   — **does NOT touch** `agents.defaults.model` or `agents.list[].model`
+7. **Does NOT restart** the gateway — writes are live via file write
 
 ### Model ID Convention
 
@@ -115,7 +115,7 @@ Lists all agent containers discovered from Docker (containers with `AGENT_ID`
 label). Each agent row shows:
 
 - Agent name and container name
-- Current primary model and fallbacks
+- Current primary model
 - "Change Model" button
 
 ### Change Model Flow
@@ -124,36 +124,21 @@ Clicking "Change Model" opens an inline form with:
 
 1. **Primary model select** — dropdown of all enabled models (filtered to
    configured providers only)
-2. **Fallback pills** — click any model to add/remove it as a fallback
 
 On save:
 
 1. **PUT /api/gateway/agent** writes the model config to the container's
    `openclaw.json`:
-   - `agents.defaults.model` updated
-   - `agents.list[0].model` updated
-   - `olympus/` prefix is prepended automatically if missing
-   - Fallbacks are deduplicated and filtered (primary removed from fallbacks)
-2. **Gateway restarted** inside the container
-3. **Background polling** — the UI polls `GET /api/gateway` every second (up to 8
-   attempts) until the agent gateway is back online, then updates the displayed
-   data without a full page reload
+   - `agents.defaults.model.primary` and `agents.list[0].model.primary` written
+     with format `olympus/<provider>/<model>`
+   - No fallbacks are set unless explicitly provided
+2. **No restart** — writes are live via `docker exec node -e`
 
 ### Model Select Filtering
 
 The model select in the Agents tab only shows models whose provider has a
 configured API key in `data/provider-keys.json`. This ensures users can only
 select models that are actually available.
-
-### UI States
-
-| State | Behavior |
-|---|---|
-| **Idle** | "Change Model" button visible |
-| **Saving** | Overlay shows "Aggiornamento modello…" during the PUT call |
-| **Restarting** | Overlay closes, inline message "Riavvio gateway in corso…" appears |
-| **Done** | Data refreshes from the gateway, message disappears |
-| **Error** | Red error message with the error text |
 
 ---
 
@@ -175,7 +160,6 @@ via `openclaw models status --json` inside each container.
         "agentId": "atlas",
         "agentName": "Atlas",
         "defaultModel": "olympus/deepseek/deepseek-v4-flash",
-        "fallbacks": ["olympus/deepseek/deepseek-v4-pro"],
         "configured": true
       }
     ]
@@ -185,9 +169,11 @@ via `openclaw models status --json` inside each container.
 
 ### `PUT /api/gateway/provider`
 
-Triggers a full provider sync to all agent containers.
+Triggers a full provider model sync to all agent containers. Only writes
+`models.providers.olympus` — does NOT touch model references.
 
-**Body:** none (reads current provider state from store)
+**Body:** none (reads current provider state from `models.config.json` and
+`data/provider-keys.json`)
 
 **Response:**
 ```json
@@ -200,14 +186,13 @@ Triggers a full provider sync to all agent containers.
 
 ### `PUT /api/gateway/agent`
 
-Updates model config for a single agent container.
+Updates model config for a single agent container (primary model only).
 
 **Body:**
 ```json
 {
   "containerName": "openclaw-atlas",
-  "model": "deepseek/deepseek-v4-flash",
-  "fallbacks": ["deepseek/deepseek-v4-pro"]
+  "model": "deepseek/deepseek-v4-flash"
 }
 ```
 
@@ -217,8 +202,7 @@ Updates model config for a single agent container.
   "status": "ok",
   "agent": "openclaw-atlas",
   "model": {
-    "primary": "olympus/deepseek/deepseek-v4-flash",
-    "fallbacks": ["olympus/deepseek/deepseek-v4-pro"]
+    "primary": "olympus/deepseek/deepseek-v4-flash"
   },
   "verify": { "ok": true, "bytes": 2058 }
 }
@@ -282,6 +266,12 @@ Restart the Olympus server (via systemd).
    or env vars. This file is gitignored and managed exclusively through the
    Gateway UI.
 
-4. **Background polling instead of fixed delay** — After an agent model save,
-   the UI polls `GET /api/gateway` every second instead of waiting a fixed 4
-   seconds, so data refreshes as soon as the agent gateway comes back online.
+4. **No gateway restart after model sync** — The sync module writes `models.providers`
+   to the file directly without restarting the gateway. The agent container's
+   entrypoint regenerates bootstrap keys on every boot, so external sync must
+   run after container creation.
+
+5. **Model ref written at container creation** — When the wizard creates an agent,
+   the entrypoint receives `OPENCLAW_MODEL_PRIMARY` and writes the model ref at
+   boot time. The Gateway sync (`PUT /api/gateway/provider`) never touches model
+   references — only `models.providers` is synced.
