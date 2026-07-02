@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { SkeletonLines } from '../components/Skeleton';
+import PasswordInput from '../components/PasswordInput';
 
 interface Agent {
   id: string;
@@ -53,7 +54,6 @@ export default function AgentsPageClient() {
   const [tokenLoading, setTokenLoading] = useState(true);
   const [tokenSaving, setTokenSaving] = useState(false);
   const [tokenStatus, setTokenStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
     check();
@@ -145,24 +145,12 @@ export default function AgentsPageClient() {
   const tokenSection = (
     <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <input
-          type="text"
-          placeholder="Agents Gateway Token"
+        <PasswordInput
           value={token}
-          onChange={(e) => setToken(e.target.value)}
+          onChange={setToken}
+          placeholder="Agents Gateway Token"
           disabled={tokenSaving || tokenLoading}
-          style={{
-            flex: '1 1 320px',
-            minWidth: 220,
-            border: '1px solid var(--border)',
-            borderRadius: 4,
-            background: 'var(--bg)',
-            color: 'var(--text)',
-            fontSize: 12,
-            padding: '8px 10px',
-            fontFamily: 'var(--font-mono-stack)',
-            outline: 'none',
-          }}
+          style={{ flex: '1 1 280px', minWidth: 180 }}
         />
         <button
           onClick={saveToken}

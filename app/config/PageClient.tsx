@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Page, PageHeader, Surface, Pill } from '../components/ui';
+import PasswordInput from '../components/PasswordInput';
 
 interface EnvVars {
   [key: string]: string;
@@ -38,7 +39,6 @@ export default function ConfigPageClient() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<SaveStatus>('idle');
   const [statusMsg, setStatusMsg] = useState('');
-  const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [restarting, setRestarting] = useState(false);
 
   const loadEnv = useCallback(async () => {
@@ -85,14 +85,7 @@ export default function ConfigPageClient() {
     }
   };
 
-  const toggleReveal = (key: string) => {
-    setRevealed((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
+
 
   // Sort keys: sensitive first, then alphabetical
   const sortedKeys = Object.entries(ENV_METADATA).sort(([, a], [, b]) => {
@@ -137,7 +130,6 @@ export default function ConfigPageClient() {
           <section style={{ display: 'grid', gap: 16, marginBottom: 20 }}>
             {sortedKeys.map(([key, meta]) => {
               const value = env[key] || '';
-              const isRevealed = revealed.has(key);
               return (
                 <Surface key={key} variant="panel">
                   <div style={{ padding: '14px 16px', display: 'grid', gap: 8 }}>
@@ -177,39 +169,30 @@ export default function ConfigPageClient() {
                     </div>
 
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <input
-                        type={meta.sensitive && !isRevealed ? 'password' : 'text'}
-                        value={value}
-                        onChange={(e) => handleChange(key, e.target.value)}
-                        placeholder={meta.placeholder}
-                        style={{
-                          flex: 1,
-                          padding: '10px 12px',
-                          borderRadius: 6,
-                          border: '1px solid var(--border)',
-                          background: 'var(--surface)',
-                          color: 'var(--text)',
-                          fontSize: 13,
-                          fontFamily: 'var(--font-mono-stack)',
-                        }}
-                      />
-                      {meta.sensitive && (
-                        <button
-                          onClick={() => toggleReveal(key)}
+                      {meta.sensitive ? (
+                        <PasswordInput
+                          value={value}
+                          onChange={(v) => handleChange(key, v)}
+                          placeholder={meta.placeholder}
+                          style={{ flex: 1 }}
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={value}
+                          onChange={(e) => handleChange(key, e.target.value)}
+                          placeholder={meta.placeholder}
                           style={{
-                            padding: '8px 12px',
+                            flex: 1,
+                            padding: '10px 12px',
                             borderRadius: 6,
                             border: '1px solid var(--border)',
-                            background: 'transparent',
-                            color: 'var(--text-dim)',
-                            fontSize: 11,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            flexShrink: 0,
+                            background: 'var(--surface)',
+                            color: 'var(--text)',
+                            fontSize: 13,
+                            fontFamily: 'var(--font-mono-stack)',
                           }}
-                        >
-                          {isRevealed ? 'HIDE' : 'SHOW'}
-                        </button>
+                        />
                       )}
                     </div>
                   </div>

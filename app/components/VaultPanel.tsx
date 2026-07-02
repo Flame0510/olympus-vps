@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from 'react';
 import { Surface, Pill, toneVars } from './ui';
+import PasswordInput from './PasswordInput';
 import { apiFetch } from '@/lib/apiFetch';
 
 interface ProviderItem {
@@ -241,7 +242,7 @@ export default function VaultPanel() {
             {showAddProvider && (
               <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 6, padding: '8px', border: '1px solid var(--border)', borderRadius: 4 }}>
                 <input placeholder="Provider (es: openai-codex)" value={providerForm.provider} onChange={e => setProviderForm(p => ({ ...p, provider: e.target.value }))} style={inputStyle} />
-                <input placeholder="API Key" type="password" value={providerForm.apiKey} onChange={e => setProviderForm(p => ({ ...p, apiKey: e.target.value }))} style={inputStyle} />
+                <PasswordInput value={providerForm.apiKey} onChange={v => setProviderForm(p => ({ ...p, apiKey: v }))} placeholder="API Key" inputStyle={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', color: 'var(--text)', padding: '8px 36px 8px 10px', fontSize: 12, fontFamily: 'var(--font-mono-stack)', outline: 'none' }} />
                 <input placeholder="Base URL (opzionale)" value={providerForm.baseUrl} onChange={e => setProviderForm(p => ({ ...p, baseUrl: e.target.value }))} style={inputStyle} />
                 <button onClick={handleAddProvider} disabled={saving === 'provider'} style={btnStyle}>
                   {saving === 'provider' ? 'SAVING...' : '💾 SAVE'}
@@ -285,7 +286,7 @@ export default function VaultPanel() {
             {showAddService && (
               <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 6, padding: '8px', border: '1px solid var(--border)', borderRadius: 4 }}>
                 <input placeholder="Service (es: github)" value={serviceForm.service} onChange={e => setServiceForm(s => ({ ...s, service: e.target.value }))} style={inputStyle} />
-                <input placeholder="Token" type="password" value={serviceForm.token} onChange={e => setServiceForm(s => ({ ...s, token: e.target.value }))} style={inputStyle} />
+                <PasswordInput value={serviceForm.token} onChange={v => setServiceForm(s => ({ ...s, token: v }))} placeholder="Token" inputStyle={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', color: 'var(--text)', padding: '8px 36px 8px 10px', fontSize: 12, fontFamily: 'var(--font-mono-stack)', outline: 'none' }} />
                 <input placeholder="User (opzionale)" value={serviceForm.user} onChange={e => setServiceForm(s => ({ ...s, user: e.target.value }))} style={inputStyle} />
                 <button onClick={handleAddService} disabled={saving === 'service'} style={btnStyle}>
                   {saving === 'service' ? 'SAVING...' : '💾 SAVE'}

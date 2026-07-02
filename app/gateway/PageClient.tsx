@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Metric, Page, PageHeader, Pill, Surface, type Tone } from '../components/ui';
+import PasswordInput from '../components/PasswordInput';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
@@ -385,7 +386,6 @@ export default function GatewayPageClient() {
   const [messages, setMessages] = useState<Record<string, { type: 'success' | 'error'; text: string } | null>>({});
   const [revealedKeys, setRevealedKeys] = useState<Record<string, string | null>>({});
   const [revealing, setRevealing] = useState<Record<string, boolean>>({});
-  const [showOlympusInput, setShowOlympusInput] = useState(false);
 
   // Agent edit state
   const [editingAgent, setEditingAgent] = useState<string | null>(null);
@@ -670,37 +670,12 @@ export default function GatewayPageClient() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-              <input type={showOlympusInput ? 'text' : 'password'} placeholder="OLYMPUS_API_KEY"
-                value={apiKeyInputs['olympus'] ?? ''}
-                onChange={(e) => setApiKeyInputs((prev) => ({ ...prev, olympus: e.target.value }))}
-                style={{
-                  width: '100%', padding: '10px 36px 10px 12px', borderRadius: 6,
-                  border: '1px solid var(--border)', background: 'var(--surface)',
-                  color: 'var(--text)', fontSize: 13, fontFamily: 'monospace',
-                  boxSizing: 'border-box',
-                }} />
-              <button onClick={() => setShowOlympusInput((p) => !p)}
-                type="button" tabIndex={-1}
-                style={{
-                  position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: 'var(--text-dim)', padding: '4px 6px', display: 'flex',
-                }}>
-                {showOlympusInput ? (
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M8 3C4.5 3 1.5 5.5 1 8c.5 2.5 3.5 5 7 5s6.5-2.5 7-5c-.5-2.5-3.5-5-7-5z" stroke="currentColor" strokeWidth="1.3" />
-                    <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.3" />
-                    <path d="M12 4 4 12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                  </svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M8 3C4.5 3 1.5 5.5 1 8c.5 2.5 3.5 5 7 5s6.5-2.5 7-5c-.5-2.5-3.5-5-7-5z" stroke="currentColor" strokeWidth="1.3" />
-                    <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.3" />
-                  </svg>
-                )}
-              </button>
-            </div>
+            <PasswordInput
+              value={apiKeyInputs['olympus'] ?? ''}
+              onChange={(v) => setApiKeyInputs((prev) => ({ ...prev, olympus: v }))}
+              placeholder="OLYMPUS_API_KEY"
+              style={{ flex: 1, minWidth: 200 }}
+            />
             <button onClick={() => handleSaveOlympusKey()}
               disabled={overlay.active || apiKeyInputs['olympus']?.trim() === originalKeys['olympus']?.trim()}
               style={{
@@ -763,41 +738,12 @@ export default function GatewayPageClient() {
 
                   {/* API Key input con show/hide integrato */}
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-                      <input type={revealedKeys[p.provider] === '__show__' ? 'text' : 'password'}
-                        placeholder={`API Key ${p.label}`}
-                        value={apiKeyInputs[p.provider] ?? ''}
-                        onChange={(e) => setApiKeyInputs((prev) => ({ ...prev, [p.provider]: e.target.value }))}
-                        style={{
-                          width: '100%', padding: '10px 36px 10px 12px', borderRadius: 6,
-                          border: '1px solid var(--border)', background: 'var(--surface)',
-                          color: 'var(--text)', fontSize: 13, fontFamily: 'monospace',
-                          boxSizing: 'border-box',
-                        }} />
-                      <button onClick={() => setRevealedKeys((prev) => ({
-                        ...prev,
-                        [p.provider]: prev[p.provider] === '__show__' ? null : '__show__',
-                      }))}
-                        type="button" tabIndex={-1}
-                        style={{
-                          position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
-                          background: 'none', border: 'none', cursor: 'pointer',
-                          color: 'var(--text-dim)', padding: '4px 6px', display: 'flex',
-                        }}>
-                        {revealedKeys[p.provider] === '__show__' ? (
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M8 3C4.5 3 1.5 5.5 1 8c.5 2.5 3.5 5 7 5s6.5-2.5 7-5c-.5-2.5-3.5-5-7-5z" stroke="currentColor" strokeWidth="1.3" />
-                            <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.3" />
-                            <path d="M12 4 4 12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                          </svg>
-                        ) : (
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M8 3C4.5 3 1.5 5.5 1 8c.5 2.5 3.5 5 7 5s6.5-2.5 7-5c-.5-2.5-3.5-5-7-5z" stroke="currentColor" strokeWidth="1.3" />
-                            <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.3" />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
+                    <PasswordInput
+                      value={apiKeyInputs[p.provider] ?? ''}
+                      onChange={(v) => setApiKeyInputs((prev) => ({ ...prev, [p.provider]: v }))}
+                      placeholder={`API Key ${p.label}`}
+                      style={{ flex: 1, minWidth: 200 }}
+                    />
                     <button onClick={() => handleSave(p.provider)}
                       disabled={overlay.active || apiKeyInputs[p.provider]?.trim() === originalKeys[p.provider]?.trim()}
                       style={{
