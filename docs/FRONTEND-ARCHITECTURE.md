@@ -1,6 +1,6 @@
 # Olympus Frontend Architecture
 
-> **Last updated:** 2026-06-30
+> **Last updated:** 2026-07-02
 
 ## Layering
 
@@ -24,6 +24,9 @@ Current shared primitives:
 - `Pill` — status labels.
 - `Page` / `PageHeader` — full-page layout shell.
 - `Skeleton` — loading placeholders.
+- `Icons` (`EyeIcon`, `EyeOffIcon`) — shared SVG icon components (16/20px).
+- `PasswordInput` — password input with inline show/hide toggle icon. Used in agents,
+  gateway, config, login, and vault panels.
 
 ## GoF pattern mapping
 
